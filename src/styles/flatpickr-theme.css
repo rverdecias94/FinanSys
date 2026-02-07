@@ -1,0 +1,173 @@
+:root {
+  --fp-surface: var(--background);
+  --fp-border: var(--border);
+  --fp-text: var(--foreground);
+  --fp-muted: var(--muted-foreground);
+  --fp-accent: var(--accent);
+  --fp-accent-text: var(--accent-foreground);
+  --fp-primary: var(--primary);
+  --fp-primary-text: var(--primary-foreground);
+  --fp-ring: var(--ring);
+  --fp-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --fp-radius: 0.75rem;
+  --fp-day: 2.25rem;
+  --fp-font: inherit;
+}
+
+.flatpickr-calendar {
+  background: #cfe8e6;
+  border: 1px solid var(--fp-border);
+  border-radius: var(--fp-radius);
+  box-shadow: var(--fp-shadow);
+  color: var(--fp-text);
+  font-family: var(--fp-font);
+  width: 100% !important;
+  max-width: 20rem;
+}
+
+.flatpickr-months {
+  padding: 0.5rem 0.5rem 0.25rem 0.5rem;
+}
+
+.flatpickr-current-month {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--fp-text);
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months:focus {
+  border-color: var(--fp-ring);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--fp-ring) 30%, transparent);
+  outline: none;
+}
+
+.flatpickr-current-month input.cur-year {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--fp-text);
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+}
+
+.flatpickr-current-month input.cur-year:focus {
+  border-color: var(--fp-ring);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--fp-ring) 30%, transparent);
+  outline: none;
+}
+
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  border-radius: 0.5rem;
+  color: var(--fp-text);
+  fill: var(--fp-text);
+  padding: 0.25rem;
+  top: 0.25rem;
+}
+
+.flatpickr-prev-month:hover,
+.flatpickr-next-month:hover {
+  background: var(--fp-accent);
+  color: var(--fp-accent-text);
+  fill: var(--fp-accent-text);
+}
+
+.flatpickr-weekdays {
+  margin-top: 0.25rem;
+  padding: 0 0.5rem;
+}
+
+.flatpickr-weekday {
+  color: var(--fp-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+.flatpickr-days {
+  padding: 0.5rem;
+}
+
+.flatpickr-day {
+  border-radius: 0.5rem;
+  height: var(--fp-day);
+  line-height: var(--fp-day);
+  max-width: var(--fp-day);
+  width: var(--fp-day);
+  background-color: transparent;
+}
+
+.flatpickr-day:hover {
+  background: #62b4ac;
+  color: var(--fp-accent-text);
+}
+
+.flatpickr-day:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--fp-ring) 35%, transparent);
+  outline: none;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--fp-primary);
+  color: var(--fp-primary-text);
+  background-color: rgb(92, 158, 167);
+  border-color: transparent;
+}
+
+.flatpickr-day.today {
+  border-color: transparent;
+  color: var(--fp-primary);
+  font-weight: 700;
+  background-color: rgb(167, 204, 209);
+}
+
+.flatpickr-day.today:hover {
+  border-color: transparent;
+  color: var(--fp-primary-text);
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.flatpickr-day.has-event::after {
+  background: color-mix(in oklab, var(--fp-primary) 80%, transparent);
+  border-radius: 9999px;
+  bottom: 0.35rem;
+  content: '';
+  height: 0.28rem;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 0.28rem;
+}
+
+.flatpickr-day.has-event.selected::after,
+.flatpickr-day.has-event.startRange::after,
+.flatpickr-day.has-event.endRange::after {
+  background: color-mix(in oklab, var(--fp-primary-text) 85%, transparent);
+}
+
+@media (max-width: 420px) {
+  :root {
+    --fp-day: 2rem;
+  }
+
+  .flatpickr-calendar {
+    max-width: 100%;
+  }
+}
