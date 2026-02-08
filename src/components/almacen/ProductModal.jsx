@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -5,8 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createProduct, updateProduct, deleteProduct } from '@/services/almacen'
+import { useSession } from '@/hooks/useSession'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories }) {
+  const { session } = useSession()
+  const userId = session?.user?.id
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -48,9 +52,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       }
 
       if (product) {
-        await updateProduct(product.id, payload)
+        await updateProduct(product.id, payload, userId)
       } else {
-        await createProduct(payload)
+        await createProduct(payload, userId)
       }
       onSuccess()
     } catch (error) {
@@ -65,7 +69,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     if (!confirm('¿Estás seguro de eliminar este producto?')) return
     setLoading(true)
     try {
-      await deleteProduct(product.id)
+      await deleteProduct(product.id, userId)
       onSuccess()
     } catch (error) {
       console.error(error)

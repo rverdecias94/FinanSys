@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -71,7 +72,7 @@ const formSchema = z.object({
   files: z.any().optional(), // For mock attachment
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, bankAccounts, transaction }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])

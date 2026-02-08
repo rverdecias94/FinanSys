@@ -1,9 +1,12 @@
 import { supabase } from '@/config/supabase'
 
-export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all' } = {}) {
+export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all', userUuid } = {}) {
+  if (!userUuid) throw new Error('User UUID is required for security isolation')
+
   let q = supabase
     .from('products')
     .select('*', { count: 'exact' })
+    .eq('user_id', userUuid)
     .order('name', { ascending: true })
 
   // Filters
@@ -15,28 +18,6 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
     q = q.eq('category', category)
   }
 
-  // Stock Status Filter (requires manual filtering or complex query if logic is simple)
-  // Since "min_stock" is a column, we can use it.
-  // But standard supabase filters don't support "stock <= min_stock" directly easily without RPC or raw SQL.
-  // However, for this requirement, we can fetch and filter in memory if dataset is small, 
-  // OR we can use simple gt/lt filters if we were comparing to a constant.
-  // Comparing two columns (stock <= min_stock) is tricky in simple PostgREST JS client without .rpc().
-  // FOR NOW: We will handle "low_stock" filter by not filtering in DB if it's too complex, or we use a workaround.
-  // Workaround: We can't easily compare columns in .filter().
-  // Alternative: Create a computed column or view in DB.
-  // Let's stick to client-side filtering for "low_stock" if the page size is small? No, pagination breaks.
-  // Let's assume for now we only filter by category/search in DB, and maybe handle low_stock differently 
-  // or just accept we might need to create a view later. 
-  // Actually, let's keep it simple: If "low_stock" is requested, we might need a dedicated query or RPC.
-  // For simplicity in this iteration: we'll filter category and search. 
-  // If user wants "low stock", we'll try to use a client-side filter approach if the list is small enough 
-  // OR just implement it properly with a raw query if needed. 
-  // Let's leave "low_stock" filter for client-side or future improvement if strict DB paging is needed.
-  // BUT user asked for filters. Let's try to do it right.
-  // If I can't compare columns easily, maybe I can just fetch all and filter in JS? 
-  // If database is huge, this is bad. But for "Small/Medium" inventory it's fine.
-  // Let's try to filter what we can in DB.
-  
   // Pagination
   if (page && pageSize) {
     const from = (page - 1) * pageSize
@@ -47,59 +28,85 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
   const { data, count, error } = await q
   if (error) throw error
 
-  // If we had a "low_stock" filter that we couldn't apply in DB, we'd have a problem with pagination count.
-  // For now, let's apply client-side filtering for stockStatus ONLY if necessary, 
-  // but this invalidates server-side pagination total count.
-  // Correct approach: Use a Supabase View or RPC. 
-  // Quick fix: Don't implement "low_stock" as a server-side filter for now, just search/category.
-  // The user asked for filters, didn't specify which ones must be server-side.
-  // Let's stick to Search + Category for server-side.
-
   return { data, count }
 }
 
-export async function getProduct(id) {
+export async function getProduct(id, userUuid) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('id', id)
+    .eq('user_id', userUuid)
     .single()
   if (error) throw error
   return data
 }
 
-export async function createProduct(payload) {
+export async function createProduct(payload, userUuid) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   const { data, error } = await supabase
     .from('products')
-    .insert(payload)
+    .insert({ ...payload, user_id: userUuid })
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateProduct(id, payload) {
+export async function updateProduct(id, payload, userUuid) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   const { data, error } = await supabase
     .from('products')
     .update(payload)
     .eq('id', id)
+    .eq('user_id', userUuid)
     .select()
     .single()
   if (error) throw error
   return data
 }
 
-export async function deleteProduct(id) {
+export async function deleteProduct(id, userUuid) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   const { error } = await supabase
     .from('products')
     .delete()
     .eq('id', id)
+    .eq('user_id', userUuid)
   if (error) throw error
   return true
 }
 
 export async function registerMovement({ product_id, qty, type, user_id }) {
-  // 1. Registrar movimiento
+  if (!user_id) throw new Error('User UUID is required')
+
+  // 1. Verify ownership and get current stock
+  const { data: product, error: prodError } = await supabase
+    .from('products')
+    .select('id, stock')
+    .eq('id', product_id)
+    .eq('user_id', user_id)
+    .single()
+
+  if (prodError || !product) {
+    // Log security attempt to DB
+    await supabase.from('access_audit_logs').insert({
+      user_id: user_id,
+      action: 'unauthorized_movement_attempt',
+      resource: `product_${product_id}`,
+      details: { product_id, qty, type }
+    })
+
+    console.error('Security Alert: Attempt to access unauthorized product', { product_id, user_id })
+    throw new Error('Access Denied: Product does not belong to user')
+  }
+
+  // 2. Register movement
   const { data: movement, error: movError } = await supabase
     .from('movements')
     .insert({ product_id, qty, type, user_id })
@@ -108,17 +115,8 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
 
   if (movError) throw movError
 
-  // 2. Actualizar stock del producto (si no hay trigger en DB)
-  // Primero obtenemos el stock actual
-  const { data: product, error: prodError } = await supabase
-    .from('products')
-    .select('stock')
-    .eq('id', product_id)
-    .single()
-
-  if (prodError) throw prodError
-
-  const newStock = type === 'in' 
+  // 3. Update product stock
+  const newStock = type === 'in'
     ? Number(product.stock) + Number(qty)
     : Number(product.stock) - Number(qty)
 
@@ -126,19 +124,23 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
     .from('products')
     .update({ stock: newStock })
     .eq('id', product_id)
+    .eq('user_id', user_id)
 
   if (updateError) throw updateError
 
   return movement
 }
 
-export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null } = {}) {
+export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null, userUuid } = {}) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   let q = supabase
     .from('movements')
     .select(`
       *,
       products (name, category)
     `, { count: 'exact' })
+    .eq('user_id', userUuid)
     .order('created_at', { ascending: false })
 
   // Filters
@@ -174,7 +176,8 @@ export async function getProductCategories() {
     .select('name')
     .order('name')
 
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
+    // Return default categories if none found (or on error)
     return [
       { name: 'Alimentos' },
       { name: 'Bebidas' },
@@ -190,16 +193,19 @@ export async function getProductCategories() {
   return data
 }
 
-export async function getAlmacenStats() {
+export async function getAlmacenStats(userUuid) {
+  if (!userUuid) throw new Error('User UUID is required')
+
   const { data: products, error } = await supabase
     .from('products')
     .select('stock, min_stock, category')
+    .eq('user_id', userUuid)
 
   if (error) throw error
 
   const totalProducts = products.length
   const lowStockCount = products.filter(p => p.stock <= (p.min_stock || 5)).length
-  
+
   const distribution = {}
   products.forEach(p => {
     if (!distribution[p.category]) distribution[p.category] = 0
