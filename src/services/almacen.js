@@ -36,7 +36,7 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
   // If I can't compare columns easily, maybe I can just fetch all and filter in JS? 
   // If database is huge, this is bad. But for "Small/Medium" inventory it's fine.
   // Let's try to filter what we can in DB.
-
+  
   // Pagination
   if (page && pageSize) {
     const from = (page - 1) * pageSize
@@ -118,7 +118,7 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
 
   if (prodError) throw prodError
 
-  const newStock = type === 'in'
+  const newStock = type === 'in' 
     ? Number(product.stock) + Number(qty)
     : Number(product.stock) - Number(qty)
 
@@ -199,7 +199,7 @@ export async function getAlmacenStats() {
 
   const totalProducts = products.length
   const lowStockCount = products.filter(p => p.stock <= (p.min_stock || 5)).length
-
+  
   const distribution = {}
   products.forEach(p => {
     if (!distribution[p.category]) distribution[p.category] = 0

@@ -35,11 +35,11 @@ export default function Almacen() {
   // 2. Fetch Products (Paginated & Filtered)
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['products', { page: prodPage, pageSize: prodPageSize, search: prodSearch, category: prodCategory }],
-    queryFn: () => listProducts({
-      page: prodPage,
-      pageSize: prodPageSize,
-      search: prodSearch,
-      category: prodCategory
+    queryFn: () => listProducts({ 
+      page: prodPage, 
+      pageSize: prodPageSize, 
+      search: prodSearch, 
+      category: prodCategory 
     }),
     enabled: !!userId,
     placeholderData: keepPreviousData
@@ -56,11 +56,11 @@ export default function Almacen() {
   // 4. Fetch Movements (Paginated & Filtered)
   const { data: movementsData, isLoading: loadingMovements } = useQuery({
     queryKey: ['movements', { page: movPage, pageSize: movPageSize, type: movType, productId: movProduct }],
-    queryFn: () => listMovements({
-      page: movPage,
-      pageSize: movPageSize,
-      type: movType,
-      productId: movProduct
+    queryFn: () => listMovements({ 
+      page: movPage, 
+      pageSize: movPageSize, 
+      type: movType, 
+      productId: movProduct 
     }),
     enabled: !!userId,
     placeholderData: keepPreviousData
@@ -78,7 +78,7 @@ export default function Almacen() {
       // Reusing listProducts but asking for a larger page or we should add a specific method.
       // Using existing method with large page size for dropdown. 
       // In production, this should be a "searchable" select or a specific lightweight endpoint.
-      const res = await listProducts({ page: 1, pageSize: 1000 })
+      const res = await listProducts({ page: 1, pageSize: 1000 }) 
       return res.data
     },
     enabled: !!userId
@@ -111,8 +111,8 @@ export default function Almacen() {
         </TabsList>
 
         <TabsContent value="products" className="space-y-4">
-          <ProductList
-            products={products}
+          <ProductList 
+            products={products} 
             totalCount={prodCount}
             page={prodPage}
             pageSize={prodPageSize}
@@ -122,15 +122,15 @@ export default function Almacen() {
             onSearchChange={setProdSearch}
             category={prodCategory}
             onCategoryChange={setProdCategory}
-            loading={loadingProducts}
+            loading={loadingProducts} 
             onRefresh={handleRefresh}
             categories={categories}
           />
         </TabsContent>
 
         <TabsContent value="movements" className="space-y-4">
-          <MovementList
-            movements={movements}
+          <MovementList 
+            movements={movements} 
             totalCount={movCount}
             page={movPage}
             pageSize={movPageSize}
@@ -141,7 +141,7 @@ export default function Almacen() {
             productId={movProduct}
             onProductChange={setMovProduct}
             products={allProducts}
-            loading={loadingMovements}
+            loading={loadingMovements} 
             onRefresh={handleRefresh}
           />
         </TabsContent>
