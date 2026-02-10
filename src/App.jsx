@@ -7,6 +7,7 @@ import Signup from '@/pages/Signup'
 import Finanzas from '@/pages/Finanzas'
 import Almacen from '@/pages/Almacen'
 import Configuracion from '@/pages/Configuracion'
+import InventarioDinamico from '@/pages/InventarioDinamico'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/finanzas" element={<Finanzas />} />
           <Route path="/almacen" element={<Almacen />} />
           <Route path="/configuracion" element={<Configuracion />} />
+          <Route path="/inventario" element={<InventarioDinamico />} />
         </Route>
       </Route>
       <Route path="/login" element={<Login />} />
