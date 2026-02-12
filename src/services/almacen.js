@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase'
+import { withCrud } from '@/services/notifyWrap'
 
 export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all', userUuid } = {}) {
   if (!userUuid) throw new Error('User UUID is required for security isolation')
@@ -47,88 +48,92 @@ export async function getProduct(id, userUuid) {
 export async function createProduct(payload, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
 
-  const { data, error } = await supabase
-    .from('products')
-    .insert({ ...payload, user_id: userUuid })
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'create', table: 'products' }, async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .insert({ ...payload, user_id: userUuid })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function updateProduct(id, payload, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
 
-  const { data, error } = await supabase
-    .from('products')
-    .update(payload)
-    .eq('id', id)
-    .eq('user_id', userUuid)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'update', table: 'products' }, async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('id', id)
+      .eq('user_id', userUuid)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function deleteProduct(id, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
 
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', userUuid)
-  if (error) throw error
-  return true
+  return await withCrud({ action: 'delete', table: 'products' }, async () => {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userUuid)
+    if (error) throw error
+    return true
+  })
 }
 
 export async function registerMovement({ product_id, qty, type, user_id }) {
   if (!user_id) throw new Error('User UUID is required')
 
-  // 1. Verify ownership and get current stock
-  const { data: product, error: prodError } = await supabase
-    .from('products')
-    .select('id, stock')
-    .eq('id', product_id)
-    .eq('user_id', user_id)
-    .single()
+  return await withCrud({ action: 'register', table: 'movements' }, async () => {
+    const { data: product, error: prodError } = await supabase
+      .from('products')
+      .select('id, stock')
+      .eq('id', product_id)
+      .eq('user_id', user_id)
+      .single()
 
-  if (prodError || !product) {
-    // Log security attempt to DB
-    await supabase.from('access_audit_logs').insert({
-      user_id: user_id,
-      action: 'unauthorized_movement_attempt',
-      resource: `product_${product_id}`,
-      details: { product_id, qty, type }
-    })
+    if (prodError || !product) {
+      await supabase.from('access_audit_logs').insert({
+        user_id: user_id,
+        action: 'unauthorized_movement_attempt',
+        resource: `product_${product_id}`,
+        details: { product_id, qty, type }
+      })
 
-    console.error('Security Alert: Attempt to access unauthorized product', { product_id, user_id })
-    throw new Error('Access Denied: Product does not belong to user')
-  }
+      console.error('Security Alert: Attempt to access unauthorized product', { product_id, user_id })
+      throw new Error('Access Denied: Product does not belong to user')
+    }
 
-  // 2. Register movement
-  const { data: movement, error: movError } = await supabase
-    .from('movements')
-    .insert({ product_id, qty, type, user_id })
-    .select()
-    .single()
+    const { data: movement, error: movError } = await supabase
+      .from('movements')
+      .insert({ product_id, qty, type, user_id })
+      .select()
+      .single()
 
-  if (movError) throw movError
+    if (movError) throw movError
 
-  // 3. Update product stock
-  const newStock = type === 'in'
-    ? Number(product.stock) + Number(qty)
-    : Number(product.stock) - Number(qty)
+    const newStock = type === 'in'
+      ? Number(product.stock) + Number(qty)
+      : Number(product.stock) - Number(qty)
 
-  const { error: updateError } = await supabase
-    .from('products')
-    .update({ stock: newStock })
-    .eq('id', product_id)
-    .eq('user_id', user_id)
+    const { error: updateError } = await supabase
+      .from('products')
+      .update({ stock: newStock })
+      .eq('id', product_id)
+      .eq('user_id', user_id)
 
-  if (updateError) throw updateError
+    if (updateError) throw updateError
 
-  return movement
+    return movement
+  })
 }
 
 export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null, userUuid } = {}) {

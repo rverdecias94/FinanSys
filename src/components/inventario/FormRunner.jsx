@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { listFields, listItems, createItem, updateItem, deleteItem, validateValuesAgainstFields } from '@/services/dynamicInventory'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, Pencil } from 'lucide-react'
+import { notify } from '@/services/notifications'
+
 
 export function FormRunner({ areaId, userId, currentArea }) {
   const queryClient = useQueryClient()
@@ -33,29 +35,63 @@ export function FormRunner({ areaId, userId, currentArea }) {
   const count = itemsData?.count || 0
   const totalPages = Math.ceil(count / pageSize) || 1
 
+  // Mutaciones con mensajes automáticos configurados en 'meta'
+  const createMutation = useMutation({
+    mutationFn: (data) => createItem(areaId, data, userId),
+    meta: {
+      successMessage: "Producto agregado satisfactoriamente",
+      errorMessage: "Error al agregar el producto"
+    },
+    onSuccess: () => {
+      setValues({})
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+    }
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => updateItem(id, data, userId),
+    meta: {
+      successMessage: "Producto actualizado correctamente",
+      errorMessage: "Error al actualizar el producto"
+    },
+    onSuccess: () => {
+      setValues({})
+      setEditingId(null)
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteItem(id, userId),
+    meta: {
+      successMessage: "Producto eliminado exitosamente",
+      errorMessage: "Error al eliminar el producto"
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+    }
+  })
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     const validation = await validateValuesAgainstFields(values, areaId, userId)
     if (!validation.ok) {
-      alert(`Faltan campos requeridos: ${validation.missing.join(', ')}`)
+      notify.warning(`Faltan campos requeridos: ${validation.missing.join(', ')}`)
       return
     }
 
     if (editingId) {
-      await updateItem(editingId, values, userId)
-      setEditingId(null)
+      updateMutation.mutate({ id: editingId, data: values })
     } else {
-      await createItem(areaId, values, userId)
+      createMutation.mutate(values)
     }
-
-    setValues({})
-    queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
   }
 
   const handleDeleteItem = async (id) => {
+    // Usamos toast con promesa para una mejor experiencia visual o un simple confirm
+    // Aquí mantenemos el confirm nativo por simplicidad, pero la notificación de éxito/error será automática
     if (window.confirm('¿Estás seguro de eliminar este artículo?')) {
-      await deleteItem(id, userId)
-      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+      deleteMutation.mutate(id)
     }
   }
 
@@ -163,8 +199,8 @@ export function FormRunner({ areaId, userId, currentArea }) {
                     Cancelar Edición
                   </Button>
                 )}
-                <Button type="submit">
-                  {editingId ? 'Actualizar Item' : 'Guardar Item'}
+                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                  {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
                 </Button>
               </div>
             </form>
@@ -194,7 +230,7 @@ export function FormRunner({ areaId, userId, currentArea }) {
                   <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
                     <Pencil className="w-4 h-4" />
                   </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)}>
+                  <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>

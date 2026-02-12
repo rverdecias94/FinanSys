@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase'
+import { withCrud } from '@/services/notifyWrap'
 
 export async function getFinanceCategories() {
   // Obtener categorías de la base de datos
@@ -13,14 +14,14 @@ export async function getFinanceCategories() {
     if (error) console.error('Error al obtener categorías:', error)
     return {
       income: [
-        'Ventas', 'Servicios Profesionales', 'Inversiones', 'Reembolsos', 
-        'Consultoría', 'Licencias', 'Dividendos', 'Alquileres', 
+        'Ventas', 'Servicios Profesionales', 'Inversiones', 'Reembolsos',
+        'Consultoría', 'Licencias', 'Dividendos', 'Alquileres',
         'Comisiones', 'Subvenciones', 'Intereses', 'Otros'
       ],
       expense: [
-        'Servicios', 'Suministros', 'Transporte', 'Alimentación', 
-        'Tecnología', 'Marketing', 'Nómina', 'Impuestos', 
-        'Mantenimiento', 'Seguros', 'Alquiler', 'Capacitación', 
+        'Servicios', 'Suministros', 'Transporte', 'Alimentación',
+        'Tecnología', 'Marketing', 'Nómina', 'Impuestos',
+        'Mantenimiento', 'Seguros', 'Alquiler', 'Capacitación',
         'Software', 'Mobiliario', 'Otros'
       ]
     }
@@ -48,8 +49,8 @@ export async function getPaymentMethods() {
   if (error || !data || data.length === 0) {
     if (error) console.error('Error al obtener métodos de pago:', error)
     return [
-      'Efectivo', 'Transferencia Bancaria', 'Tarjeta de Débito', 
-      'Tarjeta de Crédito', 'Cheque', 'Depósito Bancario', 
+      'Efectivo', 'Transferencia Bancaria', 'Tarjeta de Débito',
+      'Tarjeta de Crédito', 'Cheque', 'Depósito Bancario',
       'PayPal', 'Zelle', 'Otro'
     ]
   }
@@ -74,20 +75,21 @@ export async function getBankAccounts(userId) {
 }
 
 export async function createBankAccount(accountData) {
-  const { data, error } = await supabase
-    .from('bank_accounts')
-    .insert(accountData)
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'create', table: 'bank_accounts' }, async () => {
+    const { data, error } = await supabase
+      .from('bank_accounts')
+      .insert(accountData)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function createTransaction(payload) {
   // Separate core columns from extra details
-  const { 
-    date, amount, currency, category, description, type, user_id, 
+  const {
+    date, amount, currency, category, description, type, user_id,
     payment_method, bank_account_id, reference_number, notes, attachments
   } = payload
 
@@ -109,14 +111,16 @@ export async function createTransaction(payload) {
     }
   }
 
-  const { data, error } = await supabase.from('transactions').insert(dbPayload).select().single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'create', table: 'transactions' }, async () => {
+    const { data, error } = await supabase.from('transactions').insert(dbPayload).select().single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function updateTransaction(transactionId, payload) {
-  const { 
-    date, amount, currency, category, description, type, user_id, 
+  const {
+    date, amount, currency, category, description, type, user_id,
     payment_method, bank_account_id, reference_number, notes, attachments
   } = payload
 
@@ -139,9 +143,11 @@ export async function updateTransaction(transactionId, payload) {
   let q = supabase.from('transactions').update(dbPayload).eq('id', transactionId)
   if (user_id) q = q.eq('user_id', user_id)
 
-  const { data, error } = await q.select().single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'update', table: 'transactions' }, async () => {
+    const { data, error } = await q.select().single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function listTransactions({ from, to, category, type, currency, userId, limit, page, pageSize }) {
@@ -167,7 +173,7 @@ export async function listTransactions({ from, to, category, type, currency, use
 
   const { data, error, count } = await q
   if (error) throw error
-  
+
   if (page && pageSize) {
     return { data, count }
   }
@@ -210,7 +216,7 @@ export async function getMonthlySummary(userId, year, month) {
   data?.forEach(transaction => {
     const { type, currency, amount, category } = transaction
     summary[type][currency] += Number(amount)
-    
+
     if (!summary[type].byCategory[category]) {
       summary[type].byCategory[category] = { USD: 0, CUP: 0 }
     }
@@ -248,7 +254,7 @@ export async function getYearlySummary(userId, year, currency = 'all') {
   if (error) throw error
 
   const monthlyData = {}
-  
+
   // Inicializar todos los meses
   for (let month = 1; month <= 12; month++) {
     monthlyData[month] = {
@@ -261,7 +267,7 @@ export async function getYearlySummary(userId, year, currency = 'all') {
     const date = new Date(transaction.date)
     const month = date.getMonth() + 1
     const { type, currency, amount } = transaction
-    
+
     if (monthlyData[month]) {
       monthlyData[month][type][currency] += Number(amount)
     }
@@ -281,42 +287,43 @@ export async function getBalanceConfig(userId) {
     console.error('Error fetching balance config:', error)
     return null
   }
-  
+
   return data
 }
 
 export async function updateBalanceConfig(userId, balanceUsd, balanceCup) {
-  const { data, error } = await supabase
-    .from('configuracion_balance')
-    .upsert({ 
-      user_id: userId, 
-      balance_total_usd: balanceUsd,
-      balance_total_cup: balanceCup,
-      updated_at: new Date().toISOString()
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'update', table: 'configuracion_balance' }, async () => {
+    const { data, error } = await supabase
+      .from('configuracion_balance')
+      .upsert({
+        user_id: userId,
+        balance_total_usd: balanceUsd,
+        balance_total_cup: balanceCup,
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function getDashboardStats(userId) {
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth() // 0-indexed
-  
+
   // Dates for current month
   const startCurrentMonth = new Date(currentYear, currentMonth, 1).toISOString()
   const endCurrentMonth = new Date(currentYear, currentMonth + 1, 1).toISOString()
-  
+
   // Dates for previous month
   const startPrevMonth = new Date(currentYear, currentMonth - 1, 1).toISOString()
   const endPrevMonth = new Date(currentYear, currentMonth, 1).toISOString()
 
   // Fetch balance
   const balanceConfig = await getBalanceConfig(userId)
-  
+
   // Fetch transactions for current and previous month
   const { data: currentMonthData, error: currentError } = await supabase
     .from('transactions')
@@ -365,14 +372,14 @@ export async function getDashboardStats(userId) {
     },
     income: {
       current: { usd: currentIncomeUsd, cup: currentIncomeCup },
-      change: { 
+      change: {
         usd: calculateChange(currentIncomeUsd, prevIncomeUsd),
         cup: calculateChange(currentIncomeCup, prevIncomeCup)
       }
     },
     expense: {
       current: { usd: currentExpenseUsd, cup: currentExpenseCup },
-      change: { 
+      change: {
         usd: calculateChange(currentExpenseUsd, prevExpenseUsd),
         cup: calculateChange(currentExpenseCup, prevExpenseCup)
       }
@@ -383,16 +390,16 @@ export async function getDashboardStats(userId) {
 export async function getRecentActivity(userId) {
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  
+
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
     .eq('user_id', userId)
     .gte('date', thirtyDaysAgo.toISOString())
     .order('date', { ascending: false })
-  
+
   if (error) throw error
-  
+
   return data
 }
 
@@ -434,9 +441,9 @@ export async function getFinancialDistribution(userId, type = 'all', currency = 
   data.forEach(t => {
     const key = `${t.type}_${t.category}_${t.currency}`
     if (!distribution[key]) {
-      distribution[key] = { 
-        name: t.category, 
-        value: 0, 
+      distribution[key] = {
+        name: t.category,
+        value: 0,
         type: t.type,
         currency: t.currency
       }

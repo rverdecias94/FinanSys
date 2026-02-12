@@ -9,7 +9,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Plus } from 'lucide-react'
 
-const TYPE_OPTIONS = ['text', 'number', 'select', 'color', 'date', 'boolean', 'textarea']
+const TYPE_OPTIONS = [
+  { value: 'text', label: 'Texto' },
+  { value: 'number', label: 'Número' },
+  { value: 'select', label: 'Selección' },
+  { value: 'color', label: 'Color' },
+  { value: 'date', label: 'Fecha' },
+  { value: 'boolean', label: 'Sí/No (Booleano)' },
+  { value: 'textarea', label: 'Área de Texto' }
+]
 
 export function FormBuilder({ areaId, userId }) {
   const queryClient = useQueryClient()
@@ -70,7 +78,7 @@ export function FormBuilder({ areaId, userId }) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {TYPE_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -137,7 +145,7 @@ export function FormBuilder({ areaId, userId }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_OPTIONS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

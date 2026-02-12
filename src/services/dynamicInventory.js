@@ -1,4 +1,5 @@
 import { supabase } from '@/config/supabase'
+import { withCrud } from '@/services/notifyWrap'
 
 export async function listAreas(userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
@@ -138,7 +139,7 @@ export async function deleteField(fieldId, userUuid) {
   return true
 }
 
-export async function listItems(areaId, { page = 1, pageSize = 10 } = {}, userUuid) {
+export async function listItems(areaId, { page = 1, pageSize = 10, startDate = null, endDate = null } = {}, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
   let q = supabase
     .from('inventory_items')
@@ -146,6 +147,13 @@ export async function listItems(areaId, { page = 1, pageSize = 10 } = {}, userUu
     .eq('area_id', areaId)
     .eq('user_id', userUuid)
     .order('created_at', { ascending: false })
+
+  if (startDate) {
+    q = q.gte('created_at', startDate)
+  }
+  if (endDate) {
+    q = q.lte('created_at', endDate)
+  }
 
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
@@ -158,42 +166,46 @@ export async function listItems(areaId, { page = 1, pageSize = 10 } = {}, userUu
 
 export async function createItem(areaId, values, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
-  // 1) Generate SKU via RPC
-  const { data: sku, error: skuErr } = await supabase
-    .rpc('generate_inventory_sku', { p_user: userUuid, p_area: areaId })
-  if (skuErr) throw skuErr
-  // 2) Insert item with generated SKU
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .insert({ user_id: userUuid, area_id: areaId, values, sku })
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'create', table: 'inventory_items' }, async () => {
+    const { data: sku, error: skuErr } = await supabase
+      .rpc('generate_inventory_sku', { p_user: userUuid, p_area: areaId })
+    if (skuErr) throw skuErr
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .insert({ user_id: userUuid, area_id: areaId, values, sku })
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function updateItem(itemId, values, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .update({ values })
-    .eq('id', itemId)
-    .eq('user_id', userUuid)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  return await withCrud({ action: 'update', table: 'inventory_items' }, async () => {
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .update({ values })
+      .eq('id', itemId)
+      .eq('user_id', userUuid)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  })
 }
 
 export async function deleteItem(itemId, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
-  const { error } = await supabase
-    .from('inventory_items')
-    .delete()
-    .eq('id', itemId)
-    .eq('user_id', userUuid)
-  if (error) throw error
-  return true
+  return await withCrud({ action: 'delete', table: 'inventory_items' }, async () => {
+    const { error } = await supabase
+      .from('inventory_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('user_id', userUuid)
+    if (error) throw error
+    return true
+  })
 }
 
 export async function getArea(areaId, userUuid) {

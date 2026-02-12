@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 
 export default function SidebarLayout() {
@@ -58,6 +58,9 @@ export default function SidebarLayout() {
           </NavLink>
           <NavLink to="/inventario" className={linkClass} onClick={() => setSidebarOpen(false)}>
             <Layers className="w-4 h-4" /> Inventario
+          </NavLink>
+          <NavLink to="/reportes" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            <FileText className="w-4 h-4" /> Reportes
           </NavLink>
           <NavLink to="/configuracion" className={linkClass} onClick={() => setSidebarOpen(false)}>
             <Settings className="w-4 h-4" /> Configuración
