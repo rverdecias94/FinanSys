@@ -9,8 +9,10 @@ import { Settings } from 'lucide-react'
 
 export default function Configuracion() {
   const { session } = useSession()
-  const [balanceUsd, setBalanceUsd] = useState('')
-  const [balanceCup, setBalanceCup] = useState('')
+  const [initialBalanceUsd, setInitialBalanceUsd] = useState('')
+  const [initialBalanceCup, setInitialBalanceCup] = useState('')
+  const [currentBalanceUsd, setCurrentBalanceUsd] = useState('')
+  const [currentBalanceCup, setCurrentBalanceCup] = useState('')
   const [savingBalance, setSavingBalance] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -18,7 +20,13 @@ export default function Configuracion() {
     if (!session?.user?.id) return
     setSavingBalance(true)
     try {
-      await updateBalanceConfig(session.user.id, balanceUsd, balanceCup)
+      const updatedConfig = await updateBalanceConfig(session.user.id, initialBalanceUsd, initialBalanceCup)
+      if (updatedConfig) {
+        setInitialBalanceUsd(updatedConfig.initial_usd)
+        setInitialBalanceCup(updatedConfig.initial_cup)
+        setCurrentBalanceUsd(updatedConfig.total_usd)
+        setCurrentBalanceCup(updatedConfig.total_cup)
+      }
     } catch (error) {
       console.error(error)
     } finally {
@@ -33,8 +41,10 @@ export default function Configuracion() {
       if (session?.user?.id) {
         const balConfig = await getBalanceConfig(session.user.id)
         if (mounted && balConfig) {
-          setBalanceUsd(balConfig.balance_total_usd || '')
-          setBalanceCup(balConfig.balance_total_cup || '')
+          setInitialBalanceUsd(balConfig.initial_balance_usd || 0)
+          setInitialBalanceCup(balConfig.initial_balance_cup || 0)
+          setCurrentBalanceUsd(balConfig.balance_total_usd || 0)
+          setCurrentBalanceCup(balConfig.balance_total_cup || 0)
         }
       }
 
@@ -57,35 +67,69 @@ export default function Configuracion() {
       <div className="grid gap-6 md:grid-cols-1 max-w-2xl">
         <Card>
           <CardHeader>
-            <CardTitle>Balance Inicial</CardTitle>
-            <CardDescription>Configura el balance total inicial por moneda</CardDescription>
+            <CardTitle>Balance</CardTitle>
+            <CardDescription>Gestiona el balance inicial y visualiza el actual</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Balance USD</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={balanceUsd}
-                  onChange={(e) => setBalanceUsd(e.target.value)}
-                  disabled={loading}
-                />
+          <CardContent className="space-y-6">
+            
+            {/* Balance Inicial (Editable) */}
+            <div className="space-y-4 border-b pb-6">
+              <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Balance Inicial (Manual)</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Inicial USD</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={initialBalanceUsd}
+                    onChange={(e) => setInitialBalanceUsd(e.target.value)}
+                    disabled={loading || savingBalance}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Inicial CUP</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={initialBalanceCup}
+                    onChange={(e) => setInitialBalanceCup(e.target.value)}
+                    disabled={loading || savingBalance}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Balance CUP</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={balanceCup}
-                  onChange={(e) => setBalanceCup(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
+              <Button onClick={saveBalance} disabled={savingBalance}>
+                {savingBalance ? 'Guardando...' : 'Actualizar Balance Inicial'}
+              </Button>
             </div>
-            <Button onClick={saveBalance} disabled={savingBalance}>
-              {savingBalance ? 'Guardando...' : 'Guardar'}
-            </Button>
+
+            {/* Balance Actual (Read-only) */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">Balance Actual (Calculado)</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Actual USD</Label>
+                  <Input
+                    type="number"
+                    value={currentBalanceUsd}
+                    disabled={true}
+                    className="bg-muted"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Actual CUP</Label>
+                  <Input
+                    type="number"
+                    value={currentBalanceCup}
+                    disabled={true}
+                    className="bg-muted"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                El balance actual se calcula automáticamente: Balance Inicial + Ingresos - Gastos.
+              </p>
+            </div>
+
           </CardContent>
         </Card>
       </div>

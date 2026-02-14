@@ -1,7 +1,11 @@
 /* eslint-disable react/prop-types */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package, AlertTriangle, Activity } from 'lucide-react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  BarChart, Bar
+} from 'recharts'
 
 export function AlmacenDashboard({ stats, loading }) {
   if (loading) return <div className="text-sm text-muted-foreground">Cargando dashboard...</div>
@@ -58,6 +62,55 @@ export function AlmacenDashboard({ stats, loading }) {
               <Tooltip />
               <Legend verticalAlign="middle" align="right" layout="vertical" iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
             </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="col-span-2">
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Tendencia de Movimientos (30 días)</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={stats.movementsTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tick={{fontSize: 12}} 
+                tickFormatter={(value) => {
+                  if (!value) return ''
+                  const [year, month, day] = value.split('-')
+                  return `${day}/${month}`
+                }}
+              />
+              <YAxis />
+              <Tooltip labelFormatter={(value) => {
+                if (!value) return ''
+                const [year, month, day] = value.split('-')
+                return `${day}/${month}/${year}`
+              }} />
+              <Legend />
+              <Line type="monotone" dataKey="entradas" stroke="#82ca9d" name="Entradas" strokeWidth={2} />
+              <Line type="monotone" dataKey="salidas" stroke="#8884d8" name="Salidas" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      <Card className="col-span-2">
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Top 10 Productos por Stock</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart layout="vertical" data={stats.topProducts} margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" />
+              <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="stock" fill="#0088FE" name="Stock" radius={[0, 4, 4, 0]} barSize={20} />
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>

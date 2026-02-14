@@ -15,7 +15,7 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
 
-const DateRangeFilter = ({ onFilterChange }) => {
+const DateRangeFilter = ({ onFilterChange, children }) => {
   const [filterType, setFilterType] = useState('month')
 
   // States for different filters
@@ -224,6 +224,8 @@ const DateRangeFilter = ({ onFilterChange }) => {
           </div>
         </>
       )}
+
+      {children && <div className="ml-auto">{children}</div>}
     </div>
   )
 }

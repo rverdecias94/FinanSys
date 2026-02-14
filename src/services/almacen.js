@@ -201,12 +201,24 @@ export async function getProductCategories() {
 export async function getAlmacenStats(userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
 
-  const { data: products, error } = await supabase
-    .from('products')
-    .select('stock, min_stock, category')
-    .eq('user_id', userUuid)
+  // Fetch products and movements in parallel
+  const [productsResponse, movementsResponse] = await Promise.all([
+    supabase
+      .from('products')
+      .select('name, stock, min_stock, category')
+      .eq('user_id', userUuid),
+    supabase
+      .from('movements')
+      .select('qty, type, created_at')
+      .eq('user_id', userUuid)
+      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+  ])
 
-  if (error) throw error
+  if (productsResponse.error) throw productsResponse.error
+  if (movementsResponse.error) throw movementsResponse.error
+
+  const products = productsResponse.data || []
+  const movements = movementsResponse.data || []
 
   const totalProducts = products.length
   const lowStockCount = products.filter(p => p.stock <= (p.min_stock || 5)).length
@@ -222,9 +234,40 @@ export async function getAlmacenStats(userUuid) {
     value
   }))
 
+  // Top 10 Products by Stock
+  const topProducts = [...products]
+    .sort((a, b) => b.stock - a.stock)
+    .slice(0, 10)
+    .map(p => ({ name: p.name, stock: p.stock }))
+
+  // Movements Trend (Last 30 Days)
+  const trendMap = {}
+  // Initialize last 30 days
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const dateStr = d.toISOString().split('T')[0]
+    trendMap[dateStr] = { date: dateStr, entradas: 0, salidas: 0 }
+  }
+
+  movements.forEach(m => {
+    const dateStr = m.created_at.split('T')[0]
+    if (trendMap[dateStr]) {
+      if (m.type === 'in') {
+        trendMap[dateStr].entradas += Number(m.qty)
+      } else {
+        trendMap[dateStr].salidas += Number(m.qty)
+      }
+    }
+  })
+
+  const movementsTrend = Object.values(trendMap).sort((a, b) => a.date.localeCompare(b.date))
+
   return {
     totalProducts,
     lowStockCount,
-    distribution: distributionData
+    distribution: distributionData,
+    topProducts,
+    movementsTrend
   }
 }

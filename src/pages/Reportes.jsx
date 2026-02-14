@@ -2,22 +2,97 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { FileText, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { FileText, FileSpreadsheet, Loader2, File } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { listTransactions } from '@/services/finanzas'
 import { listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
+import { generateDOCX } from '@/utils/docxGenerator'
+import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
+
+const ReportPreview = ({ report }) => {
+  if (!report) return null;
+  return (
+    <div className="space-y-6 text-sm font-serif">
+      {/* Title */}
+      <div className="text-center space-y-2 pb-4 border-b">
+        <h2 className="text-2xl font-bold uppercase tracking-wide">{report.title}</h2>
+        {report.metadata && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-left max-w-2xl mx-auto text-xs text-muted-foreground">
+            {report.metadata.map((m, i) => (
+              <div key={i} className="flex justify-between md:justify-start gap-2">
+                <span className="font-bold min-w-[120px]">{m.label}:</span>
+                <span>{m.value}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sections */}
+      {report.sections.map((section, idx) => (
+        <div key={idx} className="space-y-3">
+          {section.title && (
+            <h3 className={`${section.type === 'header_section' ? 'text-xl font-bold text-center mt-8 border-b-2 border-black pb-2' : 'text-lg font-bold text-primary mt-4'}`}>
+              {section.title}
+            </h3>
+          )}
+
+          {(!section.type || section.type === 'paragraph') && (
+            <p className="text-justify leading-relaxed whitespace-pre-wrap">{section.content}</p>
+          )}
+
+          {section.type === 'table' && (
+            <div className="overflow-x-auto my-4 border rounded-sm">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    {section.headers.map((h, i) => <th key={i} className="px-3 py-2 text-center font-bold border-b">{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {section.rows.map((row, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
+                      {row.map((cell, j) => (
+                        <td key={j} className={`px-3 py-2 ${isNaN(cell.replace(/[^0-9.-]+/g, "")) ? 'text-left' : 'text-right'}`}>
+                          {cell}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {section.notes && <p className="text-xs text-muted-foreground p-2 italic bg-gray-50 border-t">{section.notes}</p>}
+            </div>
+          )}
+
+          {section.type === 'list' && (
+            <ul className="list-disc pl-5 space-y-1 marker:text-gray-400">
+              {section.items.map((item, i) => (
+                <li key={i} dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const Reportes = () => {
   const { session } = useSession()
   const userId = session?.user?.id
   const [dateFilter, setDateFilter] = useState(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewReport, setPreviewReport] = useState(null)
+  const [filename, setFilename] = useState('')
 
   // Finanzas Query
   const { data: transactions = [], isLoading: loadingFinanzas } = useQuery({
@@ -125,6 +200,41 @@ const Reportes = () => {
     }
   }
 
+  const handlePreview = (type) => {
+    let report = null
+    let fname = ''
+
+    switch (type) {
+      case 'finanzas':
+        report = generateFinanceReport(transactions, dateFilter)
+        fname = `informe_finanzas_${dateFilter?.type}`
+        break
+      case 'almacen':
+        report = generateWarehouseReport(movements, dateFilter)
+        fname = `informe_almacen_${dateFilter?.type}`
+        break
+      case 'inventario':
+        report = generateInventoryReport(inventorySummary, dateFilter)
+        fname = `informe_inventario_${dateFilter?.type}`
+        break
+      case 'global':
+        report = generateGlobalReport({ transactions, movements, inventorySummary }, dateFilter)
+        fname = `informe_global_${dateFilter?.type}`
+        break
+      default:
+        return
+    }
+
+    setPreviewReport(report)
+    setFilename(fname)
+    setPreviewOpen(true)
+  }
+
+  const handleDownloadDOCX = () => {
+    generateDOCX(previewReport, filename)
+    setPreviewOpen(false)
+  }
+
   return (
     <div className="space-y-6 p-6 pb-20">
       <div className="flex flex-col gap-2">
@@ -132,7 +242,12 @@ const Reportes = () => {
         <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
       </div>
 
-      <DateRangeFilter onFilterChange={handleFilterChange} />
+      <DateRangeFilter onFilterChange={handleFilterChange}>
+        <Button onClick={() => handlePreview('global')} className="bg-blue-600 hover:bg-blue-700">
+          <File className="mr-2 h-4 w-4" />
+          Resumen General (DOCX)
+        </Button>
+      </DateRangeFilter>
 
       {dateFilter && (
         <Tabs defaultValue="finanzas" className="w-full">
@@ -151,6 +266,10 @@ const Reportes = () => {
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handlePreview('finanzas')}>
+                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                    Resumen de Finanzas
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportFinanzas('excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
                     Excel
@@ -210,6 +329,10 @@ const Reportes = () => {
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handlePreview('almacen')}>
+                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                    Resumen de Almacén
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportAlmacen('excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
                     Excel
@@ -271,6 +394,10 @@ const Reportes = () => {
                   <CardDescription>Ítems registrados durante: {dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handlePreview('inventario')}>
+                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                    Resumen de Inventario
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportInventario('excel')}>
                     <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
                     Excel
@@ -311,6 +438,33 @@ const Reportes = () => {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-[800px] max-h-[80vh] overflow-y-auto">
+          {previewReport && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Previsualización del Informe</DialogTitle>
+                <DialogDescription>
+                  Revisa el contenido antes de generar el documento Word.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-4 p-8 border rounded-md bg-white shadow-sm text-black">
+                <ReportPreview report={previewReport} />
+              </div>
+
+              <DialogFooter className="mt-6">
+                <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
+                <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700">
+                  <File className="mr-2 h-4 w-4" />
+                  Descargar DOCX
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

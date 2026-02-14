@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getBankAccounts, computeTotals } from '@/services/finanzas'
+import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getBankAccounts, computeTotals, getFilteredTotals } from '@/services/finanzas'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
@@ -76,6 +76,20 @@ export default function Finanzas() {
     staleTime: 1000 * 60 * 5, // 5 minutes
   })
 
+  // 5. Global Filtered Totals (Not Paginated)
+  const { data: filteredTotals = { income_usd: 0, income_cup: 0, expense_usd: 0, expense_cup: 0 } } = useQuery({
+    queryKey: ['filteredTotals', { userId, currencyFilter, categoryFilter, dateKey }],
+    queryFn: () =>
+      getFilteredTotals({
+        userId,
+        currency: currencyFilter === 'all' ? undefined : currencyFilter,
+        category: categoryFilter === 'all' ? undefined : categoryFilter,
+        from: dateFilter ? startOfDay(dateFilter).toISOString() : undefined,
+        to: dateFilter ? endOfDay(dateFilter).toISOString() : undefined,
+      }),
+    enabled: !!userId,
+  })
+
   // Create Transaction Mutation
   const createMutation = useMutation({
     mutationFn: async (payload) => {
@@ -89,6 +103,7 @@ export default function Finanzas() {
       // Invalidate transactions to refetch the list
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       setModalOpen(false)
       setSelectedTransaction(null)
     },
@@ -110,6 +125,7 @@ export default function Finanzas() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       setModalOpen(false)
       setSelectedTransaction(null)
     },
@@ -170,7 +186,7 @@ export default function Finanzas() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-green-700">${totals.income_usd.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-green-700">${filteredTotals.income_usd.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm">
@@ -179,7 +195,7 @@ export default function Finanzas() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-green-700">${totals.income_cup.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-green-700">${filteredTotals.income_cup.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow-sm">
@@ -188,7 +204,7 @@ export default function Finanzas() {
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-700">${totals.expense_usd.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-red-700">${filteredTotals.expense_usd.toFixed(2)}</div>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow-sm">
@@ -197,7 +213,7 @@ export default function Finanzas() {
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-700">${totals.expense_cup.toFixed(2)}</div>
+            <div className="text-xl sm:text-2xl font-bold text-red-700">${filteredTotals.expense_cup.toFixed(2)}</div>
           </CardContent>
         </Card>
       </div>

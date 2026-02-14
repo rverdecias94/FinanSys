@@ -180,6 +180,24 @@ export async function listTransactions({ from, to, category, type, currency, use
   return data
 }
 
+export async function getFilteredTotals({ from, to, category, type, currency, userId }) {
+  let q = supabase
+    .from('transactions')
+    .select('amount, type, currency')
+    .eq('user_id', userId)
+
+  if (from) q = q.gte('date', from)
+  if (to) q = q.lte('date', to)
+  if (category) q = q.eq('category', category)
+  if (type) q = q.eq('type', type)
+  if (currency) q = q.eq('currency', currency)
+
+  const { data, error } = await q
+  if (error) throw error
+
+  return computeTotals(data)
+}
+
 export function computeTotals(rows) {
   const totals = { income_usd: 0, income_cup: 0, expense_usd: 0, expense_cup: 0 }
   for (const r of rows) {
@@ -292,20 +310,16 @@ export async function getBalanceConfig(userId) {
 }
 
 export async function updateBalanceConfig(userId, balanceUsd, balanceCup) {
-  return await withCrud({ action: 'update', table: 'configuracion_balance' }, async () => {
-    const { data, error } = await supabase
-      .from('configuracion_balance')
-      .upsert({
-        user_id: userId,
-        balance_total_usd: balanceUsd,
-        balance_total_cup: balanceCup,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-    if (error) throw error
-    return data
+  // Use the new secure RPC that handles initial vs total balance logic and audit logging
+  // Note: The RPC uses auth.uid() so userId param is technically redundant for the RPC
+  // but kept for compatibility with the function signature
+  const { data, error } = await supabase.rpc('update_balance_config_secure', {
+    p_new_initial_usd: Number(balanceUsd),
+    p_new_initial_cup: Number(balanceCup)
   })
+
+  if (error) throw error
+  return data
 }
 
 export async function getDashboardStats(userId) {
