@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2, Check, X, ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -71,6 +72,34 @@ export default function Signup() {
     (strength.label === 'Normal' || strength.label === 'Fuerte') &&
     passMatch
 
+  const createSubscription = async (userId) => {
+    try {
+      // Crear suscripción free para nuevo usuario
+      const { error: subscriptionError } = await supabase
+        .from('subscriptions')
+        .insert({
+          user_id: userId,
+          plan_id: 'free',
+          status: 'active'
+        })
+
+      if (subscriptionError) {
+        console.error('Error al crear suscripción:', subscriptionError)
+        throw subscriptionError
+      }
+
+      toast.success('Cuenta creada exitosamente', {
+        description: 'Se ha asignado un plan gratuito a tu cuenta.'
+      })
+    } catch (error) {
+      console.error('Error en creación de suscripción:', error)
+      // No bloquear el registro, pero mostrar advertencia
+      toast.warning('Error al configurar suscripción', {
+        description: 'Tu cuenta se ha creado con plan gratuito por defecto.'
+      })
+    }
+  }
+
   const handleSignup = async (e) => {
     e.preventDefault()
     if (!isFormValid) return
@@ -84,7 +113,10 @@ export default function Signup() {
 
       const userId = data?.user?.id || null
       if (userId) {
+        // Crear perfil
         await supabase.from('profiles').insert({ id: userId, role: 'employee' })
+        // Crear suscripción free
+        await createSubscription(userId)
       }
 
       navigate('/')

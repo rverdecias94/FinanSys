@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { registerMovement } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
@@ -30,8 +31,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
       setFormData({ product_id: '', qty: '', type: 'in' })
       onSuccess()
     } catch (error) {
-      console.error(error)
-      alert('Error al registrar movimiento')
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     } finally {
       setLoading(false)
     }

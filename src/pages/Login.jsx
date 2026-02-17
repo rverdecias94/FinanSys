@@ -4,6 +4,7 @@ import { supabase } from '@/config/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -13,14 +14,76 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
 
+  const validateAndCreateSubscription = async (userId) => {
+    try {
+      // Verificar si existe suscripción
+      const { data: existingSubscription, error: fetchError } = await supabase
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error al verificar suscripción:', fetchError)
+        throw fetchError
+      }
+
+      if (!existingSubscription) {
+        // Crear suscripción free si no existe
+        const { error: createError } = await supabase
+          .from('subscriptions')
+          .insert({
+            user_id: userId,
+            plan_id: 'free',
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+
+        if (createError) {
+          console.error('Error al crear suscripción free:', createError)
+          throw createError
+        }
+
+        toast.success('Cuenta configurada exitosamente', {
+          description: 'Se ha asignado un plan gratuito a tu cuenta.'
+        })
+      }
+
+      return existingSubscription?.plan_id || 'free'
+    } catch (error) {
+      console.error('Error en validación de suscripción:', error)
+      // No lanzar error para permitir login, pero mostrar advertencia
+      toast.warning('Error al verificar suscripción', {
+        description: 'Tu cuenta se ha creado con plan gratuito por defecto.'
+      })
+      return 'free'
+    }
+  }
+
   const handleLogin = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
+
+      // Validar y crear suscripción si no existe
+      const planId = await validateAndCreateSubscription(data.user.id)
+
+      // Mostrar mensaje según el tipo de plan
+      if (planId === 'premium') {
+        toast.success('Bienvenido a tu cuenta Premium', {
+          description: 'Tienes acceso completo a todas las funcionalidades.'
+        })
+      } else {
+        toast.success('Bienvenido a tu cuenta Gratuita', {
+          description: 'Disfruta de las funcionalidades básicas. Actualiza a Premium cuando quieras.'
+        })
+      }
+
       navigate('/')
     } catch (error) {
       setError(error.message === 'Invalid login credentials'

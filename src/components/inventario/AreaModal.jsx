@@ -9,6 +9,7 @@ import { useSession } from '@/hooks/useSession'
 import { useQueryClient } from '@tanstack/react-query'
 import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInventory'
 import { AREA_ICONS } from '@/lib/areaIcons'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
   const { session } = useSession()
@@ -49,8 +50,8 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
       queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
       onSuccess?.()
     } catch (error) {
-      console.error(error)
-      alert(areaToEdit ? 'Error al actualizar área' : 'Error al crear área')
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     } finally {
       setLoading(false)
     }

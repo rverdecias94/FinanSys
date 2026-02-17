@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -8,6 +7,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { MovementModal } from './MovementModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useSubscription } from '@/context/SubscriptionContext'
 
 export function MovementList({
   movements,
@@ -25,6 +25,7 @@ export function MovementList({
   onProductChange
 }) {
   const [modalOpen, setModalOpen] = useState(false)
+  const { checkLimit, recordUsage } = useSubscription()
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
 
@@ -68,7 +69,11 @@ export function MovementList({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setModalOpen(true)}>+ Registrar Movimiento</Button>
+        <Button onClick={() => {
+          if (checkLimit('monthly_transactions')) {
+            setModalOpen(true)
+          }
+        }}>+ Registrar Movimiento</Button>
       </div>
 
       <div className="border rounded-md">
@@ -178,6 +183,7 @@ export function MovementList({
         onOpenChange={setModalOpen}
         products={products}
         onSuccess={() => {
+          recordUsage('monthly_transactions')
           setModalOpen(false)
           onRefresh()
         }}

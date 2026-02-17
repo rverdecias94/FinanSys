@@ -6,10 +6,12 @@ import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { listProducts, listMovements, getAlmacenStats, getProductCategories } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 
 export default function Almacen() {
   const { session } = useSession()
+  const { getRemainingUsage, subscription } = useSubscription()
   const queryClient = useQueryClient()
   const userId = session?.user?.id
 
@@ -24,6 +26,10 @@ export default function Almacen() {
   const [movPageSize, setMovPageSize] = useState(10)
   const [movType, setMovType] = useState('all')
   const [movProduct, setMovProduct] = useState('all')
+
+  const remainingProducts = getRemainingUsage('products')
+  const productsLimit = subscription?.plan_id === 'premium' ? Infinity : 50
+  const remainingProductsDisplay = productsLimit === Infinity ? 'Ilimitados' : remainingProducts
 
   // 1. Fetch Stats
   const { data: stats, isLoading: loadingStats } = useQuery({
@@ -101,7 +107,14 @@ export default function Almacen() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <Warehouse className="w-8 h-8 text-primary" />
           </div>
-          Almacén
+          <div>
+            Almacén
+            {subscription?.plan_id === 'free' && (
+              <div className="text-xs font-normal text-muted-foreground mt-1">
+                Productos restantes: {remainingProductsDisplay} / {productsLimit}
+              </div>
+            )}
+          </div>
         </h1>
       </div>
 

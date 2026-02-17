@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -7,6 +6,7 @@ import { Pencil, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Search 
 import { ProductModal } from './ProductModal'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { useSubscription } from '@/context/SubscriptionContext'
 
 export function ProductList({
   products,
@@ -25,6 +25,7 @@ export function ProductList({
 }) {
   const [editingProduct, setEditingProduct] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const { checkLimit, recordUsage } = useSubscription()
 
   const handleEdit = (product) => {
     setEditingProduct(product)
@@ -32,6 +33,7 @@ export function ProductList({
   }
 
   const handleCreate = () => {
+    if (!checkLimit('products')) return
     setEditingProduct(null)
     setModalOpen(true)
   }
@@ -187,6 +189,7 @@ export function ProductList({
         onOpenChange={setModalOpen}
         product={editingProduct}
         onSuccess={() => {
+          if (!editingProduct) recordUsage('products')
           setModalOpen(false)
           onRefresh()
         }}

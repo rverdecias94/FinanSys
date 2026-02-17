@@ -4,6 +4,7 @@ import { createTransaction, updateTransaction, listTransactions, getFinanceCateg
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { TransactionModal } from '@/components/finanzas/TransactionModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,9 +12,11 @@ import { endOfDay, format, startOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import { Calendar } from '@/components/ui/calendar'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function Finanzas() {
   const { session } = useSession()
+  const { checkLimit, recordUsage, getRemainingUsage, subscription } = useSubscription()
   const queryClient = useQueryClient()
 
   // Pagination state
@@ -27,6 +30,10 @@ export default function Finanzas() {
 
   const userId = session?.user?.id
   const dateKey = dateFilter ? format(dateFilter, 'yyyy-MM-dd') : null
+
+  const remainingTransactions = getRemainingUsage('monthly_transactions')
+  const transactionsLimit = subscription?.plan_id === 'premium' ? Infinity : 50
+  const remainingDisplay = transactionsLimit === Infinity ? 'Ilimitadas' : remainingTransactions
 
   // 1. Transactions Query (Paginated)
   const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
@@ -104,12 +111,13 @@ export default function Finanzas() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
+      recordUsage('monthly_transactions')
       setModalOpen(false)
       setSelectedTransaction(null)
     },
     onError: (error) => {
-      console.error('Error al guardar:', error)
-      alert("Error al guardar: " + error.message)
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     }
   })
 
@@ -130,8 +138,8 @@ export default function Finanzas() {
       setSelectedTransaction(null)
     },
     onError: (error) => {
-      console.error('Error al actualizar:', error)
-      alert("Error al actualizar: " + error.message)
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     }
   })
 
@@ -171,9 +179,21 @@ export default function Finanzas() {
             </div>
             Gestión Financiera
           </h1>
-          <p className="text-muted-foreground mt-1">Control de ingresos, gastos y conciliaciones.</p>
+          <p className="text-muted-foreground mt-1">
+            Control de ingresos, gastos y conciliaciones.
+            {subscription?.plan_id === 'free' && (
+              <span className="text-xs font-normal text-muted-foreground block mt-1">
+                Transacciones restantes este mes: {remainingDisplay} / {transactionsLimit}
+              </span>
+            )}
+          </p>
         </div>
-        <Button onClick={() => { setSelectedTransaction(null); setModalOpen(true) }} className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all">
+        <Button onClick={() => {
+          if (checkLimit('monthly_transactions')) {
+            setSelectedTransaction(null);
+            setModalOpen(true)
+          }
+        }} className="w-full sm:w-auto shadow-lg hover:shadow-xl transition-all">
           <Plus className="w-4 h-4 mr-2" /> Nuevo Movimiento
         </Button>
       </div>

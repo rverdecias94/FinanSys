@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Layers, PlusCircle, Trash2, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,9 +12,11 @@ import { DeleteConfirmationModal } from '@/components/inventario/DeleteConfirmat
 import { FormBuilder } from '@/components/inventario/FormBuilder'
 import { FormRunner } from '@/components/inventario/FormRunner'
 import { getAreaIcon } from '@/lib/areaIcons'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function InventarioDinamico() {
   const { session } = useSession()
+  const { checkLimit, getRemainingUsage, subscription, recordUsage } = useSubscription()
   const userId = session?.user?.id
   const queryClient = useQueryClient()
   const [areaModalOpen, setAreaModalOpen] = useState(false)
@@ -32,6 +35,34 @@ export default function InventarioDinamico() {
     enabled: !!userId
   })
 
+  // Use usage data from subscription context for accurate counts
+  const areasLimit = subscription?.plan_id === 'premium' ? Infinity : 5
+  const currentAreasCount = getRemainingUsage('areas') === Infinity ? 0 : (areasLimit - getRemainingUsage('areas'))
+  const remainingAreasDisplay = areasLimit === Infinity ? 'Ilimitadas' : Math.max(0, getRemainingUsage('areas'))
+
+  // Synchronize areas count with subscription context when areas change
+  useEffect(() => {
+    if (areas && areas.length > 0) {
+      // Update the usage context with the actual areas count from the database
+      const actualAreasCount = areas.length
+      const contextAreasCount = getRemainingUsage('areas') === Infinity ? 0 : (areasLimit - getRemainingUsage('areas'))
+
+      // If there's a mismatch, update the context
+      if (actualAreasCount !== contextAreasCount && userId) {
+        // Force refresh of usage data to sync with actual database state
+        recordUsage('areas')
+      }
+    }
+  }, [areas, userId])
+
+  const handleCreateClick = () => {
+    // Use current areas count from subscription context
+    if (checkLimit('areas', currentAreasCount)) {
+      setEditingArea(null);
+      setAreaModalOpen(true)
+    }
+  }
+
   const { data: currentArea } = useQuery({
     queryKey: ['inventoryArea', selectedAreaId],
     queryFn: () => getArea(selectedAreaId, userId),
@@ -45,6 +76,8 @@ export default function InventarioDinamico() {
     if (selectedAreaId) {
       queryClient.invalidateQueries({ queryKey: ['inventoryArea', selectedAreaId] })
     }
+    // Update usage metrics after creating/updating an area
+    recordUsage('areas')
   }
 
   const handleEditClick = (e, area) => {
@@ -70,9 +103,12 @@ export default function InventarioDinamico() {
       }
       setDeleteModalOpen(false)
       setDeletingAreaId(null)
+      // Update usage metrics after deleting an area
+      recordUsage('areas')
     } catch (error) {
-      console.error('Error deleting area:', error)
-      alert('Error al eliminar el área')
+      const { notify, getSupabaseErrorMessage } = await import('@/services/notifications')
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     } finally {
       setDeleteLoading(false)
     }
@@ -85,9 +121,16 @@ export default function InventarioDinamico() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <Layers className="w-8 h-8 text-primary" />
           </div>
-          Inventario
+          <div>
+            Inventario
+            {subscription?.plan_id === 'free' && (
+              <div className="text-xs font-normal text-muted-foreground mt-1">
+                Áreas restantes: {remainingAreasDisplay} / {areasLimit}
+              </div>
+            )}
+          </div>
         </h1>
-        <Button onClick={() => { setEditingArea(null); setAreaModalOpen(true) }} className="gap-2">
+        <Button onClick={handleCreateClick} className="gap-2">
           <PlusCircle className="w-4 h-4" />
           Crear Nueva Área
         </Button>

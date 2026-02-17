@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createProduct, updateProduct, deleteProduct } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories }) {
   const { session } = useSession()
@@ -19,6 +21,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     stock: 0,
     min_stock: 5
   })
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (product) {
@@ -58,24 +61,24 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       }
       onSuccess()
     } catch (error) {
-      console.error(error)
-      alert('Error al guardar producto')
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!confirm('¿Estás seguro de eliminar este producto?')) return
     setLoading(true)
     try {
       await deleteProduct(product.id, userId)
       onSuccess()
     } catch (error) {
-      console.error(error)
-      alert('Error al eliminar producto')
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(msg)
     } finally {
       setLoading(false)
+      setConfirmOpen(false)
     }
   }
 
@@ -146,7 +149,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
           <div className="flex justify-between pt-4">
             {product ? (
-              <Button type="button" variant="destructive" onClick={handleDelete} disabled={loading}>
+              <Button type="button" variant="destructive" onClick={() => setConfirmOpen(true)} disabled={loading}>
                 Eliminar
               </Button>
             ) : <div />}
@@ -156,6 +159,17 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
           </div>
         </form>
       </DialogContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Confirmar eliminación"
+        description="¿Deseas eliminar este producto? Esta acción no se puede deshacer."
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        tone="destructive"
+        onConfirm={handleDelete}
+        loading={loading}
+      />
     </Dialog>
   )
 }

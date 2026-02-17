@@ -2,11 +2,13 @@ import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { FileText, FileSpreadsheet, Loader2, File } from 'lucide-react'
+import { FileText, FileSpreadsheet, Loader2, File, Lock, Zap, Crown } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useSubscription } from '@/context/SubscriptionContext'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -16,6 +18,8 @@ import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
 import { generateDOCX } from '@/utils/docxGenerator'
 import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { notify } from '@/services/notifications'
 
 const ReportPreview = ({ report }) => {
   if (!report) return null;
@@ -88,11 +92,29 @@ const ReportPreview = ({ report }) => {
 
 const Reportes = () => {
   const { session } = useSession()
+  const { canAccessFeature, subscription, activateTrial } = useSubscription()
   const userId = session?.user?.id
   const [dateFilter, setDateFilter] = useState(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewReport, setPreviewReport] = useState(null)
   const [filename, setFilename] = useState('')
+
+  const canExport = canAccessFeature('reports_export')
+  const showWatermark = subscription?.plan_id === 'free'
+  const [trialConfirmOpen, setTrialConfirmOpen] = useState(false)
+
+  const handleExport = (type, fn) => {
+    if (canExport) {
+      fn(type)
+    } else {
+      // Trigger upsell or trial
+      if (subscription?.plan_id === 'free' && subscription?.status !== 'trial_used') {
+        setTrialConfirmOpen(true)
+      } else {
+        notify.error('Esta función requiere el plan Premium.')
+      }
+    }
+  }
 
   // Finanzas Query
   const { data: transactions = [], isLoading: loadingFinanzas } = useQuery({
@@ -242,9 +264,28 @@ const Reportes = () => {
         <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
       </div>
 
+      {!canExport && (
+        <Alert className="bg-blue-50 border-blue-200">
+          <Zap className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Estás en el Plan Gratuito</AlertTitle>
+          <AlertDescription className="text-blue-700 flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
+            <span>
+              La exportación de reportes y filtros avanzados son funciones Premium.
+              Tienes acceso de solo lectura.
+            </span>
+            <Button size="sm" variant="default" className="bg-blue-600 hover:bg-blue-700 mt-2 sm:mt-0" onClick={activateTrial}>
+              Probar Premium Gratis (3 días)
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <DateRangeFilter onFilterChange={handleFilterChange}>
-        <Button onClick={() => handlePreview('global')} className="bg-blue-600 hover:bg-blue-700">
-          <File className="mr-2 h-4 w-4" />
+        <Button
+          onClick={() => handleExport('docx', () => handlePreview('global'))}
+          className={`bg-blue-600 hover:bg-blue-700 ${!canExport ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-400" /> : <File className="mr-2 h-4 w-4" />}
           Resumen General (DOCX)
         </Button>
       </DateRangeFilter>
@@ -268,14 +309,14 @@ const Reportes = () => {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handlePreview('finanzas')}>
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Finanzas
+                    Resumen
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportFinanzas('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportFinanzas)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
                     Excel
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportFinanzas('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportFinanzas)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
                     PDF
                   </Button>
                 </div>
@@ -331,14 +372,14 @@ const Reportes = () => {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handlePreview('almacen')}>
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Almacén
+                    Resumen
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportAlmacen('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportAlmacen)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
                     Excel
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportAlmacen('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportAlmacen)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
                     PDF
                   </Button>
                 </div>
@@ -396,14 +437,14 @@ const Reportes = () => {
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handlePreview('inventario')}>
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Inventario
+                    Resumen
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportInventario('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportInventario)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
                     Excel
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportInventario('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
+                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportInventario)}>
+                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
                     PDF
                   </Button>
                 </div>
@@ -456,8 +497,12 @@ const Reportes = () => {
 
               <DialogFooter className="mt-6">
                 <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
-                <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700">
-                  <File className="mr-2 h-4 w-4" />
+                <Button
+                  onClick={() => canExport ? handleDownloadDOCX() : handleExport('docx', handleDownloadDOCX)}
+                  disabled={!canExport}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-400" /> : <File className="mr-2 h-4 w-4" />}
                   Descargar DOCX
                 </Button>
               </DialogFooter>
@@ -465,6 +510,18 @@ const Reportes = () => {
           )}
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={trialConfirmOpen}
+        onOpenChange={setTrialConfirmOpen}
+        title="Activar prueba gratuita"
+        description="¿Deseas activar tu prueba gratuita de 3 días del plan Premium?"
+        confirmText="Activar prueba"
+        cancelText="Cancelar"
+        onConfirm={() => {
+          activateTrial()
+          setTrialConfirmOpen(false)
+        }}
+      />
     </div>
   )
 }

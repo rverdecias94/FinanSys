@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, Pencil } from 'lucide-react'
 import { notify } from '@/services/notifications'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 
 export function FormRunner({ areaId, userId, currentArea }) {
@@ -18,6 +19,8 @@ export function FormRunner({ areaId, userId, currentArea }) {
   const [pageSize, setPageSize] = useState(10)
   const [values, setValues] = useState({})
   const [editingId, setEditingId] = useState(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
     queryKey: ['inventoryFields', areaId],
@@ -88,11 +91,8 @@ export function FormRunner({ areaId, userId, currentArea }) {
   }
 
   const handleDeleteItem = async (id) => {
-    // Usamos toast con promesa para una mejor experiencia visual o un simple confirm
-    // Aquí mantenemos el confirm nativo por simplicidad, pero la notificación de éxito/error será automática
-    if (window.confirm('¿Estás seguro de eliminar este artículo?')) {
-      deleteMutation.mutate(id)
-    }
+    setPendingDeleteId(id)
+    setConfirmOpen(true)
   }
 
   const handleEditItem = (item) => {
@@ -260,6 +260,25 @@ export function FormRunner({ areaId, userId, currentArea }) {
           </div>
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          setConfirmOpen(o)
+          if (!o) setPendingDeleteId(null)
+        }}
+        title="Confirmar eliminación"
+        description="¿Deseas eliminar este artículo?"
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        tone="destructive"
+        onConfirm={() => {
+          if (pendingDeleteId) {
+            deleteMutation.mutate(pendingDeleteId)
+            setConfirmOpen(false)
+            setPendingDeleteId(null)
+          }
+        }}
+      />
     </div>
   )
 }

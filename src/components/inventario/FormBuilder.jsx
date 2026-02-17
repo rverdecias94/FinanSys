@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Plus } from 'lucide-react'
+import { notify } from '@/services/notifications'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 const TYPE_OPTIONS = [
   { value: 'text', label: 'Texto' },
@@ -31,7 +33,7 @@ export function FormBuilder({ areaId, userId }) {
 
   const handleAddField = async () => {
     if (!newField.name || !newField.label) {
-      alert('Nombre y etiqueta son obligatorios')
+      notify.warning('Nombre y etiqueta son obligatorios')
       return
     }
     await addField(areaId, newField, userId)
@@ -113,7 +115,7 @@ export function FormBuilder({ areaId, userId }) {
                           const parsed = JSON.parse(e.target.value || '[]')
                           handleUpdateField(f.id, { options: parsed })
                         } catch {
-                          alert('JSON inválido en opciones')
+                          notify.error('JSON inválido en opciones')
                         }
                       }}
                     />
@@ -182,7 +184,7 @@ export function FormBuilder({ areaId, userId }) {
                     const parsed = JSON.parse(e.target.value)
                     setNewField({ ...newField, options: parsed })
                   } catch {
-                    alert('JSON inválido en opciones')
+                    notify.error('JSON inválido en opciones')
                   }
                 }}
               />
