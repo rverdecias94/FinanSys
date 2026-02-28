@@ -183,7 +183,15 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      onOpenChange(nextOpen)
+      if (!nextOpen) {
+        form.reset()
+        setExistingAttachments([])
+        setFiles([])
+        setIsPreview(false)
+      }
+    }}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">

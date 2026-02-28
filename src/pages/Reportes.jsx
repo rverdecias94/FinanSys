@@ -1,8 +1,8 @@
-import React, { useState } from 'react'
+/* eslint-disable react/prop-types */
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { FileText, FileSpreadsheet, Loader2, File, Lock, Zap, Crown } from 'lucide-react'
+import { FileText, FileSpreadsheet, Loader2, File, Zap, Crown, ShieldAlert } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useSubscription } from '@/context/SubscriptionContext'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
@@ -65,7 +65,7 @@ const ReportPreview = ({ report }) => {
                   {section.rows.map((row, i) => (
                     <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
                       {row.map((cell, j) => (
-                        <td key={j} className={`px-3 py-2 ${isNaN(cell.replace(/[^0-9.-]+/g, "")) ? 'text-left' : 'text-right'}`}>
+                        <td key={j} className={`px-3 py-2 text-center`}>
                           {cell}
                         </td>
                       ))}
@@ -100,19 +100,13 @@ const Reportes = () => {
   const [filename, setFilename] = useState('')
 
   const canExport = canAccessFeature('reports_export')
-  const showWatermark = subscription?.plan_id === 'free'
   const [trialConfirmOpen, setTrialConfirmOpen] = useState(false)
 
   const handleExport = (type, fn) => {
     if (canExport) {
       fn(type)
     } else {
-      // Trigger upsell or trial
-      if (subscription?.plan_id === 'free' && subscription?.status !== 'trial_used') {
-        setTrialConfirmOpen(true)
-      } else {
-        notify.error('Esta función requiere el plan Premium.')
-      }
+      notify.error('Esta función requiere el plan Premium.')
     }
   }
 
@@ -265,17 +259,14 @@ const Reportes = () => {
       </div>
 
       {!canExport && (
-        <Alert className="bg-blue-50 border-blue-200">
-          <Zap className="h-4 w-4 text-blue-600" />
-          <AlertTitle className="text-blue-800">Estás en el Plan Gratuito</AlertTitle>
-          <AlertDescription className="text-blue-700 flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between">
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <ShieldAlert className="h-4 w-4 text-yellow-600" />
+          <AlertTitle className="text-yellow-800">Acceso Restringido</AlertTitle>
+          <AlertDescription className="text-yellow-700 flex flex-col gap-2">
             <span>
-              La exportación de reportes y filtros avanzados son funciones Premium.
-              Tienes acceso de solo lectura.
+              La exportación de reportes y filtros avanzados son funciones exclusivas del Plan Premium.
+              Actualiza tu cuenta en configuración para tener acceso.
             </span>
-            <Button size="sm" variant="default" className="bg-blue-600 hover:bg-blue-700 mt-2 sm:mt-0" onClick={activateTrial}>
-              Probar Premium Gratis (3 días)
-            </Button>
           </AlertDescription>
         </Alert>
       )}

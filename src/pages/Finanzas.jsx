@@ -32,7 +32,7 @@ export default function Finanzas() {
   const dateKey = dateFilter ? format(dateFilter, 'yyyy-MM-dd') : null
 
   const remainingTransactions = getRemainingUsage('monthly_transactions')
-  const transactionsLimit = subscription?.plan_id === 'premium' ? Infinity : 50
+  const transactionsLimit = subscription?.plan_id === 'premium' ? Infinity : 40
   const remainingDisplay = transactionsLimit === Infinity ? 'Ilimitadas' : remainingTransactions
 
   // 1. Transactions Query (Paginated)
@@ -150,7 +150,9 @@ export default function Finanzas() {
 
   const handleModalOpenChange = (nextOpen) => {
     setModalOpen(nextOpen)
-    if (!nextOpen) setSelectedTransaction(null)
+    if (!nextOpen) {
+      setSelectedTransaction(null)
+    }
   }
 
   // Derived state

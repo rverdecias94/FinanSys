@@ -1,5 +1,6 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
+import { logAction } from '@/services/auditLogger'
 
 export async function listAreas(userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
@@ -29,6 +30,12 @@ export async function createArea({ name, icon, slug, prefix }, userUuid) {
       .insert({ user_id: userUuid, area_id: area.id, prefix: pref })
     if (perr) throw perr
   }
+  await logAction({
+    action: 'Crear',
+    resource: `Área: ${area.name}`,
+    details: area,
+    area: 'Inventario'
+  })
   return area
 }
 
@@ -64,6 +71,13 @@ export async function updateArea(id, { name, icon, slug, prefix }, userUuid) {
     if (perr) throw perr
   }
 
+  await logAction({
+    action: 'Actualizar',
+    resource: `Área: ${data.name}`,
+    details: data,
+    area: 'Inventario'
+  })
+
   return data
 }
 
@@ -88,6 +102,12 @@ export async function deleteArea(id, userUuid) {
     .eq('id', id)
     .eq('user_id', userUuid)
   if (error) throw error
+  await logAction({
+    action: 'Eliminar',
+    resource: `Área ID: ${id}`,
+    details: { id },
+    area: 'Inventario'
+  })
   return true
 }
 
@@ -176,6 +196,12 @@ export async function createItem(areaId, values, userUuid) {
       .select()
       .single()
     if (error) throw error
+    await logAction({
+      action: 'Crear',
+      resource: `Item Inventario: ${sku}`,
+      details: data,
+      area: 'Inventario'
+    })
     return data
   })
 }
@@ -191,6 +217,12 @@ export async function updateItem(itemId, values, userUuid) {
       .select()
       .single()
     if (error) throw error
+    await logAction({
+      action: 'Actualizar',
+      resource: `Item Inventario: ${data.sku}`,
+      details: data,
+      area: 'Inventario'
+    })
     return data
   })
 }
@@ -204,6 +236,12 @@ export async function deleteItem(itemId, userUuid) {
       .eq('id', itemId)
       .eq('user_id', userUuid)
     if (error) throw error
+    await logAction({
+      action: 'Eliminar',
+      resource: `Item Inventario ID: ${itemId}`,
+      details: { itemId },
+      area: 'Inventario'
+    })
     return true
   })
 }

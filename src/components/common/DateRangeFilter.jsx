@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+/* eslint-disable no-case-declarations */
+import { useState, useEffect } from 'react'
 import {
   format, startOfDay, endOfDay, startOfMonth, endOfMonth,
   startOfYear, endOfYear, startOfQuarter, endOfQuarter,
-  setMonth, setYear, setQuarter, addMonths
+  setMonth, setYear, setQuarter
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -15,7 +16,7 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
 
-const DateRangeFilter = ({ onFilterChange, children }) => {
+export const DateRangeFilter = ({ onFilterChange, children }) => {
   const [filterType, setFilterType] = useState('month')
 
   // States for different filters
@@ -77,8 +78,6 @@ const DateRangeFilter = ({ onFilterChange, children }) => {
         label = format(dateWithYear, 'yyyy')
         break
       case 'quarter':
-        // Quarter is 1-indexed in UI, 1-indexed in date-fns setQuarter (but date-fns handles quarters differently, let's calculate manually to be safe or use setQuarter)
-        // setQuarter(date, quarter): quarter is 1-4
         const dateWithQuarter = setQuarter(setYear(new Date(), parseInt(selectedYear)), parseInt(selectedQuarter))
         start = startOfQuarter(dateWithQuarter)
         end = endOfQuarter(dateWithQuarter)

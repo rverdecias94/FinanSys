@@ -28,17 +28,15 @@ export default function Almacen() {
   const [movProduct, setMovProduct] = useState('all')
 
   const remainingProducts = getRemainingUsage('products')
-  const productsLimit = subscription?.plan_id === 'premium' ? Infinity : 50
+  const productsLimit = subscription?.plan_id === 'premium' ? Infinity : 40
   const remainingProductsDisplay = productsLimit === Infinity ? 'Ilimitados' : remainingProducts
 
-  // 1. Fetch Stats
   const { data: stats, isLoading: loadingStats } = useQuery({
     queryKey: ['almacenStats'],
     queryFn: () => getAlmacenStats(userId),
     enabled: !!userId
   })
 
-  // 2. Fetch Products (Paginated & Filtered)
   const { data: productsData, isLoading: loadingProducts } = useQuery({
     queryKey: ['products', { page: prodPage, pageSize: prodPageSize, search: prodSearch, category: prodCategory }],
     queryFn: () => listProducts({
@@ -54,14 +52,11 @@ export default function Almacen() {
   const products = productsData?.data || []
   const prodCount = productsData?.count || 0
 
-  // 3. Fetch Categories
   const { data: categories = [] } = useQuery({
     queryKey: ['productCategories'],
     queryFn: getProductCategories,
-    // enabled: true (default) - no need to wait for userId as categories are global
   })
 
-  // 4. Fetch Movements (Paginated & Filtered)
   const { data: movementsData, isLoading: loadingMovements } = useQuery({
     queryKey: ['movements', { page: movPage, pageSize: movPageSize, type: movType, productId: movProduct }],
     queryFn: () => listMovements({
@@ -77,27 +72,30 @@ export default function Almacen() {
   const movements = movementsData?.data || []
   const movCount = movementsData?.count || 0
 
-  // Also fetch ALL products just for the select dropdown in Movements filter (lightweight version?)
-  // Or just reuse the current page products? Ideally we need a list of all product names for the dropdown.
-  // For now, let's use a separate query or just use the stats query if it had names.
-  // Let's create a "simple product list" query for dropdowns.
   const { data: allProducts = [] } = useQuery({
     queryKey: ['productsAllSimple'],
     queryFn: async () => {
-      // Reusing listProducts but asking for a larger page or we should add a specific method.
-      // Using existing method with large page size for dropdown. 
-      // In production, this should be a "searchable" select or a specific lightweight endpoint.
       const res = await listProducts({ page: 1, pageSize: 1000, userUuid: userId })
       return res.data
     },
-    enabled: !!userId
+    enabled: !!userId,
+    staleTime: 0
   })
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['almacenStats'] })
     queryClient.invalidateQueries({ queryKey: ['products'] })
     queryClient.invalidateQueries({ queryKey: ['movements'] })
+    queryClient.invalidateQueries({ queryKey: ['productsAllSimple'] })
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
+  const refreshProducts = () => {
+    // Add a small delay to ensure database transaction is committed
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['productsAllSimple'] })
+    }, 300)
   }
 
   return (
@@ -140,6 +138,7 @@ export default function Almacen() {
             onCategoryChange={setProdCategory}
             loading={loadingProducts}
             onRefresh={handleRefresh}
+            onProductCreated={refreshProducts}
             categories={categories}
           />
         </TabsContent>

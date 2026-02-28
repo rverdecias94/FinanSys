@@ -157,12 +157,88 @@ export default function Configuracion() {
         Configuración
       </h1>
 
-      <Tabs defaultValue="general" className="w-full max-w-4xl">
+      <Tabs defaultValue="billing" className="w-full max-w-7xl">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="billing">Planes y Facturación</TabsTrigger>
+          <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="team">Equipo y Socios</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="billing" className="space-y-6 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Free Plan */}
+            <Card className={`relative flex flex-col ${subscription?.plan_id === 'free' ? 'border-primary shadow-md' : ''}`}>
+              <CardHeader>
+                <CardTitle className="flex justify-between items-center">
+                  Plan Gratuito
+                  {subscription?.plan_id === 'free' && <Badge>Actual</Badge>}
+                </CardTitle>
+                <CardDescription>Para empezar a organizar tu negocio</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-4">
+                <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Transacciones / mes</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Productos</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Reportes Básicos (Solo lectura)</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Sin Socios</li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={subscription?.plan_id === 'free'}
+                  onClick={() => handlePlanChange('free')}
+                >
+                  {subscription?.plan_id === 'free' ? 'Plan Actual' : 'Cambiar a Gratuito'}
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Premium Plan */}
+            <Card className={`relative flex flex-col border-yellow-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-yellow-50/50 shadow-md' : ''}`}>
+              {subscription?.status === 'trial' && (
+                <div className="absolute -top-3 right-4 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                  Prueba Activa
+                </div>
+              )}
+              <CardHeader>
+                <CardTitle className="flex justify-between items-center text-yellow-700">
+                  <div className="flex items-center gap-2">
+                    <Crown className="w-5 h-5 fill-yellow-500 text-yellow-600" />
+                    Plan Premium
+                  </div>
+                  {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-yellow-500 hover:bg-yellow-600">Actual</Badge>}
+                </CardTitle>
+                <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-1 space-y-4">
+                <div className="text-3xl font-bold">$5 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
+                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
+                </ul>
+              </CardContent>
+              <CardFooter>
+                {subscription?.plan_id === 'premium' ? (
+                  <Button className="w-full" variant="outline" disabled>
+                    Plan Activo
+                  </Button>
+                ) : (
+                  <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handlePlanChange('premium')}>
+                    Suscribirse a Premium
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="general" className="space-y-6 mt-6">
           <Card>
@@ -232,82 +308,6 @@ export default function Configuracion() {
 
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="billing" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Free Plan */}
-            <Card className={`relative flex flex-col ${subscription?.plan_id === 'free' ? 'border-primary shadow-md' : ''}`}>
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  Plan Gratuito
-                  {subscription?.plan_id === 'free' && <Badge>Actual</Badge>}
-                </CardTitle>
-                <CardDescription>Para empezar a organizar tu negocio</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Transacciones / mes</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Productos</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
-                  <li className="flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="w-4 h-4" /> Reportes Básicos (Solo lectura)</li>
-                  <li className="flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="w-4 h-4" /> Sin Socios</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={subscription?.plan_id === 'free'}
-                  onClick={() => handlePlanChange('free')}
-                >
-                  {subscription?.plan_id === 'free' ? 'Plan Actual' : 'Cambiar a Gratuito'}
-                </Button>
-              </CardFooter>
-            </Card>
-
-            {/* Premium Plan */}
-            <Card className={`relative flex flex-col border-yellow-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-yellow-50/50 shadow-md' : ''}`}>
-              {subscription?.status === 'trial' && (
-                <div className="absolute -top-3 right-4 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
-                  Prueba Activa
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center text-yellow-700">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-5 h-5 fill-yellow-500 text-yellow-600" />
-                    Plan Premium
-                  </div>
-                  {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-yellow-500 hover:bg-yellow-600">Actual</Badge>}
-                </CardTitle>
-                <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="text-3xl font-bold">$5 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                {subscription?.plan_id === 'premium' ? (
-                  <Button className="w-full" variant="outline" disabled>
-                    Plan Activo
-                  </Button>
-                ) : (
-                  <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handlePlanChange('premium')}>
-                    Suscribirse a Premium
-                  </Button>
-                )}
-              </CardFooter>
-            </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="team" className="space-y-6 mt-6">

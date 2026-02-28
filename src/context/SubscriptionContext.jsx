@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
 import { toast } from 'sonner'
+import { logAction } from '@/services/auditLogger'
 
 const SubscriptionContext = createContext({})
 
@@ -15,8 +16,8 @@ export const SubscriptionProvider = ({ children }) => {
 
   const PLAN_LIMITS = {
     free: {
-      monthly_transactions: 50,
-      products: 50,
+      monthly_transactions: 40,
+      products: 40,
       areas: 5,
       reports_export: false,
       audit_logs: false,
@@ -158,10 +159,6 @@ export const SubscriptionProvider = ({ children }) => {
     if (!subscription) return false
     const plan = PLAN_LIMITS[subscription.plan_id] || PLAN_LIMITS.free
     const limit = plan[metricKey]
-
-    // Use real-time usage from state which is now backed by DB counts
-    // For cumulative metrics like 'monthly_transactions', we use the state
-    // For static limits like 'products' or 'areas', the state also reflects total count
     const currentUsage = currentCountOverride !== null ? currentCountOverride : (usage[metricKey] || 0)
 
     if (limit === Infinity) return true
@@ -190,6 +187,15 @@ export const SubscriptionProvider = ({ children }) => {
   const updatePlan = async (planId) => {
     try {
       setLoading(true)
+
+      // Log action before updating (so we capture downgrades from Premium)
+      await logAction({
+        action: 'Actualizar',
+        resource: `Plan de Suscripción: ${planId}`,
+        details: { old_plan: subscription?.plan_id, new_plan: planId },
+        area: 'Configuración'
+      })
+
       const { error } = await supabase
         .from('subscriptions')
         .update({

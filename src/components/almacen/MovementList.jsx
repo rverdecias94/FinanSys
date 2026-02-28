@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -28,6 +29,13 @@ export function MovementList({
   const { checkLimit, recordUsage } = useSubscription()
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
+
+  const handleOpenModal = () => {
+    if (checkLimit('monthly_transactions')) {
+      onRefresh()
+      setModalOpen(true)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -69,11 +77,7 @@ export function MovementList({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => {
-          if (checkLimit('monthly_transactions')) {
-            setModalOpen(true)
-          }
-        }}>+ Registrar Movimiento</Button>
+        <Button onClick={handleOpenModal}>+ Registrar Movimiento</Button>
       </div>
 
       <div className="border rounded-md">
@@ -121,7 +125,9 @@ export function MovementList({
                     <TableCell className={`text-right font-bold ${isEntry ? 'text-green-600' : 'text-red-600'}`}>
                       {isEntry ? '+' : '-'}{m.qty}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground">-</TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {m.resulting_stock !== undefined ? m.resulting_stock : m.products?.stock || '-'}
+                    </TableCell>
                   </TableRow>
                 )
               })

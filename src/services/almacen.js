@@ -1,5 +1,6 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
+import { logAction } from '@/services/auditLogger'
 
 export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all', userUuid } = {}) {
   if (!userUuid) throw new Error('User UUID is required for security isolation')
@@ -55,6 +56,12 @@ export async function createProduct(payload, userUuid) {
       .select()
       .single()
     if (error) throw error
+    await logAction({
+      action: 'Crear',
+      resource: `Producto: ${data.name}`,
+      details: data,
+      area: 'Almacén'
+    })
     return data
   })
 }
@@ -71,6 +78,12 @@ export async function updateProduct(id, payload, userUuid) {
       .select()
       .single()
     if (error) throw error
+    await logAction({
+      action: 'Actualizar',
+      resource: `Producto: ${data.name}`,
+      details: data,
+      area: 'Almacén'
+    })
     return data
   })
 }
@@ -85,6 +98,12 @@ export async function deleteProduct(id, userUuid) {
       .eq('id', id)
       .eq('user_id', userUuid)
     if (error) throw error
+    await logAction({
+      action: 'Eliminar',
+      resource: `Producto ID: ${id}`,
+      details: { id },
+      area: 'Almacén'
+    })
     return true
   })
 }
@@ -95,7 +114,7 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
     const { data: product, error: prodError } = await supabase
       .from('products')
-      .select('id, stock')
+      .select('id, stock, name')
       .eq('id', product_id)
       .eq('user_id', user_id)
       .single()
@@ -112,14 +131,6 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
       throw new Error('Access Denied: Product does not belong to user')
     }
 
-    const { data: movement, error: movError } = await supabase
-      .from('movements')
-      .insert({ product_id, qty, type, user_id })
-      .select()
-      .single()
-
-    if (movError) throw movError
-
     const newStock = type === 'in'
       ? Number(product.stock) + Number(qty)
       : Number(product.stock) - Number(qty)
@@ -132,7 +143,31 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
 
     if (updateError) throw updateError
 
-    return movement
+    const { data: movement, error: movError } = await supabase
+      .from('movements')
+      .insert({ product_id, qty, type, user_id })
+      .select(`
+        *,
+        products (name, category, stock)
+      `)
+      .single()
+
+    if (movError) throw movError
+
+    await logAction({
+      action: 'Movimiento',
+      resource: `Producto: ${product.name}`,
+      details: {
+        product_id,
+        product_name: product.name,
+        qty,
+        type,
+        new_stock: newStock
+      },
+      area: 'Almacén'
+    })
+
+    return { ...movement, resulting_stock: newStock }
   })
 }
 

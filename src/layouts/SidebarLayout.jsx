@@ -65,7 +65,7 @@ export default function SidebarLayout() {
             <FileText className="w-4 h-4" /> Reportes
           </NavLink>
           <NavLink to="/logs" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <ShieldAlert className="w-4 h-4" /> Logs
+            <ShieldAlert className="w-4 h-4" /> Auditoría
           </NavLink>
           <NavLink to="/configuracion" className={linkClass} onClick={() => setSidebarOpen(false)}>
             <Settings className="w-4 h-4" /> Configuración

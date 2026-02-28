@@ -141,6 +141,12 @@ export default function Login() {
                 <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
                   Contraseña
                 </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-primary hover:text-primary/80 hover:underline transition-all duration-200"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
               <div className="relative">
                 <Input

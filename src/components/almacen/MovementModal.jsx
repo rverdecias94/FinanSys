@@ -28,7 +28,6 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
         type: formData.type,
         user_id: session?.user?.id
       })
-      setFormData({ product_id: '', qty: '', type: 'in' })
       onSuccess()
     } catch (error) {
       const msg = getSupabaseErrorMessage(error)
@@ -41,7 +40,12 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const selectedProduct = products.find(p => String(p.id) === String(formData.product_id))
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      onOpenChange(nextOpen)
+      if (!nextOpen) {
+        setFormData({ product_id: '', qty: '', type: 'in' })
+      }
+    }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Registrar Movimiento</DialogTitle>

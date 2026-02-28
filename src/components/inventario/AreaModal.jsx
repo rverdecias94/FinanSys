@@ -59,7 +59,12 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      onOpenChange(nextOpen)
+      if (!nextOpen) {
+        setFormData({ name: '', icon: 'Home', slug: '', prefix: '' })
+      }
+    }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{areaToEdit ? 'Editar Área' : 'Crear Nueva Área'}</DialogTitle>

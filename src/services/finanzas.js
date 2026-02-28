@@ -1,5 +1,6 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
+import { logAction } from '@/services/auditLogger'
 
 export async function getFinanceCategories() {
   // Obtener categorías de la base de datos
@@ -82,6 +83,12 @@ export async function createBankAccount(accountData) {
       .select()
       .single()
     if (error) throw error
+    await logAction({
+      action: 'Crear',
+      resource: `Cuenta Bancaria: ${data.account_name}`,
+      details: data,
+      area: 'Finanzas'
+    })
     return data
   })
 }
@@ -114,6 +121,12 @@ export async function createTransaction(payload) {
   return await withCrud({ action: 'create', table: 'transactions' }, async () => {
     const { data, error } = await supabase.from('transactions').insert(dbPayload).select().single()
     if (error) throw error
+    await logAction({
+      action: 'Crear',
+      resource: `Transacción: ${data.description || 'Sin descripción'}`,
+      details: data,
+      area: 'Finanzas'
+    })
     return data
   })
 }
@@ -146,6 +159,12 @@ export async function updateTransaction(transactionId, payload) {
   return await withCrud({ action: 'update', table: 'transactions' }, async () => {
     const { data, error } = await q.select().single()
     if (error) throw error
+    await logAction({
+      action: 'Actualizar',
+      resource: `Transacción: ${data.description || 'Sin descripción'}`,
+      details: data,
+      area: 'Finanzas'
+    })
     return data
   })
 }
@@ -319,6 +338,12 @@ export async function updateBalanceConfig(userId, balanceUsd, balanceCup) {
   })
 
   if (error) throw error
+  await logAction({
+    action: 'Actualizar',
+    resource: 'Configuración de Balance',
+    details: { balanceUsd, balanceCup },
+    area: 'Configuración'
+  })
   return data
 }
 

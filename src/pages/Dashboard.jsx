@@ -204,11 +204,11 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
             <CardTitle className="text-sm font-medium">
-              Balance Total
+              Balance Actual
             </CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -283,6 +283,40 @@ export default function Dashboard() {
               {stats.expense.change.usd !== null && stats.expense.change.cup !== null ? ' / ' : ''}
               {stats.expense.change.cup !== null ? (
                 <span>{formatPercentage(stats.expense.change.cup)} (CUP)</span>
+              ) : null}
+              {stats.expense.change.usd === null && stats.expense.change.cup === null ? 'Sin datos mes anterior' : ' respecto al mes pasado'}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Beneficios Netos
+            </CardTitle>
+            <TrendingDown className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-2">
+                <span className={`text-xl flex sm:text-2xl font-bold ${stats.income.current.usd - stats.expense.current.usd > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatMoney(stats.income.current.usd - stats.expense.current.usd, 'USD')}
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">USD</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className={`text-lg sm:text-xl font-semibold ${stats.income.current.cup - stats.expense.current.cup > 0 ? 'text-green-600/80' : 'text-red-600/80'}`}>
+                  {formatMoney(stats.income.current.cup - stats.expense.current.cup, 'CUP')}
+                </span>
+                <span className="text-xs font-medium text-muted-foreground">CUP</span>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">
+              {stats.income.change.usd !== null ? (
+                <span>{formatPercentage(stats.income.change.usd)} (USD)</span>
+              ) : null}
+              {stats.income.change.usd !== null && stats.income.change.cup !== null ? ' / ' : ''}
+              {stats.income.change.cup !== null ? (
+                <span>{formatPercentage(stats.income.change.cup)} (CUP)</span>
               ) : null}
               {stats.expense.change.usd === null && stats.expense.change.cup === null ? 'Sin datos mes anterior' : ' respecto al mes pasado'}
             </div>

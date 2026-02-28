@@ -5,6 +5,8 @@ import SidebarLayout from '@/layouts/SidebarLayout'
 import Dashboard from '@/pages/Dashboard'
 import Login from '@/pages/Login'
 import Signup from '@/pages/Signup'
+import ForgotPassword from '@/pages/ForgotPassword'
+import ResetPassword from '@/pages/ResetPassword'
 import Finanzas from '@/pages/Finanzas'
 import Almacen from '@/pages/Almacen'
 import Configuracion from '@/pages/Configuracion'
@@ -30,6 +32,8 @@ export default function App() {
         </Route>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Routes>
       <Toaster position="top-right" richColors />
     </SubscriptionProvider>

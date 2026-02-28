@@ -1,0 +1,4 @@
+
+ALTER TABLE public.audit_logs 
+ADD COLUMN IF NOT EXISTS user_email TEXT,
+ADD COLUMN IF NOT EXISTS area TEXT;

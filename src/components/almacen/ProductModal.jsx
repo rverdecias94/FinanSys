@@ -83,7 +83,19 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      onOpenChange(nextOpen)
+      if (!nextOpen) {
+        setFormData({
+          name: '',
+          category: '',
+          unit_price: '',
+          stock: 0,
+          min_stock: 5
+        })
+        setConfirmOpen(false)
+      }
+    }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{product ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>

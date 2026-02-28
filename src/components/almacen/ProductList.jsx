@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -12,6 +13,7 @@ export function ProductList({
   products,
   loading,
   onRefresh,
+  onProductCreated,
   categories,
   totalCount,
   page,
@@ -189,7 +191,10 @@ export function ProductList({
         onOpenChange={setModalOpen}
         product={editingProduct}
         onSuccess={() => {
-          if (!editingProduct) recordUsage('products')
+          if (!editingProduct) {
+            recordUsage('products')
+            onProductCreated && onProductCreated()
+          }
           setModalOpen(false)
           onRefresh()
         }}
