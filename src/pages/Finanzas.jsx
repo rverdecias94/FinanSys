@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { useCurrency } from '@/context/CurrencyContext'
 import { TransactionModal } from '@/components/finanzas/TransactionModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -17,6 +18,7 @@ import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 export default function Finanzas() {
   const { session } = useSession()
   const { checkLimit, recordUsage, getRemainingUsage, subscription } = useSubscription()
+  const { businessCurrencies, formatCurrency } = useCurrency()
   const queryClient = useQueryClient()
 
   // Pagination state
@@ -84,7 +86,7 @@ export default function Finanzas() {
   })
 
   // 5. Global Filtered Totals (Not Paginated)
-  const { data: filteredTotals = { income_usd: 0, income_cup: 0, expense_usd: 0, expense_cup: 0 } } = useQuery({
+  const { data: filteredTotals = { income: {}, expense: {} } } = useQuery({
     queryKey: ['filteredTotals', { userId, currencyFilter, categoryFilter, dateKey }],
     queryFn: () =>
       getFilteredTotals({
@@ -160,10 +162,6 @@ export default function Finanzas() {
   const totalCount = transactionsData?.count || 0
   const totalPages = Math.ceil(totalCount / pageSize)
 
-  // Note: Totals here are calculated based on the CURRENT PAGE data. 
-  // Ideally, this should be a separate query for global stats, but keeping consistent with previous behavior for now.
-  const totals = computeTotals(rows)
-
   const clearFilters = () => {
     setCurrencyFilter('all')
     setCategoryFilter('all')
@@ -202,42 +200,39 @@ export default function Finanzas() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700">Ingresos USD</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-green-700">${filteredTotals.income_usd.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-700">Ingresos CUP</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-green-700">${filteredTotals.income_cup.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-700">Gastos USD</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-700">${filteredTotals.expense_usd.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-red-700">Gastos CUP</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold text-red-700">${filteredTotals.expense_cup.toFixed(2)}</div>
-          </CardContent>
-        </Card>
+        {businessCurrencies.map(curr => (
+          <Card key={`income-${curr.code}`} className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-700">Ingresos {curr.code}</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl font-bold text-green-700">
+                {formatCurrency(filteredTotals.income[curr.code] || 0, curr.code)}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {businessCurrencies.map(curr => (
+          <Card key={`expense-${curr.code}`} className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-red-700">Gastos {curr.code}</CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl sm:text-2xl font-bold text-red-700">
+                {formatCurrency(filteredTotals.expense[curr.code] || 0, curr.code)}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {businessCurrencies.length === 0 && (
+          <div className="col-span-full text-center p-4 border rounded-md bg-muted/20">
+            No hay monedas configuradas. Ve a Configuración para agregar monedas.
+          </div>
+        )}
       </div>
 
       {/* Transaction List */}
@@ -256,8 +251,9 @@ export default function Finanzas() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todas</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="CUP">CUP</SelectItem>
+                    {businessCurrencies.map(c => (
+                      <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -349,7 +345,7 @@ export default function Finanzas() {
                             ) : '-'}
                           </td>
                           <td className={`p-3 sm:p-4 text-right font-bold ${isIncome ? 'text-green-600' : 'text-red-600'}`}>
-                            {isIncome ? '+' : '-'}{Number(r.amount).toFixed(2)} <span className="text-xs font-normal text-muted-foreground">{r.currency}</span>
+                            {isIncome ? '+' : '-'}{formatCurrency(r.amount, r.currency)} <span className="text-xs font-normal text-muted-foreground">{r.currency}</span>
                           </td>
                           <td className="p-3 sm:p-4 text-right">
                             <Button
@@ -429,6 +425,7 @@ export default function Finanzas() {
         paymentMethods={paymentMethods}
         bankAccounts={bankAccounts}
         transaction={selectedTransaction}
+        currencies={businessCurrencies}
       />
     </div>
   )

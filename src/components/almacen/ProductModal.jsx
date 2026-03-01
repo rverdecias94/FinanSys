@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,14 +10,17 @@ import { useSession } from '@/hooks/useSession'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-export function ProductModal({ open, onOpenChange, product, onSuccess, categories }) {
+export function ProductModal({ open, onOpenChange, product, onSuccess, categories, currencies = [] }) {
   const { session } = useSession()
   const userId = session?.user?.id
   const [loading, setLoading] = useState(false)
+  const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
+
   const [formData, setFormData] = useState({
     name: '',
     category: '',
     unit_price: '',
+    currency: defaultCurrency,
     stock: 0,
     min_stock: 5
   })
@@ -29,6 +32,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         name: product.name,
         category: product.category,
         unit_price: product.unit_price,
+        currency: product.currency || defaultCurrency,
         stock: product.stock,
         min_stock: product.min_stock || 5
       })
@@ -37,11 +41,12 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         name: '',
         category: '',
         unit_price: '',
+        currency: defaultCurrency,
         stock: 0,
         min_stock: 5
       })
     }
-  }, [product, open])
+  }, [product, open, defaultCurrency])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -90,13 +95,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
           name: '',
           category: '',
           unit_price: '',
+          currency: defaultCurrency,
           stock: 0,
           min_stock: 5
         })
         setConfirmOpen(false)
       }
     }}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{product ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
         </DialogHeader>
@@ -109,31 +115,63 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               required
             />
           </div>
+
           <div className="grid gap-2">
             <Label>Categoría</Label>
             <Select
               value={formData.category}
               onValueChange={v => setFormData({ ...formData, category: v })}
-              required
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona..." />
+                <SelectValue placeholder="Selecciona una categoría" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map(c => (
+                {categories && categories.length > 0 ? categories.map(c => (
                   <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
-                ))}
+                )) : <SelectItem value="General">General</SelectItem>}
               </SelectContent>
             </Select>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label>Precio Unitario</Label>
               <Input
                 type="number"
                 step="0.01"
+                min="0"
                 value={formData.unit_price}
                 onChange={e => setFormData({ ...formData, unit_price: e.target.value })}
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Moneda</Label>
+              <Select
+                value={formData.currency}
+                onValueChange={v => setFormData({ ...formData, currency: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {currencies.map(c => (
+                    <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                  ))}
+                  {currencies.length === 0 && <SelectItem value="USD">USD</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label>Stock Actual</Label>
+              <Input
+                type="number"
+                min="0"
+                value={formData.stock}
+                onChange={e => setFormData({ ...formData, stock: e.target.value })}
                 required
               />
             </div>
@@ -141,34 +179,29 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               <Label>Stock Mínimo (Alerta)</Label>
               <Input
                 type="number"
+                min="0"
                 value={formData.min_stock}
                 onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
                 required
               />
             </div>
           </div>
-          {!product && (
-            <div className="grid gap-2">
-              <Label>Stock Inicial</Label>
-              <Input
-                type="number"
-                value={formData.stock}
-                onChange={e => setFormData({ ...formData, stock: e.target.value })}
-                required
-              />
-            </div>
-          )}
 
-          <div className="flex justify-between pt-4">
+          <DialogFooter className="flex justify-between items-center sm:justify-between w-full mt-6">
             {product ? (
               <Button type="button" variant="destructive" onClick={() => setConfirmOpen(true)} disabled={loading}>
                 Eliminar
               </Button>
             ) : <div />}
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Guardando...' : 'Guardar'}
-            </Button>
-          </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </DialogFooter>
         </form>
       </DialogContent>
       <ConfirmDialog

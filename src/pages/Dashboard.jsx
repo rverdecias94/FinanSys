@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/hooks/useSession'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
 import { useQuery } from '@tanstack/react-query'
+import { useCurrency } from '@/context/CurrencyContext'
 import {
   Select,
   SelectContent,
@@ -40,23 +41,28 @@ const COLORS_EXPENSE = ['#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#f87171', '
 
 export default function Dashboard() {
   const { session } = useSession()
+  const { businessCurrencies, formatCurrency, loading: currencyLoading } = useCurrency()
   const [summaryFilter, setSummaryFilter] = useState('ALL')
 
   // Filtros para el gráfico de distribución
   const [distTypeFilter, setDistTypeFilter] = useState('all')
-  const [distCurrencyFilter, setDistCurrencyFilter] = useState('USD')
+  const [distCurrencyFilter, setDistCurrencyFilter] = useState('')
 
   // Nuevos filtros para el gráfico de barras
   const [barTypeFilter, setBarTypeFilter] = useState('all')
-  const [barCurrencyFilter, setBarCurrencyFilter] = useState('USD')
+  const [barCurrencyFilter, setBarCurrencyFilter] = useState('')
+
+  // Set default filters when currencies load
+  useEffect(() => {
+    if (businessCurrencies.length > 0 && !distCurrencyFilter) {
+      const defaultCurr = businessCurrencies.find(c => c.is_default) || businessCurrencies[0]
+      setDistCurrencyFilter(defaultCurr.code)
+      setBarCurrencyFilter(defaultCurr.code)
+    }
+  }, [businessCurrencies, distCurrencyFilter])
 
   const userId = session?.user?.id
   const currentYear = useMemo(() => new Date().getFullYear(), [])
-  const defaultStats = useMemo(() => ({
-    balance: { usd: 0, cup: 0 },
-    income: { current: { usd: 0, cup: 0 }, change: { usd: null, cup: null } },
-    expense: { current: { usd: 0, cup: 0 }, change: { usd: null, cup: null } }
-  }), [])
 
   const dashboardQueryOptions = useMemo(() => ({
     enabled: !!userId,
@@ -81,31 +87,31 @@ export default function Dashboard() {
   const financialDistributionQuery = useQuery({
     queryKey: ['dashboard', 'distribution', { userId, distTypeFilter, distCurrencyFilter }],
     queryFn: () => getFinancialDistribution(userId, distTypeFilter, distCurrencyFilter),
+    enabled: !!userId && !!distCurrencyFilter,
     ...dashboardQueryOptions
   })
 
   const yearlySummaryQuery = useQuery({
     queryKey: ['dashboard', 'yearlySummary', { userId, currentYear, barCurrencyFilter }],
     queryFn: () => getYearlySummary(userId, currentYear, barCurrencyFilter),
+    enabled: !!userId && !!barCurrencyFilter,
     ...dashboardQueryOptions
   })
 
-  const stats = statsQuery.data ?? defaultStats
+  const stats = statsQuery.data || { balance: {}, income: { current: {}, change: {} }, expense: { current: {}, change: {} } }
   const recentActivityCount = recentActivityQuery.data?.length ?? 0
   const financialDistribution = financialDistributionQuery.data ?? []
   const yearData = yearlySummaryQuery.data ?? {}
 
   const loading = statsQuery.isLoading
     || recentActivityQuery.isLoading
-    || financialDistributionQuery.isLoading
-    || yearlySummaryQuery.isLoading
+    || currencyLoading
 
   const hasError = statsQuery.isError
     || recentActivityQuery.isError
-    || financialDistributionQuery.isError
-    || yearlySummaryQuery.isError
 
   const monthNames = useMemo(() => (["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]), [])
+
   const financialData = useMemo(() => {
     if (!yearData || Object.keys(yearData).length === 0) return []
 
@@ -118,16 +124,27 @@ export default function Dashboard() {
 
     return monthsToInclude.map(month => {
       const data = yearData[month]
+      if (!data) return { name: monthNames[month - 1], ingresos: 0, gastos: 0 }
 
       let ingresos = 0
       let gastos = 0
 
+      // data structure: { income: { USD: 100, CUP: 200 }, expense: ... }
+      // But getYearlySummary already filters by currency if provided.
+      // If we filtered by currency in the query, we just sum up whatever is there (which should be just that currency)
+      // or access by key.
+
+      // Let's check getYearlySummary implementation again.
+      // It returns { 1: { income: { USD: 100 }, ... } }
+
+      const targetCurrency = barCurrencyFilter
+
       if (barTypeFilter === 'all' || barTypeFilter === 'income') {
-        ingresos = barCurrencyFilter === 'USD' ? (data?.income?.USD || 0) : (data?.income?.CUP || 0)
+        ingresos = data.income?.[targetCurrency] || 0
       }
 
       if (barTypeFilter === 'all' || barTypeFilter === 'expense') {
-        gastos = barCurrencyFilter === 'USD' ? (data?.expense?.USD || 0) : (data?.expense?.CUP || 0)
+        gastos = data.expense?.[targetCurrency] || 0
       }
 
       return {
@@ -137,10 +154,6 @@ export default function Dashboard() {
       }
     })
   }, [barCurrencyFilter, barTypeFilter, monthNames, summaryFilter, yearData])
-
-  const formatMoney = (val) => {
-    return new Intl.NumberFormat('en-US').format(val)
-  }
 
   const formatPercentage = (val) => {
     if (val === null || val === undefined) return null
@@ -200,7 +213,6 @@ export default function Dashboard() {
           </h1>
           <p className="text-muted-foreground">Bienvenido al sistema de gestión contable.</p>
         </div>
-
       </div>
 
       {/* Stats Cards */}
@@ -214,20 +226,22 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-bold">{formatMoney(stats.balance.usd)}</span>
-                <span className="text-xs font-medium text-muted-foreground">USD</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-semibold text-muted-foreground">{formatMoney(stats.balance.cup)}</span>
-                <span className="text-xs font-medium text-muted-foreground">CUP</span>
-              </div>
+              {businessCurrencies.map(curr => (
+                <div key={curr.code} className="flex items-baseline gap-2">
+                  <span className="text-xl sm:text-2xl font-bold">
+                    {formatCurrency(stats.balance[curr.code] || 0, curr.code)}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
+                </div>
+              ))}
+              {businessCurrencies.length === 0 && <span className="text-sm text-muted-foreground">Sin monedas configuradas</span>}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Disponible
             </p>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -237,27 +251,28 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-bold text-green-600">{formatMoney(stats.income.current.usd, 'USD')}</span>
-                <span className="text-xs font-medium text-muted-foreground">USD</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-semibold text-green-600/80">{formatMoney(stats.income.current.cup, 'CUP')}</span>
-                <span className="text-xs font-medium text-muted-foreground">CUP</span>
-              </div>
+              {businessCurrencies.map(curr => (
+                <div key={curr.code} className="flex items-baseline gap-2">
+                  <span className="text-lg sm:text-xl font-bold text-green-600">
+                    {formatCurrency(stats.income.current[curr.code] || 0, curr.code)}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
+                </div>
+              ))}
             </div>
-            <div className="text-xs text-muted-foreground mt-2">
-              {stats.income.change.usd !== null ? (
-                <span>{formatPercentage(stats.income.change.usd)} (USD)</span>
-              ) : null}
-              {stats.income.change.usd !== null && stats.income.change.cup !== null ? ' / ' : ''}
-              {stats.income.change.cup !== null ? (
-                <span>{formatPercentage(stats.income.change.cup)} (CUP)</span>
-              ) : null}
-              {stats.income.change.usd === null && stats.income.change.cup === null ? 'Sin datos mes anterior' : ' respecto al mes pasado'}
+            <div className="text-xs text-muted-foreground mt-2 flex flex-col">
+              {businessCurrencies.map(curr => {
+                const change = stats.income.change[curr.code]
+                if (change === null || change === undefined) return null
+                return (
+                  <span key={curr.code}>{formatPercentage(change)} ({curr.code})</span>
+                )
+              })}
+              {Object.values(stats.income.change).every(v => v === null) && 'Sin datos previos'}
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -267,27 +282,28 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xl sm:text-2xl font-bold text-red-600">{formatMoney(stats.expense.current.usd, 'USD')}</span>
-                <span className="text-xs font-medium text-muted-foreground">USD</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg sm:text-xl font-semibold text-red-600/80">{formatMoney(stats.expense.current.cup, 'CUP')}</span>
-                <span className="text-xs font-medium text-muted-foreground">CUP</span>
-              </div>
+              {businessCurrencies.map(curr => (
+                <div key={curr.code} className="flex items-baseline gap-2">
+                  <span className="text-lg sm:text-xl font-bold text-red-600">
+                    {formatCurrency(stats.expense.current[curr.code] || 0, curr.code)}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
+                </div>
+              ))}
             </div>
-            <div className="text-xs text-muted-foreground mt-2">
-              {stats.expense.change.usd !== null ? (
-                <span>{formatPercentage(stats.expense.change.usd)} (USD)</span>
-              ) : null}
-              {stats.expense.change.usd !== null && stats.expense.change.cup !== null ? ' / ' : ''}
-              {stats.expense.change.cup !== null ? (
-                <span>{formatPercentage(stats.expense.change.cup)} (CUP)</span>
-              ) : null}
-              {stats.expense.change.usd === null && stats.expense.change.cup === null ? 'Sin datos mes anterior' : ' respecto al mes pasado'}
+            <div className="text-xs text-muted-foreground mt-2 flex flex-col">
+              {businessCurrencies.map(curr => {
+                const change = stats.expense.change[curr.code]
+                if (change === null || change === undefined) return null
+                return (
+                  <span key={curr.code}>{formatPercentage(change)} ({curr.code})</span>
+                )
+              })}
+              {Object.values(stats.expense.change).every(v => v === null) && 'Sin datos previos'}
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -297,31 +313,21 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              <div className="flex items-baseline gap-2">
-                <span className={`text-xl flex sm:text-2xl font-bold ${stats.income.current.usd - stats.expense.current.usd > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatMoney(stats.income.current.usd - stats.expense.current.usd, 'USD')}
-                </span>
-                <span className="text-xs font-medium text-muted-foreground">USD</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className={`text-lg sm:text-xl font-semibold ${stats.income.current.cup - stats.expense.current.cup > 0 ? 'text-green-600/80' : 'text-red-600/80'}`}>
-                  {formatMoney(stats.income.current.cup - stats.expense.current.cup, 'CUP')}
-                </span>
-                <span className="text-xs font-medium text-muted-foreground">CUP</span>
-              </div>
-            </div>
-            <div className="text-xs text-muted-foreground mt-2">
-              {stats.income.change.usd !== null ? (
-                <span>{formatPercentage(stats.income.change.usd)} (USD)</span>
-              ) : null}
-              {stats.income.change.usd !== null && stats.income.change.cup !== null ? ' / ' : ''}
-              {stats.income.change.cup !== null ? (
-                <span>{formatPercentage(stats.income.change.cup)} (CUP)</span>
-              ) : null}
-              {stats.expense.change.usd === null && stats.expense.change.cup === null ? 'Sin datos mes anterior' : ' respecto al mes pasado'}
+              {businessCurrencies.map(curr => {
+                const net = (stats.income.current[curr.code] || 0) - (stats.expense.current[curr.code] || 0)
+                return (
+                  <div key={curr.code} className="flex items-baseline gap-2">
+                    <span className={`text-lg sm:text-xl font-bold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(net, curr.code)}
+                    </span>
+                    <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -404,11 +410,12 @@ export default function Dashboard() {
                   <label className="text-sm font-medium">Moneda</label>
                   <Select value={barCurrencyFilter} onValueChange={setBarCurrencyFilter}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <SelectValue placeholder="Seleccionar moneda" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="CUP">CUP</SelectItem>
+                      {businessCurrencies.map(curr => (
+                        <SelectItem key={curr.code} value={curr.code}>{curr.code}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -431,12 +438,12 @@ export default function Dashboard() {
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `${barCurrencyFilter} ${value.toLocaleString()}`}
+                  tickFormatter={(value) => formatCurrency(value, barCurrencyFilter)}
                 />
                 <Tooltip
                   cursor={{ fill: 'transparent' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value) => formatMoney(value, barCurrencyFilter)}
+                  formatter={(value) => formatCurrency(value, barCurrencyFilter)}
                 />
                 <Legend />
                 {(barTypeFilter === 'all' || barTypeFilter === 'income') && (
@@ -480,11 +487,12 @@ export default function Dashboard() {
                   <label className="text-sm font-medium">Moneda</label>
                   <Select value={distCurrencyFilter} onValueChange={setDistCurrencyFilter}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
+                      <SelectValue placeholder="Seleccionar moneda" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="CUP">CUP</SelectItem>
+                      {businessCurrencies.map(curr => (
+                        <SelectItem key={curr.code} value={curr.code}>{curr.code}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -515,7 +523,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             ) : (
               <div className="flex h-[350px] items-center justify-center text-muted-foreground">
-                No hay datos para la combinación seleccionada ({distTypeFilter === 'all' ? 'Todos' : distTypeFilter === 'income' ? 'Ingresos' : 'Gastos'} en {distCurrencyFilter})
+                No hay datos para la combinación seleccionada
               </div>
             )}
           </CardContent>

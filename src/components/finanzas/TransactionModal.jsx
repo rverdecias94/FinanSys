@@ -63,7 +63,7 @@ const formSchema = z.object({
   amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "El monto debe ser un número positivo",
   }),
-  currency: z.enum(['USD', 'CUP']),
+  currency: z.string().min(1, "La moneda es obligatoria"),
   category: z.string().min(1, "La categoría es obligatoria"),
   description: z.string().min(3, "La descripción debe tener al menos 3 caracteres"),
   payment_method: z.string().optional(),
@@ -72,10 +72,12 @@ const formSchema = z.object({
   files: z.any().optional(), // For mock attachment
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [] }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
+
+  const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -83,7 +85,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       type: 'expense',
       date: new Date(),
       amount: '',
-      currency: 'USD',
+      currency: defaultCurrency,
       category: '',
       description: '',
       payment_method: '',
@@ -103,7 +105,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           type: transaction?.type || 'expense',
           date: transaction?.date ? new Date(transaction.date) : new Date(),
           amount: transaction?.amount != null ? String(transaction.amount) : '',
-          currency: transaction?.currency || 'USD',
+          currency: transaction?.currency || defaultCurrency,
           category: transaction?.category || '',
           description: transaction?.description || '',
           payment_method: details.payment_method || '',
@@ -114,13 +116,23 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
         const attachments = Array.isArray(details.attachments) ? details.attachments.filter(Boolean) : []
         setExistingAttachments(attachments)
       } else {
-        form.reset()
+        form.reset({
+          type: 'expense',
+          date: new Date(),
+          amount: '',
+          currency: defaultCurrency,
+          category: '',
+          description: '',
+          payment_method: '',
+          bank_account_id: '',
+          notes: '',
+        })
         setExistingAttachments([])
       }
       setIsPreview(false)
       setFiles([])
     }
-  }, [open, form, isEditing, transaction])
+  }, [open, form, isEditing, transaction, defaultCurrency])
 
   const watchedValues = form.watch()
 
@@ -288,8 +300,12 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="USD">USD</SelectItem>
-                            <SelectItem value="CUP">CUP</SelectItem>
+                            {currencies.map(c => (
+                              <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+                            ))}
+                            {currencies.length === 0 && (
+                              <SelectItem value="USD">USD</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                         <FormMessage />

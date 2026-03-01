@@ -5,7 +5,14 @@ import { es } from 'date-fns/locale';
 /**
  * Helper to format currency numbers
  */
-const fmt = (num) => num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt = (num, currency) => {
+  return new Intl.NumberFormat('es-PE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    style: currency ? 'currency' : 'decimal',
+    currency: currency
+  }).format(num);
+}
 
 /**
  * Analyzes transactions to generate a structured finance report
@@ -15,14 +22,20 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   const periodLabel = dateFilter?.label || 'Periodo no especificado';
 
   // 1. Data Processing
-  const currencies = [...new Set(transactions.map(t => t.currency || 'CUP'))];
+  // Get all unique currencies from transactions
+  const currencies = [...new Set(transactions.map(t => t.currency).filter(Boolean))];
+
+  if (currencies.length === 0) {
+    currencies.push('USD'); // Fallback if no transactions
+  }
+
   const dataByCurrency = {};
 
   currencies.forEach(curr => {
-    const txs = transactions.filter(t => (t.currency || 'CUP') === curr);
+    const txs = transactions.filter(t => t.currency === curr);
     const income = txs.filter(t => t.type === 'income');
     const expense = txs.filter(t => t.type === 'expense');
-    
+
     dataByCurrency[curr] = {
       incomeTotal: income.reduce((sum, t) => sum + Number(t.amount), 0),
       expenseTotal: expense.reduce((sum, t) => sum + Number(t.amount), 0),
@@ -46,17 +59,17 @@ export const generateFinanceReport = (transactions, dateFilter) => {
 
   // 3. Section 1: Executive Summary
   const totalTx = transactions.length;
-  const hasUSD = currencies.includes('USD');
-  const mainCurrency = currencies[0] || 'CUP';
-  
+  const mainCurrency = currencies[0]; // Take the first one found as primary for summary
+
   let summaryText = `Durante el periodo analizado, se registraron un total de ${totalTx} operaciones. `;
-  if (dataByCurrency[mainCurrency]) {
-    const net = dataByCurrency[mainCurrency].net;
-    summaryText += `En moneda principal (${mainCurrency}), se observa ${net >= 0 ? 'un superávit' : 'un déficit'} operativo de ${fmt(Math.abs(net))}. `;
-  }
-  if (hasUSD) {
-    summaryText += `Se evidencia actividad en divisa extranjera (USD) que requiere atención para su correcta valoración y liquidación. `;
-  }
+
+  currencies.forEach((curr, index) => {
+    if (dataByCurrency[curr]) {
+      const net = dataByCurrency[curr].net;
+      summaryText += `En ${curr}, se observa ${net >= 0 ? 'un superávit' : 'un déficit'} operativo de ${fmt(Math.abs(net), curr)}. `;
+    }
+  });
+
   summaryText += "El flujo de caja muestra una dinámica mixta con predominio de operaciones corrientes.";
 
   sections.push({
@@ -67,9 +80,9 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   // 4. Section 2: Statement of Results (Table)
   const resultHeaders = ["Concepto", ...currencies.map(c => `Importe (${c})`)];
   const resultRows = [
-    ["Ingresos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.incomeTotal || 0))],
-    ["Gastos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.expenseTotal || 0))],
-    ["Resultado neto", ...currencies.map(c => fmt(dataByCurrency[c]?.net || 0))]
+    ["Ingresos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.incomeTotal || 0, c))],
+    ["Gastos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.expenseTotal || 0, c))],
+    ["Resultado neto", ...currencies.map(c => fmt(dataByCurrency[c]?.net || 0, c))]
   ];
 
   sections.push({
@@ -90,7 +103,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
         cats[t.category] = (cats[t.category] || 0) + Number(t.amount);
       });
       const topCat = Object.entries(cats).sort((a, b) => b[1] - a[1])[0];
-      incomeAnalysis.push(`- **Ingresos en ${curr}:** Total de ${fmt(dataByCurrency[curr].incomeTotal)}. Principal fuente: ${topCat[0]} (${fmt(topCat[1])}).`);
+      incomeAnalysis.push(`- **Ingresos en ${curr}:** Total de ${fmt(dataByCurrency[curr].incomeTotal, curr)}. Principal fuente: ${topCat[0]} (${fmt(topCat[1], curr)}).`);
     }
   });
 
@@ -100,7 +113,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
     title: "3. Análisis de Ingresos",
     type: "list",
     items: incomeAnalysis,
-    notes: hasUSD ? "Observación: Los ingresos en divisa representan activos financieros líquidos disponibles." : ""
+    notes: ""
   });
 
   // 6. Section 4: Expense Analysis (Table)
@@ -111,7 +124,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
     .slice(0, 5)
     .map(t => [
       t.category || 'Sin categoría',
-      `${fmt(Number(t.amount))} ${t.currency}`,
+      `${fmt(Number(t.amount), t.currency)}`,
       t.details?.payment_method || 'Efectivo',
       t.description || '-'
     ]);
@@ -132,10 +145,10 @@ export const generateFinanceReport = (transactions, dateFilter) => {
     if (d && (d.incomeTotal > 0 || d.expenseTotal > 0)) {
       const ratio = d.incomeTotal > 0 ? (d.expenseTotal / d.incomeTotal).toFixed(2) : "N/A";
       kpis.push([`Relación Gasto/Ingreso (${curr})`, `${ratio} : 1`]);
-      
+
       const cashExpenses = d.expenseTxs.filter(t => !t.details?.payment_method || t.details.payment_method === 'cash').reduce((s, t) => s + Number(t.amount), 0);
       const cashPct = d.expenseTotal > 0 ? ((cashExpenses / d.expenseTotal) * 100).toFixed(0) : 0;
-      kpis.push([`% Gastos en Efectivo (${curr})`, `${cashPct}% (${fmt(cashExpenses)} de ${fmt(d.expenseTotal)})`]);
+      kpis.push([`% Gastos en Efectivo (${curr})`, `${cashPct}% (${fmt(cashExpenses, curr)} de ${fmt(d.expenseTotal, curr)})`]);
     }
   });
 
@@ -148,7 +161,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
 
   // 8. Conclusions
   const conclusions = [
-    `1. Situación Financiera: El periodo cierra con un balance neto ${dataByCurrency[mainCurrency]?.net >= 0 ? 'positivo' : 'negativo'} en la moneda principal.`,
+    `1. Situación Financiera: El periodo cierra con resultados operativos variables según la moneda.`,
     `2. Gestión de Gastos: Se recomienda monitorear las categorías con mayor incidencia en el presupuesto.`,
     `3. Política de Pagos: ${kpis.some(k => k[1].includes('100%')) ? 'Alta dependencia del efectivo.' : 'Diversificación adecuada de medios de pago.'}`
   ];
@@ -183,7 +196,7 @@ export const generateWarehouseReport = (movements, dateFilter) => {
   // Section 1: Summary
   const ins = movements.filter(m => m.type === 'in');
   const outs = movements.filter(m => m.type === 'out');
-  
+
   sections.push({
     title: "1. Resumen Operativo de Almacén",
     content: `Durante el periodo se registraron ${movements.length} movimientos de inventario. El flujo operativo muestra ${ins.length} entradas de abastecimiento y ${outs.length} salidas por consumo o venta.`

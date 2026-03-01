@@ -8,6 +8,7 @@ import { ProductModal } from './ProductModal'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { useCurrency } from '@/context/CurrencyContext'
 
 export function ProductList({
   products,
@@ -28,6 +29,7 @@ export function ProductList({
   const [editingProduct, setEditingProduct] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
   const { checkLimit, recordUsage } = useSubscription()
+  const { formatCurrency, businessCurrencies } = useCurrency()
 
   const handleEdit = (product) => {
     setEditingProduct(product)
@@ -112,7 +114,9 @@ export function ProductList({
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
-                    <TableCell className="text-right">${Number(p.unit_price).toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(p.unit_price, p.currency)}
+                    </TableCell>
                     <TableCell className="text-center font-bold">{p.stock}</TableCell>
                     <TableCell className="text-center">
                       {isLowStock ? (
@@ -199,6 +203,7 @@ export function ProductList({
           onRefresh()
         }}
         categories={categories}
+        currencies={businessCurrencies}
       />
     </div>
   )
