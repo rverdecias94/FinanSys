@@ -7,11 +7,15 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createProduct, updateProduct, deleteProduct } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { usePermissions } from '@/context/PermissionContext'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories, currencies = [] }) {
   const { session } = useSession()
+  const { businessId } = useBusiness() // Obtener businessId del contexto
+  const { hasPermission } = usePermissions()
   const userId = session?.user?.id
   const [loading, setLoading] = useState(false)
   const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
@@ -60,9 +64,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       }
 
       if (product) {
-        await updateProduct(product.id, payload, userId)
+        await updateProduct(product.id, payload, userId, businessId) // Pasar ambos IDs
       } else {
-        await createProduct(payload, userId)
+        await createProduct(payload, userId, businessId) // Pasar ambos IDs
       }
       onSuccess()
     } catch (error) {
@@ -76,7 +80,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
   const handleDelete = async () => {
     setLoading(true)
     try {
-      await deleteProduct(product.id, userId)
+      await deleteProduct(product.id, userId, businessId) // Pasar ambos IDs
       onSuccess()
     } catch (error) {
       const msg = getSupabaseErrorMessage(error)
@@ -188,7 +192,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
           </div>
 
           <DialogFooter className="flex justify-between items-center sm:justify-between w-full mt-6">
-            {product ? (
+            {product && hasPermission('warehouse.delete') ? (
               <Button type="button" variant="destructive" onClick={() => setConfirmOpen(true)} disabled={loading}>
                 Eliminar
               </Button>

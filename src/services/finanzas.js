@@ -1,6 +1,7 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
+import { getEffectiveUserId } from '@/services/team'
 
 export async function getFinanceCategories() {
   const { data, error } = await supabase
@@ -55,43 +56,11 @@ export async function getPaymentMethods() {
   return data?.map(method => method.name) || []
 }
 
-export async function getBankAccounts(userId) {
-  const { data, error } = await supabase
-    .from('bank_accounts')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('is_active', true)
-    .order('account_name')
+export async function createTransaction(payload, userId, businessId) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
 
-  if (error) {
-    console.error('Error al obtener cuentas bancarias:', error)
-    return []
-  }
-
-  return data || []
-}
-
-export async function createBankAccount(accountData) {
-  return await withCrud({ action: 'create', table: 'bank_accounts' }, async () => {
-    const { data, error } = await supabase
-      .from('bank_accounts')
-      .insert(accountData)
-      .select()
-      .single()
-    if (error) throw error
-    await logAction({
-      action: 'Crear',
-      resource: `Cuenta Bancaria: ${data.account_name}`,
-      details: data,
-      area: 'Finanzas'
-    })
-    return data
-  })
-}
-
-export async function createTransaction(payload) {
   const {
-    date, amount, currency, category, description, type, user_id,
+    date, amount, currency, category, description, type,
     payment_method, bank_account_id, reference_number, notes, attachments
   } = payload
 
@@ -102,7 +71,7 @@ export async function createTransaction(payload) {
     category,
     description,
     type,
-    user_id,
+    user_id: effectiveUserId, // Usar ID efectivo
     details: {
       payment_method: payment_method || null,
       bank_account_id: bank_account_id || null,
@@ -125,9 +94,11 @@ export async function createTransaction(payload) {
   })
 }
 
-export async function updateTransaction(transactionId, payload) {
+export async function updateTransaction(transactionId, payload, userId, businessId) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const {
-    date, amount, currency, category, description, type, user_id,
+    date, amount, currency, category, description, type,
     payment_method, bank_account_id, reference_number, notes, attachments
   } = payload
 
@@ -147,8 +118,7 @@ export async function updateTransaction(transactionId, payload) {
     }
   }
 
-  let q = supabase.from('transactions').update(dbPayload).eq('id', transactionId)
-  if (user_id) q = q.eq('user_id', user_id)
+  let q = supabase.from('transactions').update(dbPayload).eq('id', transactionId).eq('user_id', effectiveUserId) // Usar ID efectivo
 
   return await withCrud({ action: 'update', table: 'transactions' }, async () => {
     const { data, error } = await q.select().single()
@@ -163,11 +133,13 @@ export async function updateTransaction(transactionId, payload) {
   })
 }
 
-export async function listTransactions({ from, to, category, type, currency, userId, limit, page, pageSize }) {
+export async function listTransactions({ from, to, category, type, currency, userId, businessId, limit, page, pageSize }) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   let q = supabase
     .from('transactions')
     .select('*', { count: 'exact' })
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .order('date', { ascending: false })
 
   if (limit) {
@@ -193,11 +165,13 @@ export async function listTransactions({ from, to, category, type, currency, use
   return data
 }
 
-export async function getFilteredTotals({ from, to, category, type, currency, userId }) {
+export async function getFilteredTotals({ from, to, category, type, currency, userId, businessId }) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   let q = supabase
     .from('transactions')
     .select('amount, type, currency')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
 
   if (from) q = q.gte('date', from)
   if (to) q = q.lte('date', to)
@@ -231,14 +205,16 @@ export function computeTotals(rows) {
   return totals
 }
 
-export async function getMonthlySummary(userId, year, month) {
+export async function getMonthlySummary(userId, businessId, year, month) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const startDate = new Date(year, month - 1, 1).toISOString()
   const endDate = new Date(year, month, 1).toISOString()
 
   const { data, error } = await supabase
     .from('transactions')
     .select('type, currency, amount, category')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', startDate)
     .lt('date', endDate)
 
@@ -267,14 +243,16 @@ export async function getMonthlySummary(userId, year, month) {
   return summary
 }
 
-export async function getYearlySummary(userId, year, currency = 'all') {
+export async function getYearlySummary(userId, businessId, year, currency = 'all') {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const startDate = new Date(year, 0, 1).toISOString()
   const endDate = new Date(year + 1, 0, 1).toISOString()
 
   let query = supabase
     .from('transactions')
     .select('type, currency, amount, date')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', startDate)
     .lt('date', endDate)
 
@@ -309,11 +287,13 @@ export async function getYearlySummary(userId, year, currency = 'all') {
 }
 
 // Replaced getBalanceConfig with dynamic version
-export async function getBalanceConfig(userId) {
+export async function getBalanceConfig(userId, businessId) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const { data, error } = await supabase
     .from('business_balances')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
 
   if (error) {
     console.error('Error fetching balance config:', error)
@@ -324,11 +304,12 @@ export async function getBalanceConfig(userId) {
 }
 
 // Replaced updateBalanceConfig with dynamic version
-export async function updateBalanceConfig(userId, balances) {
+export async function updateBalanceConfig(userId, businessId, balances) {
   // balances: [{ currency_code, initial_balance }]
 
   if (!balances || !Array.isArray(balances) || balances.length === 0) return null
 
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
   const results = []
 
   // Update each balance individually
@@ -351,7 +332,7 @@ export async function updateBalanceConfig(userId, balances) {
     const { data: transactions, error: txError } = await supabase
       .from('transactions')
       .select('amount, type')
-      .eq('user_id', userId)
+      .eq('user_id', effectiveUserId) // Usar ID efectivo
       .eq('currency', currency_code)
 
     let totalIncome = 0
@@ -369,7 +350,7 @@ export async function updateBalanceConfig(userId, balances) {
     const { data, error } = await supabase
       .from('business_balances')
       .upsert({
-        user_id: userId,
+        user_id: effectiveUserId, // Usar ID efectivo
         currency_code,
         initial_balance: Number(initial_balance),
         current_balance,
@@ -391,7 +372,9 @@ export async function updateBalanceConfig(userId, balances) {
   return results
 }
 
-export async function getDashboardStats(userId) {
+export async function getDashboardStats(userId, businessId) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const now = new Date()
   const currentYear = now.getFullYear()
   const currentMonth = now.getMonth() // 0-indexed
@@ -403,21 +386,21 @@ export async function getDashboardStats(userId) {
   const endPrevMonth = new Date(currentYear, currentMonth, 1).toISOString()
 
   // Fetch balance
-  const balanceConfig = await getBalanceConfig(userId)
+  const balanceConfig = await getBalanceConfig(userId, businessId)
   // balanceConfig is now array of { currency_code, current_balance, ... }
 
   // Fetch transactions
   const { data: currentMonthData, error: currentError } = await supabase
     .from('transactions')
     .select('amount, type, currency')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', startCurrentMonth)
     .lt('date', endCurrentMonth)
 
   const { data: prevMonthData, error: prevError } = await supabase
     .from('transactions')
     .select('amount, type, currency')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', startPrevMonth)
     .lt('date', endPrevMonth)
 
@@ -477,14 +460,16 @@ export async function getDashboardStats(userId) {
   return stats
 }
 
-export async function getRecentActivity(userId) {
+export async function getRecentActivity(userId, businessId) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
   const thirtyDaysAgo = new Date()
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', thirtyDaysAgo.toISOString())
     .order('date', { ascending: false })
 
@@ -493,15 +478,16 @@ export async function getRecentActivity(userId) {
   return data
 }
 
-export async function getFinancialDistribution(userId, type = 'all', currency = 'all') {
-  const now = new Date()
-  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+export async function getFinancialDistribution(userId, businessId, type = 'all', currency = 'all') {
+  const effectiveUserId = getEffectiveUserId(userId, businessId);
+
+  const endMonth = new Date().toISOString()
+  const startMonth = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
 
   let query = supabase
     .from('transactions')
     .select('category, amount, currency, type')
-    .eq('user_id', userId)
+    .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', startMonth)
     .lt('date', endMonth)
 
@@ -513,9 +499,24 @@ export async function getFinancialDistribution(userId, type = 'all', currency = 
     query = query.eq('currency', currency)
   }
 
-  const { data, error } = await query
+  let { data, error } = await query
 
   if (error) throw error
+
+  if (!data || data.length === 0) {
+    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
+    const yearEnd = new Date(new Date().getFullYear() + 1, 0, 1).toISOString()
+    let yearQuery = supabase
+      .from('transactions')
+      .select('category, amount, currency, type')
+      .eq('user_id', effectiveUserId)
+      .gte('date', yearStart)
+      .lt('date', yearEnd)
+    if (type !== 'all') yearQuery = yearQuery.eq('type', type)
+    if (currency !== 'all') yearQuery = yearQuery.eq('currency', currency)
+    const yearRes = await yearQuery
+    if (!yearRes.error) data = yearRes.data || []
+  }
 
   const distribution = {}
   data.forEach(t => {

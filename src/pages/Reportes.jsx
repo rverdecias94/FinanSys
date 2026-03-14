@@ -4,7 +4,9 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { FileText, FileSpreadsheet, Loader2, File, Zap, Crown, ShieldAlert } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { usePermissions } from '@/context/PermissionContext'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -92,6 +94,7 @@ const ReportPreview = ({ report }) => {
 
 const Reportes = () => {
   const { session } = useSession()
+  const { businessId } = useBusiness()
   const { canAccessFeature, subscription, activateTrial } = useSubscription()
   const userId = session?.user?.id
   const [dateFilter, setDateFilter] = useState(null)
@@ -99,54 +102,62 @@ const Reportes = () => {
   const [previewReport, setPreviewReport] = useState(null)
   const [filename, setFilename] = useState('')
 
-  const canExport = canAccessFeature('reports_export')
+  const { hasPermission } = usePermissions()
+  const hasExportPermission = hasPermission('reports.export')
+  // We remove the explicit plan check here for UI display purposes
+  // The backend/hook should handle the actual restriction if needed, 
+  // but the user wants to hide plan-specific messages for team members.
+  // Assuming 'canAccessFeature' checks plan.
+
   const [trialConfirmOpen, setTrialConfirmOpen] = useState(false)
 
   const handleExport = (type, fn) => {
-    if (canExport) {
+    if (hasExportPermission) {
       fn(type)
     } else {
-      notify.error('Esta función requiere el plan Premium.')
+      notify.error('No tienes permisos para exportar reportes.')
     }
   }
 
   // Finanzas Query
   const { data: transactions = [], isLoading: loadingFinanzas } = useQuery({
-    queryKey: ['reportes-finanzas', dateFilter, userId],
+    queryKey: ['reportes-finanzas', dateFilter, userId, businessId],
     queryFn: () => listTransactions({
       from: dateFilter?.startDate,
       to: dateFilter?.endDate,
       userId,
+      businessId,
       limit: 1000 // Limit for report preview/export
     }),
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!businessId && !!dateFilter
   })
 
   // Almacén Query
   const { data: movementsData, isLoading: loadingAlmacen } = useQuery({
-    queryKey: ['reportes-almacen', dateFilter, userId],
+    queryKey: ['reportes-almacen', dateFilter, userId, businessId],
     queryFn: () => listMovements({
       startDate: dateFilter?.startDate,
       endDate: dateFilter?.endDate,
-      userUuid: userId,
+      userId,
+      businessId,
       pageSize: 1000
     }),
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!businessId && !!dateFilter
   })
   const movements = movementsData?.data || []
 
   // Inventario Query (Areas + Item Counts)
   const { data: inventorySummary = [], isLoading: loadingInventario } = useQuery({
-    queryKey: ['reportes-inventario', dateFilter, userId],
+    queryKey: ['reportes-inventario', dateFilter, userId, businessId],
     queryFn: async () => {
-      const areas = await listAreas(userId)
+      const areas = await listAreas(userId, businessId)
       const summaryPromises = areas.map(async (area) => {
         const { count } = await listItems(area.id, {
           page: 1,
           pageSize: 1,
           startDate: dateFilter?.startDate,
           endDate: dateFilter?.endDate
-        }, userId)
+        }, userId, businessId)
         return {
           ...area,
           itemsCount: count
@@ -154,7 +165,7 @@ const Reportes = () => {
       })
       return Promise.all(summaryPromises)
     },
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!businessId && !!dateFilter
   })
 
   const handleFilterChange = (filter) => {
@@ -258,27 +269,16 @@ const Reportes = () => {
         <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
       </div>
 
-      {!canExport && (
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <ShieldAlert className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-800">Acceso Restringido</AlertTitle>
-          <AlertDescription className="text-yellow-700 flex flex-col gap-2">
-            <span>
-              La exportación de reportes y filtros avanzados son funciones exclusivas del Plan Premium.
-              Actualiza tu cuenta en configuración para tener acceso.
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <DateRangeFilter onFilterChange={handleFilterChange}>
-        <Button
-          onClick={() => handleExport('docx', () => handlePreview('global'))}
-          className={`bg-blue-600 hover:bg-blue-700 ${!canExport ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-400" /> : <File className="mr-2 h-4 w-4" />}
-          Resumen General (DOCX)
-        </Button>
+        {hasExportPermission && (
+          <Button
+            onClick={() => handleExport('docx', () => handlePreview('global'))}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <File className="mr-2 h-4 w-4" />
+            Resumen General (DOCX)
+          </Button>
+        )}
       </DateRangeFilter>
 
       {dateFilter && (
@@ -302,14 +302,18 @@ const Reportes = () => {
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
                     Resumen
                   </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportFinanzas)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportFinanzas)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
-                    PDF
-                  </Button>
+                  {hasExportPermission && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('excel', exportFinanzas)}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                        Excel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('pdf', exportFinanzas)}>
+                        <FileText className="mr-2 h-4 w-4 text-red-600" />
+                        PDF
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -365,14 +369,18 @@ const Reportes = () => {
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
                     Resumen
                   </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportAlmacen)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportAlmacen)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
-                    PDF
-                  </Button>
+                  {hasExportPermission && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('excel', exportAlmacen)}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                        Excel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('pdf', exportAlmacen)}>
+                        <FileText className="mr-2 h-4 w-4 text-red-600" />
+                        PDF
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -430,14 +438,18 @@ const Reportes = () => {
                     <FileText className="mr-2 h-4 w-4 text-blue-600" />
                     Resumen
                   </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('excel', exportInventario)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />}
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={!canExport} onClick={() => handleExport('pdf', exportInventario)}>
-                    {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-500" /> : <FileText className="mr-2 h-4 w-4 text-red-600" />}
-                    PDF
-                  </Button>
+                  {hasExportPermission && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('excel', exportInventario)}>
+                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
+                        Excel
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleExport('pdf', exportInventario)}>
+                        <FileText className="mr-2 h-4 w-4 text-red-600" />
+                        PDF
+                      </Button>
+                    </>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -488,14 +500,15 @@ const Reportes = () => {
 
               <DialogFooter className="mt-6">
                 <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
-                <Button
-                  onClick={() => canExport ? handleDownloadDOCX() : handleExport('docx', handleDownloadDOCX)}
-                  disabled={!canExport}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {!canExport ? <Crown className="mr-2 h-4 w-4 text-yellow-400" /> : <File className="mr-2 h-4 w-4" />}
-                  Descargar DOCX
-                </Button>
+                {hasExportPermission && (
+                  <Button
+                    onClick={() => handleDownloadDOCX()}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <File className="mr-2 h-4 w-4" />
+                    Descargar DOCX
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}

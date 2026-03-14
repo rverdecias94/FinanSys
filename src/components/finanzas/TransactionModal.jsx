@@ -169,12 +169,12 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       return
     }
     // Final submit
-    const mergedAttachments = [...existingAttachments, ...files.map((f) => f.name)]
+    const mergedAttachments = [...existingAttachments, ...files]
     const payload = {
       ...data,
       id: transaction?.id,
       amount: Number(data.amount),
-      attachments: mergedAttachments // Mock file storage
+      attachments: mergedAttachments
     }
     onSubmit(payload)
   }

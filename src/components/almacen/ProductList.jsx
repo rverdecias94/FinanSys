@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useCurrency } from '@/context/CurrencyContext'
+import { usePermissions } from '@/context/PermissionContext'
 
 export function ProductList({
   products,
@@ -30,6 +31,7 @@ export function ProductList({
   const [modalOpen, setModalOpen] = useState(false)
   const { checkLimit, recordUsage } = useSubscription()
   const { formatCurrency, businessCurrencies } = useCurrency()
+  const { hasPermission } = usePermissions()
 
   const handleEdit = (product) => {
     setEditingProduct(product)
@@ -79,7 +81,9 @@ export function ProductList({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleCreate}>+ Nuevo Producto</Button>
+        {hasPermission('warehouse.create') && (
+          <Button onClick={handleCreate}>+ Nuevo Producto</Button>
+        )}
       </div>
 
       <div className="border rounded-md">
@@ -130,9 +134,11 @@ export function ProductList({
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      {hasPermission('warehouse.edit') && (
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 )

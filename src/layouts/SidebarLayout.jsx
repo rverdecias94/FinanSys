@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
 import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
+import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
 
 export default function SidebarLayout() {
   const location = useLocation()
   const { subscription } = useSubscription()
   const { session } = useSession()
+  const { isOwner } = useBusiness()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -22,81 +25,113 @@ export default function SidebarLayout() {
   }
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-2 px-3 py-2 rounded-md ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground'}`
+    `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'}`
 
   return (
-    <div className="h-screen lg:grid lg:grid-cols-[240px_1fr] lg:overflow-hidden">
+    <div className="h-screen lg:grid lg:grid-cols-[240px_1fr] lg:overflow-hidden bg-background">
+      {/* Mobile Sidebar Overlay */}
       <div
-        className={`fixed inset-0 z-40 bg-black/70 transition-opacity lg:hidden ${sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity lg:hidden ${sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={() => setSidebarOpen(false)}
       />
 
+      {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[80vw] -translate-x-full border-r bg-sidebar p-3 flex flex-col bg-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:z-auto lg:w-auto lg:max-w-none lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : ''}`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 -translate-x-full border-r bg-card p-4 flex flex-col transition-transform lg:translate-x-0 lg:static lg:h-screen lg:w-auto ${sidebarOpen ? 'translate-x-0' : ''}`}
       >
-        <div className="mb-4 text-lg font-semibold flex items-center justify-between gap-2">
-          <div className="flex items-center justify-center  mr-auto">
-            <img src="/logo.png" alt="" className="w-auto h-10" />
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold text-xl">
+            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
+              <ChartArea className="h-5 w-5" />
+            </div>
+            <span>Sistema</span>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="lg:hidden"
             onClick={() => setSidebarOpen(false)}
-            aria-label="Cerrar menú"
           >
             <X className="w-5 h-5" />
           </Button>
         </div>
+
         <nav className="space-y-1 flex-1">
-          <NavLink to="/" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <ChartArea className="w-4 h-4" /> Panel
+          <NavLink to="/" className={linkClass}>
+            <ChartArea className="w-4 h-4" />
+            <span>Panel General</span>
           </NavLink>
-          <NavLink to="/finanzas" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <Wallet className="w-4 h-4" /> Finanzas
+
+          <PermissionGuard requiredPermission="finanzas.view">
+            <NavLink to="/finanzas" className={linkClass}>
+              <Wallet className="w-4 h-4" />
+              <span>Finanzas</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <PermissionGuard requiredPermission="inventory.view">
+            <NavLink to="/almacen" className={linkClass}>
+              <Warehouse className="w-4 h-4" />
+              <span>Almacén</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <PermissionGuard requiredPermission="inventory.view">
+            <NavLink to="/inventario" className={linkClass}>
+              <Layers className="w-4 h-4" />
+              <span>Inventario</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <NavLink to="/reportes" className={linkClass}>
+            <FileText className="w-4 h-4" />
+            <span>Reportes</span>
           </NavLink>
-          <NavLink to="/almacen" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <Warehouse className="w-4 h-4" /> Almacén
-          </NavLink>
-          <NavLink to="/inventario" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <Layers className="w-4 h-4" /> Inventario
-          </NavLink>
-          <NavLink to="/reportes" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <FileText className="w-4 h-4" /> Reportes
-          </NavLink>
-          <NavLink to="/logs" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <ShieldAlert className="w-4 h-4" /> Auditoría
-          </NavLink>
-          <NavLink to="/configuracion" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            <Settings className="w-4 h-4" /> Configuración
-          </NavLink>
+
+          <PermissionGuard requiredPermission="logs.view">
+            <NavLink to="/logs" className={linkClass}>
+              <ShieldAlert className="w-4 h-4" />
+              <span>Auditoría</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <PermissionGuard requiredPermission="config.view">
+            <NavLink to="/configuracion" className={linkClass}>
+              <Settings className="w-4 h-4" />
+              <span>Configuración</span>
+            </NavLink>
+          </PermissionGuard>
         </nav>
-        <div className="mt-4 border-t pt-3 flex items-center justify-between gap-2 text-sm min-w-0">
-          <div className="truncate min-w-0">{email}</div>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-        <div className="mt-1 pt-3 flex items-center justify-between gap-2 text-sm min-w-0">
-          <div className={`truncate min-w-0 font-bold ${subscription?.plan_id === 'premium' ? 'bg-primary' : 'bg-slate-500'} text-primary-foreground px-2 py-1 rounded-md`}>
-            {subscription?.plan_id === 'premium' ? 'Pro' : 'Gratis'}
+
+        <div className="mt-auto pt-4 border-t space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium truncate max-w-[140px]" title={email}>
+              {email}
+            </div>
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="h-8 w-8">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
+
+          {isOwner && (
+            <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              Plan {subscription?.plan_id === 'premium' ? 'Premium' : 'Gratuito'}
+            </div>
+          )}
         </div>
       </aside>
-      <div className="min-w-0 flex flex-col h-screen overflow-y-auto">
-        <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b bg-background/95 backdrop-blur px-4 py-3 lg:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Abrir menú"
-          >
+
+      {/* Main Content */}
+      <div className="flex flex-col h-screen overflow-hidden">
+        {/* Mobile Header */}
+        <header className="sticky top-0 z-30 flex items-center gap-4 border-b bg-background px-4 py-3 lg:hidden">
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </Button>
-          <img src="/logo.png" alt="" className="w-auto h-10" />
-          <div className="w-9" />
+          <span className="font-semibold">Menú</span>
         </header>
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
+
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>

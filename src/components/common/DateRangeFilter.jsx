@@ -107,7 +107,7 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
       <div className="space-y-2">
         <Label>Tipo de Reporte</Label>
         <Select value={filterType} onValueChange={setFilterType}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Seleccionar tipo" />
           </SelectTrigger>
           <SelectContent>

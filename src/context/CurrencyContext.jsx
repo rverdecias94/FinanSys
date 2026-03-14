@@ -1,12 +1,14 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 
 const CurrencyContext = createContext()
 
 export function CurrencyProvider({ children }) {
   const { session } = useSession()
+  const { businessId, isOwner } = useBusiness()
   const [availableCurrencies, setAvailableCurrencies] = useState([])
   const [businessCurrencies, setBusinessCurrencies] = useState([])
   const [loading, setLoading] = useState(true)
@@ -22,12 +24,12 @@ export function CurrencyProvider({ children }) {
       if (allError) throw allError
       setAvailableCurrencies(allCurrencies || [])
 
-      if (session?.user?.id) {
+      if (businessId) {
         // Fetch business specific currencies
         const { data: myCurrencies, error: myError } = await supabase
           .from('business_currencies')
           .select('*, currency:currencies(*)')
-          .eq('user_id', session.user.id)
+          .eq('user_id', businessId)
           .eq('is_active', true)
           .order('is_default', { ascending: false }) // Default first
 
@@ -57,10 +59,10 @@ export function CurrencyProvider({ children }) {
 
   useEffect(() => {
     fetchCurrencies()
-  }, [session])
+  }, [session, businessId])
 
   const toggleCurrency = async (currencyCode, isActive) => {
-    if (!session?.user?.id) return
+    if (!session?.user?.id || !isOwner) return
 
     try {
       if (isActive) {
@@ -101,7 +103,7 @@ export function CurrencyProvider({ children }) {
   }
 
   const setMainCurrency = async (currencyCode) => {
-    if (!session?.user?.id) return
+    if (!session?.user?.id || !isOwner) return
 
     try {
       // Set all to false first (or update specifically)

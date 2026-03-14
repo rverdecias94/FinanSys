@@ -3,12 +3,14 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, Check, X, ShieldCheck, ShieldAlert, Shield } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { acceptPendingInvitations } from '@/services/team'
 
 export default function Signup() {
   const navigate = useNavigate()
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -108,19 +110,35 @@ export default function Signup() {
     setError(null)
 
     try {
+      // 1. Create Auth User
       const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
 
       const userId = data?.user?.id || null
       if (userId) {
-        // Crear perfil
+        // 2. Create Profile
         await supabase.from('profiles').insert({ id: userId, role: 'employee' })
-        // Crear suscripción free
-        await createSubscription(userId)
+
+        // 3. Check and Accept Invitations (Implicit Linking)
+        // Esperar un momento para asegurar que la autenticación esté completa
+        await new Promise(resolve => setTimeout(resolve, 1000))
+
+        const hasInvitations = await acceptPendingInvitations(email)
+
+        if (hasInvitations) {
+          toast.success('¡Te has unido al equipo correctamente!', {
+            description: 'Se encontraron invitaciones pendientes y han sido aceptadas automáticamente.'
+          })
+          // Skip subscription creation as they are part of a team now
+        } else {
+          // 4. Create Free Subscription (Standard Flow)
+          await createSubscription(userId)
+        }
       }
 
       navigate('/')
     } catch (error) {
+      console.error(error)
       setError(error.message)
     } finally {
       setLoading(false)

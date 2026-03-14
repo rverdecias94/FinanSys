@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { getBalanceConfig, updateBalanceConfig } from '@/services/finanzas'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Settings, Users, Crown, UserPlus, Trash2, CheckCircle2, Loader2, Coins, Star, StarOff } from 'lucide-react'
+import { Settings, Users, Crown, UserPlus, Trash2, CheckCircle2, Loader2, Coins, Star, StarOff, Shield } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -15,7 +16,10 @@ import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/config/supabase'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { RoleManagement } from '@/components/config/RoleManagement'
+import { TeamManagement } from '@/components/config/TeamManagement'
 import { Switch } from '@/components/ui/switch'
+import { usePermissions } from '@/context/PermissionContext'
 
 const FLAGS = {
   CUP: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -101,8 +105,10 @@ const FLAGS = {
 
 export default function Configuracion() {
   const { session } = useSession()
+  const { businessId, isOwner } = useBusiness()
   const { canAccessFeature, subscription, checkLimit, updatePlan } = useSubscription()
   const { availableCurrencies, businessCurrencies, toggleCurrency, setMainCurrency, loading: currencyLoading } = useCurrency()
+  const { hasPermission, loading: loadingPermissions } = usePermissions()
 
   // Balances State (Dynamic)
   const [initialBalances, setInitialBalances] = useState({})
@@ -120,7 +126,7 @@ export default function Configuracion() {
   const [targetPlanId, setTargetPlanId] = useState(null)
 
   const saveBalance = async () => {
-    if (!session?.user?.id) return
+    if (!businessId || !isOwner) return // Only owner can save balance for now
     setSavingBalance(true)
     try {
       // Prepare payload: [{ currency_code, initial_balance }]
@@ -129,12 +135,12 @@ export default function Configuracion() {
         initial_balance: amount
       }))
 
-      const updatedConfig = await updateBalanceConfig(session.user.id, payload)
+      const updatedConfig = await updateBalanceConfig(businessId, payload)
 
       if (updatedConfig) {
         toast.success('Balance inicial actualizado correctamente')
         // Refresh balances
-        const balConfig = await getBalanceConfig(session.user.id)
+        const balConfig = await getBalanceConfig(businessId)
         if (balConfig) {
           const newInit = {}
           const newCurr = {}
@@ -155,11 +161,11 @@ export default function Configuracion() {
   }
 
   const fetchMembers = async () => {
-    if (!session?.user?.id) return
+    if (!businessId) return
     const { data, error } = await supabase
       .from('team_members')
       .select('*')
-      .eq('owner_id', session.user.id)
+      .eq('owner_id', businessId)
 
     if (error) console.error('Error fetching members:', error)
     else setMembers(data || [])
@@ -181,7 +187,7 @@ export default function Configuracion() {
       const { data, error } = await supabase
         .from('team_members')
         .insert({
-          owner_id: session.user.id,
+          owner_id: businessId,
           member_email: inviteEmail,
           role: 'editor',
           status: 'pending'
@@ -220,6 +226,10 @@ export default function Configuracion() {
 
   const handlePlanChange = async (planId) => {
     if (planId === subscription?.plan_id) return
+    if (!isOwner) {
+      toast.error('Solo el propietario puede cambiar el plan')
+      return
+    }
 
     setTargetPlanId(planId)
     setPlanConfirmOpen(true)
@@ -229,8 +239,8 @@ export default function Configuracion() {
     let mounted = true
 
     const loadData = async () => {
-      if (session?.user?.id) {
-        const balConfig = await getBalanceConfig(session.user.id)
+      if (businessId) {
+        const balConfig = await getBalanceConfig(businessId)
         if (mounted && balConfig) {
           const init = {}
           const curr = {}
@@ -242,7 +252,7 @@ export default function Configuracion() {
           setCurrentBalances(curr)
         }
 
-        if (mounted && canAccessFeature('partners')) {
+        if (mounted && canAccessFeature('partners') && isOwner) {
           await fetchMembers()
         }
       }
@@ -252,7 +262,17 @@ export default function Configuracion() {
 
     loadData()
     return () => { mounted = false }
-  }, [session, subscription]) // Re-fetch if subscription changes (e.g. upgraded to premium -> fetch members)
+  }, [businessId, subscription, isOwner]) // Re-fetch if subscription changes (e.g. upgraded to premium -> fetch members)
+
+  if (!loadingPermissions && !hasPermission('config.view')) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
+        <Shield className="h-16 w-16 text-muted-foreground/50" />
+        <h1 className="text-2xl font-bold">Acceso Restringido</h1>
+        <p className="text-muted-foreground">No tienes permisos para ver la configuración del sistema.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8 pb-20">
@@ -263,89 +283,92 @@ export default function Configuracion() {
         Configuración
       </h1>
 
-      <Tabs defaultValue="billing" className="w-full max-w-7xl">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="billing">Planes</TabsTrigger>
+      <Tabs defaultValue={isOwner ? "billing" : "general"} className="w-full max-w-7xl">
+        <TabsList className="grid w-full grid-cols-5">
+          {isOwner && <TabsTrigger value="billing">Planes</TabsTrigger>}
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="currencies">Monedas</TabsTrigger>
-          <TabsTrigger value="team">Equipo</TabsTrigger>
+          {hasPermission('team.manage') && <TabsTrigger value="team">Equipo</TabsTrigger>}
+          {hasPermission('team.manage') && <TabsTrigger value="roles">Roles</TabsTrigger>}
         </TabsList>
 
-        <TabsContent value="billing" className="space-y-6 mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Free Plan */}
-            <Card className={`relative flex flex-col ${subscription?.plan_id === 'free' ? 'border-primary shadow-md' : ''}`}>
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  Plan Gratuito
-                  {subscription?.plan_id === 'free' && <Badge>Actual</Badge>}
-                </CardTitle>
-                <CardDescription>Para empezar a organizar tu negocio</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Transacciones / mes</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Productos</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Reportes Básicos (Solo lectura)</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Sin Socios</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  disabled={subscription?.plan_id === 'free'}
-                  onClick={() => handlePlanChange('free')}
-                >
-                  {subscription?.plan_id === 'free' ? 'Plan Actual' : 'Cambiar a Gratuito'}
-                </Button>
-              </CardFooter>
-            </Card>
+        {isOwner && (
+          <TabsContent value="billing" className="space-y-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Free Plan */}
+              <Card className={`relative flex flex-col ${subscription?.plan_id === 'free' ? 'border-primary shadow-md' : ''}`}>
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-center">
+                    Plan Gratuito
+                    {subscription?.plan_id === 'free' && <Badge>Actual</Badge>}
+                  </CardTitle>
+                  <CardDescription>Para empezar a organizar tu negocio</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-4">
+                  <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Transacciones / mes</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Productos</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Reportes Básicos (Solo lectura)</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Sin Socios</li>
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={subscription?.plan_id === 'free'}
+                    onClick={() => handlePlanChange('free')}
+                  >
+                    {subscription?.plan_id === 'free' ? 'Plan Actual' : 'Cambiar a Gratuito'}
+                  </Button>
+                </CardFooter>
+              </Card>
 
-            {/* Premium Plan */}
-            <Card className={`relative flex flex-col border-yellow-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-yellow-50/50 shadow-md' : ''}`}>
-              {subscription?.status === 'trial' && (
-                <div className="absolute -top-3 right-4 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
-                  Prueba Activa
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center text-yellow-700">
-                  <div className="flex items-center gap-2">
-                    <Crown className="w-5 h-5 fill-yellow-500 text-yellow-600" />
-                    Plan Premium
+              {/* Premium Plan */}
+              <Card className={`relative flex flex-col border-yellow-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-yellow-50/50 shadow-md' : ''}`}>
+                {subscription?.status === 'trial' && (
+                  <div className="absolute -top-3 right-4 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                    Prueba Activa
                   </div>
-                  {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-yellow-500 hover:bg-yellow-600">Actual</Badge>}
-                </CardTitle>
-                <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="text-3xl font-bold">$5 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                {subscription?.plan_id === 'premium' ? (
-                  <Button className="w-full" variant="outline" disabled>
-                    Plan Activo
-                  </Button>
-                ) : (
-                  <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handlePlanChange('premium')}>
-                    Suscribirse a Premium
-                  </Button>
                 )}
-              </CardFooter>
-            </Card>
-          </div>
-        </TabsContent>
+                <CardHeader>
+                  <CardTitle className="flex justify-between items-center text-yellow-700">
+                    <div className="flex items-center gap-2">
+                      <Crown className="w-5 h-5 fill-yellow-500 text-yellow-600" />
+                      Plan Premium
+                    </div>
+                    {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-yellow-500 hover:bg-yellow-600">Actual</Badge>}
+                  </CardTitle>
+                  <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-4">
+                  <div className="text-3xl font-bold">$5 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  {subscription?.plan_id === 'premium' ? (
+                    <Button className="w-full" variant="outline" disabled>
+                      Plan Activo
+                    </Button>
+                  ) : (
+                    <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handlePlanChange('premium')}>
+                      Suscribirse a Premium
+                    </Button>
+                  )}
+                </CardFooter>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
 
         <TabsContent value="general" className="space-y-6 mt-6">
           <Card>
@@ -381,7 +404,7 @@ export default function Configuracion() {
                     </div>
                   ))}
                 </div>
-                {businessCurrencies.length > 0 && (
+                {businessCurrencies.length > 0 && hasPermission('config.edit') && (
                   <Button onClick={saveBalance} disabled={savingBalance}>
                     {savingBalance ? 'Guardando...' : 'Actualizar Balance Inicial'}
                   </Button>
@@ -455,11 +478,11 @@ export default function Configuracion() {
                             <Switch
                               checked={isActive}
                               onCheckedChange={(checked) => toggleCurrency(currency.code, checked)}
-                              disabled={isDefault} // Cannot deactivate default currency
+                              disabled={isDefault || !hasPermission('config.edit')} // Cannot deactivate default currency
                             />
                           </TableCell>
                           <TableCell className="text-right">
-                            {isActive && (
+                            {isActive && hasPermission('config.edit') && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -492,73 +515,21 @@ export default function Configuracion() {
               </AlertDescription>
             </Alert>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Gestión de Equipo</CardTitle>
-                <CardDescription>Invita a socios para colaborar en tu cuenta.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex gap-4 items-end">
-                  <div className="space-y-2 flex-1">
-                    <Label>Email del socio</Label>
-                    <Input
-                      placeholder="socio@ejemplo.com"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      disabled={inviteLoading}
-                    />
-                  </div>
-                  <Button onClick={handleInvite} disabled={!inviteEmail || inviteLoading}>
-                    {inviteLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                    Invitar
-                  </Button>
-                </div>
+            <TeamManagement />
+          )}
+        </TabsContent>
 
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Rol</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {members.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                            No hay socios invitados.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        members.map((m) => (
-                          <TableRow key={m.id}>
-                            <TableCell>{m.member_email}</TableCell>
-                            <TableCell className="capitalize">{m.role}</TableCell>
-                            <TableCell>
-                              <Badge variant={m.status === 'active' ? 'default' : 'secondary'}>
-                                {m.status === 'active' ? 'Activo' : 'Pendiente'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDeleteMember(m.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+        <TabsContent value="roles" className="space-y-6 mt-6">
+          {!canAccessFeature('partners') ? (
+            <Alert className="bg-blue-50 border-blue-200">
+              <Crown className="h-4 w-4 text-yellow-600 fill-yellow-400" />
+              <AlertTitle className="text-blue-800">Función Premium</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                La gestión avanzada de roles y permisos es una característica Premium.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <RoleManagement />
           )}
         </TabsContent>
       </Tabs>
@@ -580,7 +551,7 @@ export default function Configuracion() {
               .from('team_members')
               .delete()
               .eq('id', pendingMemberId)
-              .eq('owner_id', session.user.id)
+              .eq('owner_id', businessId)
             if (error) throw error
             setMembers(members.filter(m => m.id !== pendingMemberId))
             toast.success('Socio eliminado correctamente')

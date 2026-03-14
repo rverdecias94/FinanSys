@@ -6,14 +6,16 @@ import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { listProducts, listMovements, getAlmacenStats, getProductCategories } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 
 export default function Almacen() {
   const { session } = useSession()
+  const { businessId } = useBusiness()
   const { getRemainingUsage, subscription } = useSubscription()
   const queryClient = useQueryClient()
-  const userId = session?.user?.id
+  const userId = session?.user?.id // ID real del usuario
 
   // --- Product Filters & Pagination ---
   const [prodPage, setProdPage] = useState(1)
@@ -32,21 +34,22 @@ export default function Almacen() {
   const remainingProductsDisplay = productsLimit === Infinity ? 'Ilimitados' : remainingProducts
 
   const { data: stats, isLoading: loadingStats } = useQuery({
-    queryKey: ['almacenStats'],
-    queryFn: () => getAlmacenStats(userId),
-    enabled: !!userId
+    queryKey: ['almacenStats', businessId], // Agregar businessId a la clave
+    queryFn: () => getAlmacenStats(userId, businessId), // Pasar ambos IDs
+    enabled: !!userId && !!businessId // Asegurar que ambos estén disponibles
   })
 
   const { data: productsData, isLoading: loadingProducts } = useQuery({
-    queryKey: ['products', { page: prodPage, pageSize: prodPageSize, search: prodSearch, category: prodCategory }],
+    queryKey: ['products', { page: prodPage, pageSize: prodPageSize, search: prodSearch, category: prodCategory, businessId }],
     queryFn: () => listProducts({
       page: prodPage,
       pageSize: prodPageSize,
       search: prodSearch,
       category: prodCategory,
-      userUuid: userId
+      userId: userId,      // ID del usuario actual
+      businessId: businessId // ID del negocio (owner_id si es miembro)
     }),
-    enabled: !!userId,
+    enabled: !!userId && !!businessId,
     placeholderData: keepPreviousData
   })
   const products = productsData?.data || []
@@ -58,27 +61,28 @@ export default function Almacen() {
   })
 
   const { data: movementsData, isLoading: loadingMovements } = useQuery({
-    queryKey: ['movements', { page: movPage, pageSize: movPageSize, type: movType, productId: movProduct }],
+    queryKey: ['movements', { page: movPage, pageSize: movPageSize, type: movType, productId: movProduct, businessId }],
     queryFn: () => listMovements({
       page: movPage,
       pageSize: movPageSize,
       type: movType,
       productId: movProduct,
-      userUuid: userId
+      userId: userId,      // ID del usuario actual
+      businessId: businessId // ID del negocio (owner_id si es miembro)
     }),
-    enabled: !!userId,
+    enabled: !!userId && !!businessId,
     placeholderData: keepPreviousData
   })
   const movements = movementsData?.data || []
   const movCount = movementsData?.count || 0
 
   const { data: allProducts = [] } = useQuery({
-    queryKey: ['productsAllSimple'],
+    queryKey: ['productsAllSimple', businessId],
     queryFn: async () => {
-      const res = await listProducts({ page: 1, pageSize: 1000, userUuid: userId })
+      const res = await listProducts({ page: 1, pageSize: 1000, userId: userId, businessId: businessId })
       return res.data
     },
-    enabled: !!userId,
+    enabled: !!userId && !!businessId,
     staleTime: 0
   })
 

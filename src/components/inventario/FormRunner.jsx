@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Trash2, Pencil } from 'lucide-react'
 import { notify } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { usePermissions } from '@/context/PermissionContext'
 
 
 export function FormRunner({ areaId, userId, currentArea }) {
@@ -21,6 +22,7 @@ export function FormRunner({ areaId, userId, currentArea }) {
   const [editingId, setEditingId] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const { hasPermission } = usePermissions()
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
     queryKey: ['inventoryFields', areaId],
@@ -107,106 +109,110 @@ export function FormRunner({ areaId, userId, currentArea }) {
     setEditingId(null)
   }
 
+  const canShowForm = editingId ? hasPermission('inventory.edit') : hasPermission('inventory.create')
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Formulario para {currentArea?.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingFields ? (
-            <div className="text-muted-foreground">Cargando formulario...</div>
-          ) : fields.length === 0 ? (
-            <div className="text-muted-foreground">No hay campos configurados en esta área</div>
-          ) : (
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {fields.map(f => {
-                const commonProps = {
-                  id: `field_${f.name}`,
-                  required: f.required,
-                  value: values[f.name] ?? '',
-                  onChange: e => setValues({ ...values, [f.name]: e.target.value })
-                }
-                if (f.type === 'text' || f.type === 'textarea') {
-                  return (
-                    <div key={f.id} className="grid gap-1">
-                      <Label htmlFor={commonProps.id}>{f.label}
-                        {f.required ? <b className="text-red-500 ml-1">*</b> : <span className="text-muted-foreground ml-1">(Opcional)</span>}
-                      </Label>
-                      <Input {...commonProps} />
-                    </div>
-                  )
-                }
-                if (f.type === 'number') {
-                  return (
-                    <div key={f.id} className="grid gap-1">
-                      <Label htmlFor={commonProps.id}>{f.label}</Label>
-                      <Input type="number" {...commonProps} />
-                    </div>
-                  )
-                }
-                if (f.type === 'date') {
-                  return (
-                    <div key={f.id} className="grid gap-1">
-                      <Label htmlFor={commonProps.id}>{f.label}</Label>
-                      <Input type="date" {...commonProps} />
-                    </div>
-                  )
-                }
-                if (f.type === 'color') {
-                  return (
-                    <div key={f.id} className="grid gap-1">
-                      <Label htmlFor={commonProps.id}>{f.label}</Label>
-                      <Input type="color" {...commonProps} />
-                    </div>
-                  )
-                }
-                if (f.type === 'boolean') {
-                  return (
-                    <div key={f.id} className="flex items-center gap-2">
-                      <Checkbox
-                        checked={Boolean(values[f.name])}
-                        onCheckedChange={(checked) => setValues({ ...values, [f.name]: Boolean(checked) })}
-                      />
-                      <Label htmlFor={commonProps.id}>{f.label}</Label>
-                    </div>
-                  )
-                }
-                if (f.type === 'select') {
-                  const options = Array.isArray(f.options) ? f.options : []
-                  return (
-                    <div key={f.id} className="grid gap-1">
-                      <Label htmlFor={commonProps.id}>{f.label}</Label>
-                      <Select
-                        value={String(values[f.name] ?? '')}
-                        onValueChange={(v) => setValues({ ...values, [f.name]: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map(opt => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )
-                }
-                return null
-              })}
-              <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                {editingId && (
-                  <Button type="button" variant="outline" onClick={handleCancelEdit}>
-                    Cancelar Edición
+      {canShowForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Formulario para {currentArea?.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingFields ? (
+              <div className="text-muted-foreground">Cargando formulario...</div>
+            ) : fields.length === 0 ? (
+              <div className="text-muted-foreground">No hay campos configurados en esta área</div>
+            ) : (
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {fields.map(f => {
+                  const commonProps = {
+                    id: `field_${f.name}`,
+                    required: f.required,
+                    value: values[f.name] ?? '',
+                    onChange: e => setValues({ ...values, [f.name]: e.target.value })
+                  }
+                  if (f.type === 'text' || f.type === 'textarea') {
+                    return (
+                      <div key={f.id} className="grid gap-1">
+                        <Label htmlFor={commonProps.id}>{f.label}
+                          {f.required ? <b className="text-red-500 ml-1">*</b> : <span className="text-muted-foreground ml-1">(Opcional)</span>}
+                        </Label>
+                        <Input {...commonProps} />
+                      </div>
+                    )
+                  }
+                  if (f.type === 'number') {
+                    return (
+                      <div key={f.id} className="grid gap-1">
+                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Input type="number" {...commonProps} />
+                      </div>
+                    )
+                  }
+                  if (f.type === 'date') {
+                    return (
+                      <div key={f.id} className="grid gap-1">
+                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Input type="date" {...commonProps} />
+                      </div>
+                    )
+                  }
+                  if (f.type === 'color') {
+                    return (
+                      <div key={f.id} className="grid gap-1">
+                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Input type="color" {...commonProps} />
+                      </div>
+                    )
+                  }
+                  if (f.type === 'boolean') {
+                    return (
+                      <div key={f.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={Boolean(values[f.name])}
+                          onCheckedChange={(checked) => setValues({ ...values, [f.name]: Boolean(checked) })}
+                        />
+                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                      </div>
+                    )
+                  }
+                  if (f.type === 'select') {
+                    const options = Array.isArray(f.options) ? f.options : []
+                    return (
+                      <div key={f.id} className="grid gap-1">
+                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Select
+                          value={String(values[f.name] ?? '')}
+                          onValueChange={(v) => setValues({ ...values, [f.name]: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {options.map(opt => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  }
+                  return null
+                })}
+                <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                  {editingId && (
+                    <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                      Cancelar Edición
+                    </Button>
+                  )}
+                  <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                    {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
                   </Button>
-                )}
-                <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                  {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
-                </Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -227,12 +233,16 @@ export function FormRunner({ areaId, userId, currentArea }) {
                   ))}
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {hasPermission('inventory.edit') && (
+                    <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  )}
+                  {hasPermission('inventory.delete') && (
+                    <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))

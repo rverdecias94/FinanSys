@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
+import { acceptPendingInvitations } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -70,19 +71,20 @@ export default function Login() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
 
-      // Validar y crear suscripción si no existe
-      const planId = await validateAndCreateSubscription(data.user.id)
-
-      // Mostrar mensaje según el tipo de plan
-      if (planId === 'premium') {
-        toast.success('Bienvenido a tu cuenta Premium', {
-          description: 'Tienes acceso completo a todas las funcionalidades.'
-        })
-      } else {
-        toast.success('Bienvenido a tu cuenta Gratuita', {
-          description: 'Disfruta de las funcionalidades básicas. Actualiza a Premium cuando quieras.'
-        })
+      // Verificar y aceptar invitaciones pendientes
+      try {
+        await acceptPendingInvitations(email)
+      } catch (inviteError) {
+        console.error('Error procesando invitaciones:', inviteError)
+        // No bloqueamos el login por esto
       }
+
+      // Validar y crear suscripción si no existe
+      await validateAndCreateSubscription(data.user.id)
+
+      toast.success('Bienvenido de nuevo', {
+        description: 'Has iniciado sesión correctamente.'
+      })
 
       navigate('/')
     } catch (error) {

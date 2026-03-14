@@ -1,14 +1,27 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
+import { getEffectiveUserId, validateResourceAccess } from '@/services/team'
 
-export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all', userUuid } = {}) {
-  if (!userUuid) throw new Error('User UUID is required for security isolation')
+/**
+ * Función auxiliar para obtener el userUuid efectivo
+ * Si el usuario es miembro de equipo, usa el businessId (owner_id)
+ * Si es owner, usa su propio ID
+ */
+function getEffectiveUserUuid(userId, businessId) {
+  return getEffectiveUserId(userId, businessId);
+}
+
+export async function listProducts({ page = 1, pageSize = 10, search = '', category = 'all', stockStatus = 'all', userId, businessId } = {}) {
+  if (!userId) throw new Error('User ID is required for security isolation')
+
+  // Obtener el ID efectivo para filtrar (owner_id si es miembro, su propio ID si es owner)
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId);
 
   let q = supabase
     .from('products')
     .select('*', { count: 'exact' })
-    .eq('user_id', userUuid)
+    .eq('user_id', effectiveUserId) // Filtrar por el owner_id efectivo
     .order('name', { ascending: true })
 
   // Filters
@@ -20,6 +33,17 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
     q = q.eq('category', category)
   }
 
+  // Stock status filter
+  if (stockStatus && stockStatus !== 'all') {
+    if (stockStatus === 'low') {
+      q = q.lte('stock', supabase.raw('COALESCE(min_stock, 5)'))
+    } else if (stockStatus === 'out') {
+      q = q.eq('stock', 0)
+    } else if (stockStatus === 'in') {
+      q = q.gt('stock', 0)
+    }
+  }
+
   // Pagination
   if (page && pageSize) {
     const from = (page - 1) * pageSize
@@ -29,30 +53,33 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
 
   const { data, count, error } = await q
   if (error) throw error
-
   return { data, count }
 }
 
-export async function getProduct(id, userUuid) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function getProduct(id, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
+
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId);
 
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('id', id)
-    .eq('user_id', userUuid)
+    .eq('user_id', effectiveUserId) // Verificar que pertenece al owner efectivo
     .single()
   if (error) throw error
   return data
 }
 
-export async function createProduct(payload, userUuid) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function createProduct(payload, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
 
   return await withCrud({ action: 'create', table: 'products' }, async () => {
+    const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+
     const { data, error } = await supabase
       .from('products')
-      .insert({ ...payload, user_id: userUuid })
+      .insert({ ...payload, user_id: effectiveUserId }) // Crear con el owner_id efectivo
       .select()
       .single()
     if (error) throw error
@@ -66,15 +93,23 @@ export async function createProduct(payload, userUuid) {
   })
 }
 
-export async function updateProduct(id, payload, userUuid) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function updateProduct(id, payload, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
 
   return await withCrud({ action: 'update', table: 'products' }, async () => {
+    const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+
+    // Primero validar que el producto pertenece al usuario efectivo
+    const hasAccess = await validateResourceAccess('product', id, userId, businessId);
+    if (!hasAccess) {
+      throw new Error('Access Denied: Product does not belong to user\'s business context');
+    }
+
     const { data, error } = await supabase
       .from('products')
       .update(payload)
       .eq('id', id)
-      .eq('user_id', userUuid)
+      .eq('user_id', effectiveUserId) // Asegurar que solo actualiza del owner efectivo
       .select()
       .single()
     if (error) throw error
@@ -88,15 +123,23 @@ export async function updateProduct(id, payload, userUuid) {
   })
 }
 
-export async function deleteProduct(id, userUuid) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function deleteProduct(id, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
 
   return await withCrud({ action: 'delete', table: 'products' }, async () => {
+    const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+
+    // Primero validar acceso
+    const hasAccess = await validateResourceAccess('product', id, userId, businessId);
+    if (!hasAccess) {
+      throw new Error('Access Denied: Product does not belong to user\'s business context');
+    }
+
     const { error } = await supabase
       .from('products')
       .delete()
       .eq('id', id)
-      .eq('user_id', userUuid)
+      .eq('user_id', effectiveUserId) // Solo borrar del owner efectivo
     if (error) throw error
     await logAction({
       action: 'Eliminar',
@@ -108,27 +151,43 @@ export async function deleteProduct(id, userUuid) {
   })
 }
 
-export async function registerMovement({ product_id, qty, type, user_id }) {
-  if (!user_id) throw new Error('User UUID is required')
+export async function registerMovement({ product_id, qty, type, userId, businessId }) {
+  if (!userId) throw new Error('User ID is required')
 
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
+    const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+
+    // Primero validar que el producto pertenece al contexto de negocio
+    const hasAccess = await validateResourceAccess('product', product_id, userId, businessId);
+    if (!hasAccess) {
+      await supabase.from('access_audit_logs').insert({
+        user_id: userId,
+        action: 'unauthorized_movement_attempt',
+        resource: `product_${product_id}`,
+        details: { product_id, qty, type, reason: 'product_not_in_business_context' }
+      });
+
+      console.error('Security Alert: Attempt to access unauthorized product', { product_id, userId, businessId });
+      throw new Error('Access Denied: Product does not belong to user\'s business context');
+    }
+
     const { data: product, error: prodError } = await supabase
       .from('products')
       .select('id, stock, name')
       .eq('id', product_id)
-      .eq('user_id', user_id)
+      .eq('user_id', effectiveUserId) // Asegurar que es del owner efectivo
       .single()
 
     if (prodError || !product) {
       await supabase.from('access_audit_logs').insert({
-        user_id: user_id,
+        user_id: userId,
         action: 'unauthorized_movement_attempt',
         resource: `product_${product_id}`,
-        details: { product_id, qty, type }
-      })
+        details: { product_id, qty, type, reason: 'product_not_found_in_context' }
+      });
 
-      console.error('Security Alert: Attempt to access unauthorized product', { product_id, user_id })
-      throw new Error('Access Denied: Product does not belong to user')
+      console.error('Security Alert: Product not found in business context', { product_id, userId, businessId });
+      throw new Error('Access Denied: Product does not belong to user\'s business context');
     }
 
     const newStock = type === 'in'
@@ -139,13 +198,13 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
       .from('products')
       .update({ stock: newStock })
       .eq('id', product_id)
-      .eq('user_id', user_id)
+      .eq('user_id', effectiveUserId) // Solo actualizar del owner efectivo
 
     if (updateError) throw updateError
 
     const { data: movement, error: movError } = await supabase
       .from('movements')
-      .insert({ product_id, qty, type, user_id })
+      .insert({ product_id, qty, type, user_id: effectiveUserId }) // Registrar con owner_id efectivo
       .select(`
         *,
         products (name, category, stock)
@@ -171,8 +230,10 @@ export async function registerMovement({ product_id, qty, type, user_id }) {
   })
 }
 
-export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null, userUuid } = {}) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null, userId, businessId } = {}) {
+  if (!userId) throw new Error('User ID is required')
+
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId);
 
   let q = supabase
     .from('movements')
@@ -180,7 +241,7 @@ export async function listMovements({ page = 1, pageSize = 10, type = 'all', pro
       *,
       products (name, category)
     `, { count: 'exact' })
-    .eq('user_id', userUuid)
+    .eq('user_id', effectiveUserId) // Filtrar por owner_id efectivo
     .order('created_at', { ascending: false })
 
   // Filters
@@ -233,19 +294,21 @@ export async function getProductCategories() {
   return data
 }
 
-export async function getAlmacenStats(userUuid) {
-  if (!userUuid) throw new Error('User UUID is required')
+export async function getAlmacenStats(userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
+
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId);
 
   // Fetch products and movements in parallel
   const [productsResponse, movementsResponse] = await Promise.all([
     supabase
       .from('products')
       .select('name, stock, min_stock, category')
-      .eq('user_id', userUuid),
+      .eq('user_id', effectiveUserId), // Filtrar por owner_id efectivo
     supabase
       .from('movements')
       .select('qty, type, created_at')
-      .eq('user_id', userUuid)
+      .eq('user_id', effectiveUserId) // Filtrar por owner_id efectivo
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
   ])
 

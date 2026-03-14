@@ -9,6 +9,7 @@ import { es } from 'date-fns/locale'
 import { MovementModal } from './MovementModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { usePermissions } from '@/context/PermissionContext'
 
 export function MovementList({
   movements,
@@ -27,6 +28,7 @@ export function MovementList({
 }) {
   const [modalOpen, setModalOpen] = useState(false)
   const { checkLimit, recordUsage } = useSubscription()
+  const { hasPermission } = usePermissions()
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
 
@@ -77,7 +79,9 @@ export function MovementList({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleOpenModal}>+ Registrar Movimiento</Button>
+        {hasPermission('warehouse.move') && (
+          <Button onClick={handleOpenModal}>+ Registrar Movimiento</Button>
+        )}
       </div>
 
       <div className="border rounded-md">

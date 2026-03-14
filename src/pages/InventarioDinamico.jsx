@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Layers, PlusCircle, Trash2, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { usePermissions } from '@/context/PermissionContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,8 +18,10 @@ import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function InventarioDinamico() {
   const { session } = useSession()
+  const { businessId } = useBusiness()
   const { checkLimit, getRemainingUsage, subscription, recordUsage } = useSubscription()
-  const userId = session?.user?.id
+  const { hasPermission } = usePermissions()
+  const userId = businessId || session?.user?.id
   const queryClient = useQueryClient()
   const [areaModalOpen, setAreaModalOpen] = useState(false)
   const [editingArea, setEditingArea] = useState(null)
@@ -130,10 +134,12 @@ export default function InventarioDinamico() {
             )}
           </div>
         </h1>
-        <Button onClick={handleCreateClick} className="gap-2">
-          <PlusCircle className="w-4 h-4" />
-          Crear Nueva Área
-        </Button>
+        {hasPermission('inventory.create') && (
+          <Button onClick={handleCreateClick} className="gap-2">
+            <PlusCircle className="w-4 h-4" />
+            Crear Nueva Área
+          </Button>
+        )}
       </div>
 
       <AreaModal
@@ -176,24 +182,28 @@ export default function InventarioDinamico() {
                       <Button variant="outline" size="sm" onClick={() => setSelectedAreaId(a.id)}>
                         {isSelected ? 'Activo' : 'Abrir'}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                        onClick={(e) => handleEditClick(e, a)}
-                        title="Editar Área"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                        onClick={(e) => handleDeleteClick(e, a.id)}
-                        title="Eliminar Área"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {hasPermission('inventory.edit') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => handleEditClick(e, a)}
+                          title="Editar Área"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      {hasPermission('inventory.delete') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                          onClick={(e) => handleDeleteClick(e, a.id)}
+                          title="Eliminar Área"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardTitle>
                 </CardHeader>
@@ -218,7 +228,9 @@ export default function InventarioDinamico() {
                 <SelectValue placeholder="Modo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="edit">Editar Campos del Formulario</SelectItem>
+                {hasPermission('inventory.edit') && (
+                  <SelectItem value="edit">Editar Campos del Formulario</SelectItem>
+                )}
                 <SelectItem value="use">Usar Formulario</SelectItem>
               </SelectContent>
             </Select>

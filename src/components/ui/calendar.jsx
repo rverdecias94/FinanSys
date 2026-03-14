@@ -5,9 +5,9 @@ import { Spanish } from 'flatpickr/dist/l10n/es.js'
 import 'flatpickr/dist/flatpickr.css'
 import '@/styles/flatpickr-theme.css'
 import { cn } from '@/lib/utils'
-import { format } from 'date-fns'
+import { format, isValid } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Calendar as CalendarIcon } from 'lucide-react'
+import { Calendar as CalendarIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const Calendar = React.forwardRef(({
@@ -72,9 +72,18 @@ const Calendar = React.forwardRef(({
     setIsOpen(false)
   }
 
+  const handleClear = (e) => {
+    e.stopPropagation()
+    if (onChange) onChange(null)
+    setIsOpen(false)
+  }
+
   const formatDate = (date) => {
     if (!date) return placeholder
-    return format(date, 'PPP', { locale: es })
+    // Ensure date is a valid Date object
+    const d = date instanceof Date ? date : new Date(date)
+    if (!isValid(d)) return placeholder
+    return format(d, 'PPP', { locale: es })
   }
 
   const toggleCalendar = () => {
@@ -87,7 +96,7 @@ const Calendar = React.forwardRef(({
       <Button
         variant={"outline"}
         className={cn(
-          "w-full justify-start text-left font-normal gap-2 mt-2",
+          "w-full justify-start text-left font-normal gap-2",
           !value && "text-muted-foreground",
           className
         )}
@@ -98,14 +107,24 @@ const Calendar = React.forwardRef(({
         type="button"
         ref={ref}
       >
-        <span className="truncate">{value ? formatDate(value) : placeholder}</span>
-        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+        <CalendarIcon className="h-4 w-4 opacity-50" />
+        <span className="truncate flex-1">{formatDate(value)}</span>
+        {value && !disabled && (
+          <div
+            role="button"
+            tabIndex={0}
+            className="ml-auto hover:bg-muted rounded-full p-1"
+            onClick={handleClear}
+          >
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </div>
+        )}
       </Button>
 
       {isOpen && (
         <div
           ref={popoverRef}
-          className="absolute top-full left-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))]"
+          className="absolute top-full left-0 z-50 mt-2 p-2 bg-popover border rounded-md shadow-md w-auto min-w-[300px]"
         >
           <Flatpickr
             ref={flatpickrRef}

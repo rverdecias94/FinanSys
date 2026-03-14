@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 import { logAction } from '@/services/auditLogger'
 
@@ -10,6 +11,7 @@ export const useSubscription = () => useContext(SubscriptionContext)
 
 export const SubscriptionProvider = ({ children }) => {
   const { session } = useSession()
+  const { businessId, isOwner } = useBusiness()
   const [subscription, setSubscription] = useState(null)
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
@@ -49,20 +51,24 @@ export const SubscriptionProvider = ({ children }) => {
 
   useEffect(() => {
     console.log(session)
-    if (session?.user) {
+    if (session?.user && businessId) {
       fetchSubscription()
       fetchUsage()
+    } else if (session?.user && !businessId) {
+      // Wait for business context to load
     } else {
       setLoading(false)
     }
-  }, [session])
+  }, [session, businessId])
 
   const fetchSubscription = async () => {
+    if (!businessId) return
+
     try {
       const { data, error } = await supabase
         .from('subscriptions')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', businessId) // Use businessId (owner) for subscription
         .single()
 
       console.log(data)
@@ -72,27 +78,33 @@ export const SubscriptionProvider = ({ children }) => {
 
       if (!data) {
         // Create default free subscription if none exists
-        const { data: newSub, error: createError } = await supabase
-          .from('subscriptions')
-          .insert({
-            user_id: session.user.id,
-            plan_id: 'free',
-            status: 'active',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single()
+        // Only if we are the owner. If we are a member and owner has no sub, it's weird but we shouldn't create it.
+        if (isOwner) {
+          const { data: newSub, error: createError } = await supabase
+            .from('subscriptions')
+            .insert({
+              user_id: businessId,
+              plan_id: 'free',
+              status: 'active',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single()
 
-        if (createError) {
-          console.error('Error creating subscription:', createError)
-          // Fallback a objeto por defecto
-          setSubscription({ plan_id: 'free', status: 'active' })
+          if (createError) {
+            console.error('Error creating subscription:', createError)
+            // Fallback a objeto por defecto
+            setSubscription({ plan_id: 'free', status: 'active' })
+          } else {
+            setSubscription(newSub)
+            toast.success('Suscripción creada', {
+              description: 'Se ha asignado un plan gratuito a tu cuenta.'
+            })
+          }
         } else {
-          setSubscription(newSub)
-          toast.success('Suscripción creada', {
-            description: 'Se ha asignado un plan gratuito a tu cuenta.'
-          })
+          // Member viewing owner without sub? Fallback to free limits
+          setSubscription({ plan_id: 'free', status: 'active' })
         }
       } else {
         setSubscription(data)
@@ -111,6 +123,8 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const fetchUsage = async () => {
+    if (!businessId) return
+
     try {
       const startOfMonth = new Date()
       startOfMonth.setDate(1)
@@ -126,17 +140,17 @@ export const SubscriptionProvider = ({ children }) => {
         supabase
           .from('transactions')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', session.user.id)
+          .eq('user_id', businessId) // Use businessId
           .gte('date', startOfMonthStr),
         supabase
           .from('products')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', session.user.id),
+          .eq('user_id', businessId), // Use businessId
         // For inventory areas, count from inventory_areas table
         supabase
           .from('inventory_areas')
           .select('*', { count: 'exact', head: true })
-          .eq('user_id', session.user.id)
+          .eq('user_id', businessId) // Use businessId
       ])
 
       setUsage({
@@ -185,6 +199,10 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const updatePlan = async (planId) => {
+    if (!isOwner) {
+      toast.error('Solo el propietario puede actualizar el plan.')
+      return
+    }
     try {
       setLoading(true)
 
@@ -206,7 +224,7 @@ export const SubscriptionProvider = ({ children }) => {
           trial_end_at: null,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', session.user.id)
+        .eq('user_id', businessId)
 
       if (error) throw error
 

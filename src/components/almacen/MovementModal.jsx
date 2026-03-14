@@ -7,10 +7,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { registerMovement } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
+  const { businessId } = useBusiness()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     product_id: '',
@@ -22,11 +24,13 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
     e.preventDefault()
     setLoading(true)
     try {
+      const effectiveBusinessId = businessId || session?.user?.id
       await registerMovement({
         product_id: formData.product_id,
         qty: Number(formData.qty),
         type: formData.type,
-        user_id: session?.user?.id
+        userId: session?.user?.id,
+        businessId: effectiveBusinessId
       })
       onSuccess()
     } catch (error) {

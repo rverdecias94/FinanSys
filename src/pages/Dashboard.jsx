@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrency } from '@/context/CurrencyContext'
@@ -41,6 +42,7 @@ const COLORS_EXPENSE = ['#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#f87171', '
 
 export default function Dashboard() {
   const { session } = useSession()
+  const { businessId } = useBusiness()
   const { businessCurrencies, formatCurrency, loading: currencyLoading } = useCurrency()
   const [summaryFilter, setSummaryFilter] = useState('ALL')
 
@@ -65,36 +67,35 @@ export default function Dashboard() {
   const currentYear = useMemo(() => new Date().getFullYear(), [])
 
   const dashboardQueryOptions = useMemo(() => ({
-    enabled: !!userId,
+    enabled: !!userId && !!businessId,
     staleTime: Infinity,
     gcTime: 1000 * 60 * 30,
-    refetchOnWindowFocus: false,
     retry: 1
-  }), [userId])
+  }), [userId, businessId])
 
   const statsQuery = useQuery({
-    queryKey: ['dashboard', 'stats', userId],
-    queryFn: () => getDashboardStats(userId),
+    queryKey: ['dashboard', 'stats', userId, businessId],
+    queryFn: () => getDashboardStats(userId, businessId),
     ...dashboardQueryOptions
   })
 
   const recentActivityQuery = useQuery({
-    queryKey: ['dashboard', 'recentActivity', userId],
-    queryFn: () => getRecentActivity(userId),
+    queryKey: ['dashboard', 'recentActivity', userId, businessId],
+    queryFn: () => getRecentActivity(userId, businessId),
     ...dashboardQueryOptions
   })
 
   const financialDistributionQuery = useQuery({
-    queryKey: ['dashboard', 'distribution', { userId, distTypeFilter, distCurrencyFilter }],
-    queryFn: () => getFinancialDistribution(userId, distTypeFilter, distCurrencyFilter),
-    enabled: !!userId && !!distCurrencyFilter,
+    queryKey: ['dashboard', 'distribution', { userId, businessId, distTypeFilter, distCurrencyFilter }],
+    queryFn: () => getFinancialDistribution(userId, businessId, distTypeFilter, distCurrencyFilter),
+    enabled: !!userId && !!businessId && !!distCurrencyFilter,
     ...dashboardQueryOptions
   })
 
   const yearlySummaryQuery = useQuery({
-    queryKey: ['dashboard', 'yearlySummary', { userId, currentYear, barCurrencyFilter }],
-    queryFn: () => getYearlySummary(userId, currentYear, barCurrencyFilter),
-    enabled: !!userId && !!barCurrencyFilter,
+    queryKey: ['dashboard', 'yearlySummary', { userId, businessId, currentYear, barCurrencyFilter }],
+    queryFn: () => getYearlySummary(userId, businessId, currentYear, barCurrencyFilter),
+    enabled: !!userId && !!businessId && !!barCurrencyFilter,
     ...dashboardQueryOptions
   })
 
@@ -192,13 +193,7 @@ export default function Dashboard() {
     },
   ]
 
-  if (loading) {
-    return <div className="flex justify-center items-center min-h-[60vh]">Cargando datos del panel...</div>
-  }
-
-  if (hasError) {
-    return <div className="flex justify-center items-center min-h-[60vh]">No se pudieron cargar los datos del panel.</div>
-  }
+  // Evitar recarga visual completa del panel; mostrar contenido con datos disponibles
 
   return (
     <div className="space-y-8">
@@ -245,7 +240,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Ingresos
+              Ingresos del mes
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
@@ -276,7 +271,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Gastos
+              Gastos del mes
             </CardTitle>
             <TrendingDown className="h-4 w-4 text-red-500" />
           </CardHeader>
@@ -424,7 +419,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={financialData}>
+              <BarChart data={financialData} margin={{ left: 12, right: 24, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="name"
@@ -438,6 +433,7 @@ export default function Dashboard() {
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
+                  width={70}
                   tickFormatter={(value) => formatCurrency(value, barCurrencyFilter)}
                 />
                 <Tooltip
