@@ -117,23 +117,23 @@ export function PermissionSettings() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
-                  <Eye className="w-4 h-4 text-green-600" />
-                  <h3 className="font-medium text-green-600">Visualizador</h3>
+                  <Eye className="w-4 h-4 text-primary" />
+                  <h3 className="font-medium text-primary">Visualizador</h3>
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">
                   Solo puede ver datos y reportes. No puede crear, editar ni eliminar registros.
                 </p>
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Ver Dashboard, Finanzas, Almacén, Inventario, Reportes</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Exportar datos y reportes</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Filtrar y ver gráficos</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -153,15 +153,15 @@ export function PermissionSettings() {
                 </p>
                 <div className="space-y-1 text-xs">
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Acceso completo a Dashboard</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Crear, editar, eliminar en Finanzas, Almacén, Inventario</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-primary" />
                     <span>Acceso completo a Reportes</span>
                   </div>
                   <div className="flex items-center gap-2">

@@ -10,21 +10,38 @@ module.exports = {
 		extend: {
 			fontFamily: {
 				sans: [
-					'Inter',
+					'Geist',
 					'system-ui',
 					'sans-serif',
 				],
+				mono: [
+					'JetBrains Mono',
+					'monospace',
+				],
 				heading: [
-					'Barlow',
-					'Inter',
+					'Geist',
 					'system-ui',
 					'sans-serif',
 				],
 			},
 			borderRadius: {
-				lg: 'var(--radius)',
-				md: 'calc(var(--radius) - 2px)',
-				sm: 'calc(var(--radius) - 4px)'
+				lg: '1rem',
+				md: '0.75rem',
+				sm: '0.25rem',
+				DEFAULT: '0.5rem',
+				xl: '1.5rem',
+				full: '9999px',
+			},
+			spacing: {
+				base: '4px',
+				xs: '4px',
+				sm: '8px',
+				md: '16px',
+				lg: '24px',
+				xl: '32px',
+				gutter: '16px',
+				'margin-mobile': '16px',
+				'margin-desktop': '32px',
 			},
 			colors: {
 				background: 'hsl(var(--background))',

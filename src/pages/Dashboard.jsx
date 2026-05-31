@@ -229,12 +229,12 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
-        <Card>
+        <Card className="bg-primary text-primary-foreground shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
             <CardTitle className="text-sm font-medium">
               Balance Actual
             </CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <Wallet className="h-4 w-4 text-primary-foreground/80" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -243,12 +243,11 @@ export default function Dashboard() {
                   <span className="text-xl sm:text-2xl font-bold">
                     {formatCurrency(stats.balance[curr.code] || 0, curr.code)}
                   </span>
-                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
                 </div>
               ))}
-              {businessCurrencies.length === 0 && <span className="text-sm text-muted-foreground">Sin monedas configuradas</span>}
+              {businessCurrencies.length === 0 && <span className="text-sm text-primary-foreground/80">Sin monedas configuradas</span>}
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-xs text-primary-foreground/80 mt-2">
               Disponible
             </p>
           </CardContent>
@@ -268,7 +267,6 @@ export default function Dashboard() {
                   <span className="text-lg sm:text-xl font-bold text-success">
                     {formatCurrency(stats.income.current[curr.code] || 0, curr.code)}
                   </span>
-                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
                 </div>
               ))}
             </div>
@@ -299,7 +297,6 @@ export default function Dashboard() {
                   <span className="text-lg sm:text-xl font-bold text-destructive">
                     {formatCurrency(stats.expense.current[curr.code] || 0, curr.code)}
                   </span>
-                  <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
                 </div>
               ))}
             </div>
@@ -332,7 +329,6 @@ export default function Dashboard() {
                     <span className={`text-lg sm:text-xl font-bold ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {formatCurrency(net, curr.code)}
                     </span>
-                    <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
                   </div>
                 )
               })}

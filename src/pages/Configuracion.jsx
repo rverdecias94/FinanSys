@@ -286,12 +286,12 @@ export default function Configuracion() {
 
       <Tabs defaultValue={isOwner ? "billing" : "general"} className="w-full max-w-7xl">
         <TabsList className="grid w-full grid-cols-6">
-          {isOwner && <TabsTrigger value="billing">Planes</TabsTrigger>}
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="currencies">Monedas</TabsTrigger>
-          {hasPermission('team.manage') && <TabsTrigger value="team">Equipo</TabsTrigger>}
-          {hasPermission('team.manage') && <TabsTrigger value="roles">Roles</TabsTrigger>}
-          {hasPermission('config.edit') && <TabsTrigger value="permissions">Permisos</TabsTrigger>}
+          {isOwner && <TabsTrigger value="billing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Planes</TabsTrigger>}
+          <TabsTrigger value="general" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">General</TabsTrigger>
+          <TabsTrigger value="currencies" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Monedas</TabsTrigger>
+          {hasPermission('team.manage') && <TabsTrigger value="team" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Equipo</TabsTrigger>}
+          {hasPermission('team.manage') && <TabsTrigger value="roles" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Roles</TabsTrigger>}
+          {hasPermission('config.edit') && <TabsTrigger value="permissions" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Permisos</TabsTrigger>}
         </TabsList>
 
         {isOwner && (
@@ -309,12 +309,12 @@ export default function Configuracion() {
                 <CardContent className="flex-1 space-y-4">
                   <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
                   <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 40 Transacciones / mes</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 40 Productos</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 1 Moneda Activa</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Reportes Básicos (Solo lectura)</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Sin Socios</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> 40 Transacciones / mes</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> 40 Productos</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> 5 Áreas de Inventario</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> 1 Moneda Activa</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> Reportes Básicos (Solo lectura)</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-primary" /> Sin Socios</li>
                   </ul>
                 </CardContent>
                 <CardFooter>

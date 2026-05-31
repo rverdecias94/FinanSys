@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
 
 export default function SidebarLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { subscription } = useSubscription()
   const { session } = useSession()
   const { isOwner } = useBusiness()
@@ -45,7 +46,7 @@ export default function SidebarLayout() {
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
             <div>
-              <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain" />
+              <img src="/logo.png" alt="Logo" className="h-25 w-40 object-contain" />
             </div>
           </div>
           <Button
@@ -156,8 +157,20 @@ export default function SidebarLayout() {
           </div>
 
           {isOwner && (
-            <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-              Plan {subscription?.plan_id === 'premium' ? 'Premium' : 'Gratuito'}
+            <div className="flex flex-col gap-2">
+              <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                {subscription?.plan_id === 'premium' ? 'Plan Premium' : 'Sube de Nivel'}
+              </div>
+              {subscription?.plan_id !== 'premium' && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full text-xs font-bold uppercase"
+                  onClick={() => navigate('/configuracion')}
+                >
+                  MEJORAR PLAN
+                </Button>
+              )}
             </div>
           )}
         </div>

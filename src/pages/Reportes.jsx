@@ -295,7 +295,7 @@ const Reportes = () => {
         {hasExportPermission && (
           <Button
             onClick={() => handleExport('docx', () => handlePreview('global'))}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary hover:bg-accent hover:text-accent-foreground"
           >
             <File className="mr-2 h-4 w-4" />
             Resumen General (DOCX)
@@ -305,10 +305,19 @@ const Reportes = () => {
 
       {dateFilter && (
         <Tabs defaultValue="finanzas" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="finanzas">Finanzas</TabsTrigger>
-            <TabsTrigger value="almacen">Almacén</TabsTrigger>
-            <TabsTrigger value="inventario">Inventario</TabsTrigger>
+          <TabsList className="grid w-6/12 grid-cols-3">
+            <TabsTrigger
+              value="finanzas"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >Finanzas</TabsTrigger>
+            <TabsTrigger
+              value="almacen"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >Almacén</TabsTrigger>
+            <TabsTrigger
+              value="inventario"
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >Inventario</TabsTrigger>
           </TabsList>
 
           {/* --- FINANZAS --- */}
