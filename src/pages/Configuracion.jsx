@@ -21,6 +21,9 @@ import { TeamManagement } from '@/components/config/TeamManagement'
 import { PermissionSettings } from '@/components/config/PermissionSettings'
 import { Switch } from '@/components/ui/switch'
 import { usePermissions } from '@/context/PermissionContext'
+import { useTheme } from '@/context/ThemeContext'
+import { Moon, Sun, Laptop } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const FLAGS = {
   CUP: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
@@ -110,6 +113,7 @@ export default function Configuracion() {
   const { canAccessFeature, subscription, checkLimit, updatePlan } = useSubscription()
   const { availableCurrencies, businessCurrencies, toggleCurrency, setMainCurrency, loading: currencyLoading } = useCurrency()
   const { hasPermission, loading: loadingPermissions } = usePermissions()
+  const { theme, setTheme } = useTheme()
 
   // Balances State (Dynamic)
   const [initialBalances, setInitialBalances] = useState({})
@@ -375,6 +379,48 @@ export default function Configuracion() {
         )}
 
         <TabsContent value="general" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Apariencia</CardTitle>
+              <CardDescription>Configura el tema visual de la aplicación</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Tema de la aplicación</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Elige entre el tema claro, el tema oscuro (Obsidian) o sincroniza con tu sistema.
+                  </p>
+                </div>
+                <Select value={theme} onValueChange={setTheme}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Selecciona un tema" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">
+                      <div className="flex items-center gap-2">
+                        <Sun className="h-4 w-4" />
+                        <span>Claro</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="dark">
+                      <div className="flex items-center gap-2">
+                        <Moon className="h-4 w-4" />
+                        <span>Oscuro (Obsidian)</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="system">
+                      <div className="flex items-center gap-2">
+                        <Laptop className="h-4 w-4" />
+                        <span>Sistema</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Balance del Negocio</CardTitle>

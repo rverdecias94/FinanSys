@@ -44,9 +44,12 @@ export default function SidebarLayout() {
         className={`fixed inset-y-0 left-0 z-50 w-64 -translate-x-full border-r bg-card p-4 flex flex-col transition-transform lg:translate-x-0 lg:static lg:h-screen lg:w-auto ${sidebarOpen ? 'translate-x-0' : ''}`}
       >
         <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-xl">
-            <div>
-              <img src="/logo.png" alt="Logo" className="h-25 w-40 object-contain" />
+          <div className="flex font-bold text-xl">
+            <div className="flex items-center">
+              <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain dark" />
+              {/* <div className="flex flex-col">
+                <span className="text-lg font-bold">GESTIA</span>
+              </div> */}
             </div>
           </div>
           <Button
@@ -158,14 +161,15 @@ export default function SidebarLayout() {
 
           {isOwner && (
             <div className="flex flex-col gap-2">
-              <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                {subscription?.plan_id === 'premium' ? 'Plan Premium' : 'Sube de Nivel'}
-              </div>
+              {subscription?.plan_id === 'premium' &&
+                <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                </div>
+              }
               {subscription?.plan_id !== 'premium' && (
                 <Button
                   variant="default"
                   size="sm"
-                  className="w-full text-xs font-bold uppercase"
+                  className="w-full text-xs font-bold uppercase bg-primary/70"
                   onClick={() => navigate('/configuracion')}
                 >
                   MEJORAR PLAN
