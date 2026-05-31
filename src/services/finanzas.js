@@ -3,6 +3,53 @@ import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId } from '@/services/team'
 
+export async function uploadAttachments(files, userId) {
+  const urls = [];
+  for (const file of files) {
+    if (typeof file === 'string') {
+      urls.push(file); // Already a URL
+      continue;
+    }
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+    const { data, error } = await supabase.storage
+      .from('transaction-images')
+      .upload(fileName, file);
+
+    if (error) {
+      console.error('Error uploading file:', error);
+      throw error;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('transaction-images')
+      .getPublicUrl(fileName);
+      
+    urls.push(publicUrl);
+  }
+  return urls;
+}
+
+export async function deleteAttachments(urls) {
+  if (!urls || urls.length === 0) return;
+
+  const paths = urls.map(url => {
+    if (typeof url !== 'string') return null;
+    const parts = url.split('/transaction-images/');
+    return parts.length > 1 ? parts[1] : null;
+  }).filter(Boolean);
+
+  if (paths.length > 0) {
+    const { error } = await supabase.storage
+      .from('transaction-images')
+      .remove(paths);
+    
+    if (error) {
+      console.error('Error deleting files from bucket:', error);
+    }
+  }
+}
+
 export async function getFinanceCategories() {
   const { data, error } = await supabase
     .from('finance_categories')
@@ -64,6 +111,11 @@ export async function createTransaction(payload, userId, businessId) {
     payment_method, bank_account_id, reference_number, notes, attachments
   } = payload
 
+  let finalAttachments = [];
+  if (attachments && attachments.length > 0) {
+    finalAttachments = await uploadAttachments(attachments, effectiveUserId);
+  }
+
   const dbPayload = {
     date,
     amount,
@@ -72,12 +124,13 @@ export async function createTransaction(payload, userId, businessId) {
     description,
     type,
     user_id: effectiveUserId, // Usar ID efectivo
+    image_url: finalAttachments.length > 0 ? finalAttachments[0] : null,
     details: {
       payment_method: payment_method || null,
       bank_account_id: bank_account_id || null,
       reference_number: reference_number || null,
       notes: notes || null,
-      attachments: attachments || []
+      attachments: finalAttachments
     }
   }
 
@@ -99,8 +152,23 @@ export async function updateTransaction(transactionId, payload, userId, business
 
   const {
     date, amount, currency, category, description, type,
-    payment_method, bank_account_id, reference_number, notes, attachments
+    payment_method, bank_account_id, reference_number, notes, attachments, deleted_attachments
   } = payload
+
+  if (deleted_attachments && deleted_attachments.length > 0) {
+    await deleteAttachments(deleted_attachments);
+    await logAction({
+      action: 'Eliminar',
+      resource: `Adjunto(s) de Transacción: ${description || 'Sin descripción'}`,
+      details: { deleted_urls: deleted_attachments, transaction_id: transactionId },
+      area: 'Finanzas'
+    })
+  }
+
+  let finalAttachments = [];
+  if (attachments && attachments.length > 0) {
+    finalAttachments = await uploadAttachments(attachments, effectiveUserId);
+  }
 
   const dbPayload = {
     date,
@@ -109,12 +177,13 @@ export async function updateTransaction(transactionId, payload, userId, business
     category,
     description,
     type,
+    image_url: finalAttachments.length > 0 ? finalAttachments[0] : null,
     details: {
       payment_method: payment_method || null,
       bank_account_id: bank_account_id || null,
       reference_number: reference_number || null,
       notes: notes || null,
-      attachments: attachments || []
+      attachments: finalAttachments
     }
   }
 

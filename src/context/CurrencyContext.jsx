@@ -2,13 +2,16 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { toast } from 'sonner'
+import { logAction } from '@/services/auditLogger'
 
 const CurrencyContext = createContext()
 
 export function CurrencyProvider({ children }) {
   const { session } = useSession()
   const { businessId, isOwner } = useBusiness()
+  const { subscription } = useSubscription()
   const [availableCurrencies, setAvailableCurrencies] = useState([])
   const [businessCurrencies, setBusinessCurrencies] = useState([])
   const [loading, setLoading] = useState(true)
@@ -66,6 +69,12 @@ export function CurrencyProvider({ children }) {
 
     try {
       if (isActive) {
+        // Check plan limits
+        if (subscription?.plan_id !== 'premium' && businessCurrencies.length >= 1) {
+          toast.error('Las cuentas gratuitas solo pueden tener una moneda activa. Actualiza a Premium para tener múltiples monedas.')
+          return
+        }
+
         // Add currency
         const { error } = await supabase
           .from('business_currencies')
@@ -77,6 +86,12 @@ export function CurrencyProvider({ children }) {
 
         if (error) throw error
         toast.success(`Moneda ${currencyCode} activada`)
+        await logAction({
+          action: 'Activar',
+          resource: 'Moneda',
+          details: { currency_code: currencyCode },
+          area: 'Configuración'
+        })
       } else {
         // Deactivate (remove)
         // Check if it's the default one
@@ -94,6 +109,12 @@ export function CurrencyProvider({ children }) {
 
         if (error) throw error
         toast.success(`Moneda ${currencyCode} desactivada`)
+        await logAction({
+          action: 'Desactivar',
+          resource: 'Moneda',
+          details: { currency_code: currencyCode },
+          area: 'Configuración'
+        })
       }
       await fetchCurrencies()
     } catch (error) {
@@ -127,6 +148,12 @@ export function CurrencyProvider({ children }) {
         .neq('currency_code', currencyCode)
 
       toast.success(`Moneda principal actualizada a ${currencyCode}`)
+      await logAction({
+        action: 'Establecer Principal',
+        resource: 'Moneda',
+        details: { currency_code: currencyCode },
+        area: 'Configuración'
+      })
       await fetchCurrencies()
     } catch (error) {
       console.error('Error setting main currency:', error)

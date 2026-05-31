@@ -11,8 +11,15 @@ module.exports = {
 			fontFamily: {
 				sans: [
 					'Inter',
+					'system-ui',
+					'sans-serif',
+				],
+				heading: [
 					'Barlow',
-				]
+					'Inter',
+					'system-ui',
+					'sans-serif',
+				],
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -50,6 +57,8 @@ module.exports = {
 					DEFAULT: 'hsl(var(--destructive))',
 					foreground: 'hsl(var(--destructive-foreground))'
 				},
+				success: 'hsl(var(--success))',
+				warning: 'hsl(var(--warning))',
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

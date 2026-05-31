@@ -76,6 +76,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
+  const [deletedAttachments, setDeletedAttachments] = useState([])
 
   const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
 
@@ -113,8 +114,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           notes: details.notes || '',
         })
 
-        const attachments = Array.isArray(details.attachments) ? details.attachments.filter(Boolean) : []
+        const attachments = Array.isArray(details.attachments) ? details.attachments.filter(a => typeof a === 'string' && a.trim() !== '') : []
         setExistingAttachments(attachments)
+        setDeletedAttachments([])
       } else {
         form.reset({
           type: 'expense',
@@ -128,6 +130,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           notes: '',
         })
         setExistingAttachments([])
+        setDeletedAttachments([])
       }
       setIsPreview(false)
       setFiles([])
@@ -161,6 +164,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
   const removeExistingAttachment = (attachment) => {
     setExistingAttachments((prev) => prev.filter((a) => a !== attachment))
+    setDeletedAttachments((prev) => [...prev, attachment])
   }
 
   const handleSubmit = (data) => {
@@ -174,7 +178,8 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       ...data,
       id: transaction?.id,
       amount: Number(data.amount),
-      attachments: mergedAttachments
+      attachments: mergedAttachments,
+      deleted_attachments: deletedAttachments
     }
     onSubmit(payload)
   }
@@ -200,6 +205,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       if (!nextOpen) {
         form.reset()
         setExistingAttachments([])
+        setDeletedAttachments([])
         setFiles([])
         setIsPreview(false)
       }
@@ -395,63 +401,94 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
                 <div className="space-y-2">
                   <FormLabel>Adjuntar Comprobantes (Opcional)</FormLabel>
-                  <div className="border-2 border-dashed rounded-md p-6 flex flex-col items-center justify-center text-muted-foreground hover:bg-accent/50 transition-colors cursor-pointer relative">
-                    <Input
-                      type="file"
-                      multiple
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                      onChange={handleFileChange}
-                      accept="image/*,.pdf"
-                    />
-                    <Upload className="h-8 w-8 mb-2" />
-                    <p className="text-sm">Click o arrastra archivos aquí</p>
-                    {files.length > 0 && (
-                      <div className="mt-2 text-xs text-primary font-medium">
-                        {files.length} archivo(s) seleccionado(s)
-                      </div>
-                    )}
-                  </div>
-                  {isEditing && existingAttachments.length > 0 && (
-                    <div className="mt-2 rounded-md border bg-muted/30 p-3">
-                      <div className="text-sm font-medium mb-2">Adjuntos actuales</div>
-                      <div className="space-y-2">
-                        {existingAttachments.map((att) => (
-                          <div key={att} className="flex items-center justify-between gap-2">
-                            <div className="min-w-0 flex items-center gap-2">
-                              {isViewableUrl(att) && isImageAttachment(att) && (
-                                <img
-                                  src={att}
-                                  alt=""
-                                  className="h-9 w-9 rounded object-cover border bg-background"
-                                />
-                              )}
-                              {isViewableUrl(att) ? (
-                                <a
-                                  href={att}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-xs text-primary underline truncate"
-                                  title={att}
-                                >
-                                  {att}
-                                </a>
+                  {files.length === 0 && existingAttachments.length === 0 ? (
+                    <div className="border-2 border-dashed rounded-md p-6 flex flex-col items-center justify-center text-muted-foreground hover:bg-accent/50 transition-colors cursor-pointer relative overflow-hidden">
+                      <Input
+                        type="file"
+                        multiple
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        onChange={handleFileChange}
+                        accept="image/*,.pdf"
+                        title=""
+                      />
+                      <Upload className="h-8 w-8 mb-2" />
+                      <p className="text-sm">Click para seleccionar archivos</p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-md border bg-muted/10 p-4">
+                      <div className="flex flex-wrap gap-4">
+                        {existingAttachments.map((att, idx) => {
+                          if (typeof att !== 'string') return null;
+                          const isImg = isImageAttachment(att);
+                          return (
+                            <div key={`existing-${idx}`} className="relative group rounded-md border bg-background p-2 w-32 flex flex-col items-center shadow-sm">
+                              {isImg ? (
+                                <img src={att} alt="Preview" className="h-24 w-full object-cover rounded-sm" />
                               ) : (
-                                <div className="text-xs text-muted-foreground truncate" title={att}>
-                                  {att}
+                                <div className="h-24 w-full flex items-center justify-center bg-muted rounded-sm">
+                                  <span className="text-xs font-medium uppercase break-all px-2 text-center text-muted-foreground">Doc</span>
                                 </div>
                               )}
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="destructive"
+                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-sm z-20"
+                                onClick={() => removeExistingAttachment(att)}
+                                title="Eliminar"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
                             </div>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => removeExistingAttachment(att)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                          )
+                        })}
+
+                        {files.map((file, idx) => {
+                          const isImg = file.type.startsWith('image/');
+                          const previewUrl = isImg ? URL.createObjectURL(file) : null;
+                          return (
+                            <div key={`file-${idx}`} className="relative group rounded-md border bg-background p-2 w-32 flex flex-col items-center shadow-sm">
+                              {isImg ? (
+                                <img src={previewUrl} alt="Preview" className="h-24 w-full object-cover rounded-sm" />
+                              ) : (
+                                <div className="h-24 w-full flex items-center justify-center bg-muted rounded-sm">
+                                  <span className="text-xs font-medium uppercase break-all px-2 text-center text-muted-foreground line-clamp-2">{file.name}</span>
+                                </div>
+                              )}
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="destructive"
+                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-sm z-20"
+                                onClick={() => {
+                                  setFiles(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                                title="Eliminar"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )
+                        })}
+                        
+                        <div className="relative flex items-center justify-center w-32 h-[114px] border-2 border-dashed rounded-md hover:bg-accent/50 cursor-pointer overflow-hidden">
+                          <Input
+                            type="file"
+                            multiple
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                setFiles(prev => [...prev, ...Array.from(e.target.files)]);
+                              }
+                            }}
+                            accept="image/*,.pdf"
+                            title=""
+                          />
+                          <div className="flex flex-col items-center text-muted-foreground">
+                            <Upload className="h-5 w-5 mb-1" />
+                            <span className="text-[10px] uppercase font-medium">Más</span>
                           </div>
-                        ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -492,29 +529,34 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
                   {files.length > 0 && (
                     <div className="border-t pt-2 mt-2">
-                      <span className="font-medium block mb-1">Adjuntos:</span>
-                      <ul className="list-disc list-inside text-muted-foreground">
-                        {files.map((f, i) => <li key={i}>{f.name}</li>)}
-                      </ul>
+                      <span className="font-medium block mb-2">Adjuntos nuevos:</span>
+                      <div className="flex gap-2 flex-wrap">
+                        {files.map((f, i) => {
+                          const isImg = f.type.startsWith('image/');
+                          return isImg ? (
+                            <img key={i} src={URL.createObjectURL(f)} alt="preview" className="h-16 w-16 object-cover rounded border bg-background" />
+                          ) : (
+                            <div key={i} className="h-16 px-3 flex items-center justify-center bg-muted rounded border text-xs text-muted-foreground max-w-[120px] truncate">{f.name}</div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
 
                   {existingAttachments.length > 0 && (
                     <div className="border-t pt-2 mt-2">
-                      <span className="font-medium block mb-1">Adjuntos actuales:</span>
-                      <ul className="list-disc list-inside text-muted-foreground">
-                        {existingAttachments.map((a) => (
-                          <li key={a} className="break-all">
-                            {isViewableUrl(a) ? (
-                              <a href={a} target="_blank" rel="noreferrer" className="text-primary underline">
-                                {a}
-                              </a>
-                            ) : (
-                              a
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                      <span className="font-medium block mb-2">Adjuntos actuales:</span>
+                      <div className="flex gap-2 flex-wrap">
+                        {existingAttachments.map((a, idx) => {
+                          if (typeof a !== 'string') return null;
+                          const isImg = isImageAttachment(a);
+                          return isImg ? (
+                            <img key={idx} src={a} alt="preview" className="h-16 w-16 object-cover rounded border bg-background" />
+                          ) : (
+                            <div key={idx} className="h-16 px-3 flex items-center justify-center bg-muted rounded border text-xs text-muted-foreground">Doc</div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

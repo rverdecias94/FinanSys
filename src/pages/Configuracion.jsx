@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RoleManagement } from '@/components/config/RoleManagement'
 import { TeamManagement } from '@/components/config/TeamManagement'
+import { PermissionSettings } from '@/components/config/PermissionSettings'
 import { Switch } from '@/components/ui/switch'
 import { usePermissions } from '@/context/PermissionContext'
 
@@ -284,12 +285,13 @@ export default function Configuracion() {
       </h1>
 
       <Tabs defaultValue={isOwner ? "billing" : "general"} className="w-full max-w-7xl">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           {isOwner && <TabsTrigger value="billing">Planes</TabsTrigger>}
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="currencies">Monedas</TabsTrigger>
           {hasPermission('team.manage') && <TabsTrigger value="team">Equipo</TabsTrigger>}
           {hasPermission('team.manage') && <TabsTrigger value="roles">Roles</TabsTrigger>}
+          {hasPermission('config.edit') && <TabsTrigger value="permissions">Permisos</TabsTrigger>}
         </TabsList>
 
         {isOwner && (
@@ -307,9 +309,10 @@ export default function Configuracion() {
                 <CardContent className="flex-1 space-y-4">
                   <div className="text-3xl font-bold">$0 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
                   <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Transacciones / mes</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 50 Productos</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 40 Transacciones / mes</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 40 Productos</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 5 Áreas de Inventario</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> 1 Moneda Activa</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Reportes Básicos (Solo lectura)</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Sin Socios</li>
                   </ul>
@@ -344,11 +347,12 @@ export default function Configuracion() {
                   <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-4">
-                  <div className="text-3xl font-bold">$5 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
+                  <div className="text-3xl font-bold">$10 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
                   <ul className="space-y-2 text-sm">
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Múltiples Monedas</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
                     <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
@@ -440,6 +444,15 @@ export default function Configuracion() {
         </TabsContent>
 
         <TabsContent value="currencies" className="space-y-6 mt-6">
+          {subscription?.plan_id !== 'premium' && (
+            <Alert className="bg-blue-50 border-blue-200">
+              <Coins className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800">Plan Gratuito: Límite de Monedas</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                Las cuentas en el plan gratuito solo pueden tener <strong>una moneda activa</strong> a la vez. Actualiza a Premium para habilitar múltiples monedas.
+              </AlertDescription>
+            </Alert>
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Monedas del Negocio</CardTitle>
@@ -530,6 +543,20 @@ export default function Configuracion() {
             </Alert>
           ) : (
             <RoleManagement />
+          )}
+        </TabsContent>
+
+        <TabsContent value="permissions" className="space-y-6 mt-6">
+          {!canAccessFeature('partners') ? (
+            <Alert className="bg-blue-50 border-blue-200">
+              <Crown className="h-4 w-4 text-yellow-600 fill-yellow-400" />
+              <AlertTitle className="text-blue-800">Función Premium</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                La configuración y el sistema de permisos basado en roles son características exclusivas del plan Premium.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <PermissionSettings />
           )}
         </TabsContent>
       </Tabs>

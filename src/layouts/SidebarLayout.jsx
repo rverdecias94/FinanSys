@@ -3,16 +3,19 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, Eye } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
+import { usePermissionMode } from '@/context/PermissionModeContext'
+import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
 
 export default function SidebarLayout() {
   const location = useLocation()
   const { subscription } = useSubscription()
   const { session } = useSession()
   const { isOwner } = useBusiness()
+  const { permissionModeEnabled } = usePermissionMode()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -25,7 +28,7 @@ export default function SidebarLayout() {
   }
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'}`
+    `flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'}`
 
   return (
     <div className="h-screen lg:grid lg:grid-cols-[240px_1fr] lg:overflow-hidden bg-background">
@@ -41,10 +44,9 @@ export default function SidebarLayout() {
       >
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2 font-bold text-xl">
-            <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
-              <ChartArea className="h-5 w-5" />
+            <div>
+              <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain" />
             </div>
-            <span>Sistema</span>
           </div>
           <Button
             variant="ghost"
@@ -62,51 +64,91 @@ export default function SidebarLayout() {
             <span>Panel General</span>
           </NavLink>
 
-          <PermissionGuard requiredPermission="finanzas.view">
-            <NavLink to="/finanzas" className={linkClass}>
-              <Wallet className="w-4 h-4" />
-              <span>Finanzas</span>
-            </NavLink>
-          </PermissionGuard>
+          {permissionModeEnabled ? (
+            <>
+              <PermissionGuard requiredPermission="finanzas.view">
+                <NavLink to="/finanzas" className={linkClass}>
+                  <Wallet className="w-4 h-4" />
+                  <span>Finanzas</span>
+                </NavLink>
+              </PermissionGuard>
 
-          <PermissionGuard requiredPermission="inventory.view">
-            <NavLink to="/almacen" className={linkClass}>
-              <Warehouse className="w-4 h-4" />
-              <span>Almacén</span>
-            </NavLink>
-          </PermissionGuard>
+              <PermissionGuard requiredPermission="inventory.view">
+                <NavLink to="/almacen" className={linkClass}>
+                  <Warehouse className="w-4 h-4" />
+                  <span>Almacén</span>
+                </NavLink>
+              </PermissionGuard>
 
-          <PermissionGuard requiredPermission="inventory.view">
-            <NavLink to="/inventario" className={linkClass}>
-              <Layers className="w-4 h-4" />
-              <span>Inventario</span>
-            </NavLink>
-          </PermissionGuard>
+              <PermissionGuard requiredPermission="inventory.view">
+                <NavLink to="/inventario" className={linkClass}>
+                  <Layers className="w-4 h-4" />
+                  <span>Inventario</span>
+                </NavLink>
+              </PermissionGuard>
 
-          <NavLink to="/reportes" className={linkClass}>
-            <FileText className="w-4 h-4" />
-            <span>Reportes</span>
-          </NavLink>
+              <PermissionGuard requiredPermission="reports.view">
+                <NavLink to="/reportes" className={linkClass}>
+                  <FileText className="w-4 h-4" />
+                  <span>Reportes</span>
+                </NavLink>
+              </PermissionGuard>
 
-          <PermissionGuard requiredPermission="logs.view">
-            <NavLink to="/logs" className={linkClass}>
-              <ShieldAlert className="w-4 h-4" />
-              <span>Auditoría</span>
-            </NavLink>
-          </PermissionGuard>
+              <PermissionGuard requiredPermission="logs.view">
+                <NavLink to="/logs" className={linkClass}>
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Auditoría</span>
+                </NavLink>
+              </PermissionGuard>
 
-          <PermissionGuard requiredPermission="config.view">
-            <NavLink to="/configuracion" className={linkClass}>
-              <Settings className="w-4 h-4" />
-              <span>Configuración</span>
-            </NavLink>
-          </PermissionGuard>
+              <PermissionGuard requiredPermission="config.view">
+                <NavLink to="/configuracion" className={linkClass}>
+                  <Settings className="w-4 h-4" />
+                  <span>Configuración</span>
+                </NavLink>
+              </PermissionGuard>
+            </>
+          ) : (
+            <>
+              <NavLink to="/finanzas" className={linkClass}>
+                <Wallet className="w-4 h-4" />
+                <span>Finanzas</span>
+              </NavLink>
+
+              <NavLink to="/almacen" className={linkClass}>
+                <Warehouse className="w-4 h-4" />
+                <span>Almacén</span>
+              </NavLink>
+
+              <NavLink to="/inventario" className={linkClass}>
+                <Layers className="w-4 h-4" />
+                <span>Inventario</span>
+              </NavLink>
+
+              <NavLink to="/reportes" className={linkClass}>
+                <FileText className="w-4 h-4" />
+                <span>Reportes</span>
+              </NavLink>
+
+              <NavLink to="/logs" className={linkClass}>
+                <ShieldAlert className="w-4 h-4" />
+                <span>Auditoría</span>
+              </NavLink>
+
+              <NavLink to="/configuracion" className={linkClass}>
+                <Settings className="w-4 h-4" />
+                <span>Configuración</span>
+              </NavLink>
+            </>
+          )}
         </nav>
 
         <div className="mt-auto pt-4 border-t space-y-4">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium truncate max-w-[140px]" title={email}>
-              {email}
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-medium truncate max-w-[120px]" title={email}>
+                {email}
+              </div>
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout} className="h-8 w-8">
               <LogOut className="w-4 h-4" />

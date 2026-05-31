@@ -193,30 +193,6 @@ export default function Finanzas() {
             <DateRangeFilter onFilterChange={handleDateSelect} />
           </div>
 
-          <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Todas las monedas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las monedas</SelectItem>
-              {businessCurrencies.map((c) => (
-                <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Todas las categorías" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              {availableCategoryOptions.map((cat) => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
         </div>
       </div>
 
@@ -245,6 +221,33 @@ export default function Finanzas() {
           </Card>
         ))}
       </div>
+
+      <div className="flex gap-4">
+        <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+          <SelectTrigger className="w-fit">
+            <SelectValue placeholder="Todas las monedas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las monedas</SelectItem>
+            {businessCurrencies.map((c) => (
+              <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-fit">
+            <SelectValue placeholder="Todas las categorías" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las categorías</SelectItem>
+            {availableCategoryOptions.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
 
       {/* Transactions Table */}
       <div className="border rounded-md">

@@ -6,6 +6,9 @@ import { useBusiness } from '@/context/BusinessContext'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrency } from '@/context/CurrencyContext'
+import { PermissionModeToggle } from '@/components/common/PermissionModeToggle'
+import { DashboardPermissions } from '@/components/dashboard/DashboardPermissions'
+import { usePermissionMode } from '@/context/PermissionModeContext'
 import {
   Select,
   SelectContent,
@@ -37,13 +40,19 @@ import {
   ChartArea
 } from 'lucide-react'
 
-const COLORS_INCOME = ['#22c55e', '#16a34a', '#15803d', '#14532d', '#4ade80', '#86efac']
-const COLORS_EXPENSE = ['#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#f87171', '#fca5a5']
+const CHART_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))'
+]
 
 export default function Dashboard() {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { businessCurrencies, formatCurrency, loading: currencyLoading } = useCurrency()
+  const { permissionModeEnabled } = usePermissionMode()
   const [summaryFilter, setSummaryFilter] = useState('ALL')
 
   // Filtros para el gráfico de distribución
@@ -163,10 +172,8 @@ export default function Dashboard() {
   }
 
   const getPieColor = (entry, index) => {
-    if (entry.type === 'income') {
-      return COLORS_INCOME[index % COLORS_INCOME.length]
-    }
-    return COLORS_EXPENSE[index % COLORS_EXPENSE.length]
+    const baseIndex = entry.type === 'income' ? 0 : 4
+    return CHART_COLORS[(baseIndex + index) % CHART_COLORS.length]
   }
 
   const quickLinks = [
@@ -175,21 +182,21 @@ export default function Dashboard() {
       icon: <DollarSign className="h-8 w-8 mb-2 text-primary" />,
       description: 'Gestiona ingresos y egresos',
       to: '/finanzas',
-      color: 'bg-blue-50 hover:bg-blue-100 border-blue-200'
+      color: 'bg-card hover:bg-accent/10 border-border'
     },
     {
       title: 'Almacén',
       icon: <Package className="h-8 w-8 mb-2 text-primary" />,
       description: 'Control de inventario',
       to: '/almacen',
-      color: 'bg-green-50 hover:bg-green-100 border-green-200'
+      color: 'bg-card hover:bg-accent/10 border-border'
     },
     {
       title: 'Configuración',
       icon: <Settings className="h-8 w-8 mb-2 text-primary" />,
       description: 'Ajustes del sistema',
       to: '/configuracion',
-      color: 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+      color: 'bg-card hover:bg-accent/10 border-border'
     },
   ]
 
@@ -208,7 +215,17 @@ export default function Dashboard() {
           </h1>
           <p className="text-muted-foreground">Bienvenido al sistema de gestión contable.</p>
         </div>
+        <div className="flex items-center gap-4">
+          <PermissionModeToggle compact />
+        </div>
       </div>
+
+      {/* Permission Dashboard - Solo visible cuando el modo está activado */}
+      {permissionModeEnabled && (
+        <div className="mb-6">
+          <DashboardPermissions />
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
@@ -242,13 +259,13 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium">
               Ingresos del mes
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
+            <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {businessCurrencies.map(curr => (
                 <div key={curr.code} className="flex items-baseline gap-2">
-                  <span className="text-lg sm:text-xl font-bold text-green-600">
+                  <span className="text-lg sm:text-xl font-bold text-success">
                     {formatCurrency(stats.income.current[curr.code] || 0, curr.code)}
                   </span>
                   <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
@@ -273,13 +290,13 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium">
               Gastos del mes
             </CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-500" />
+            <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {businessCurrencies.map(curr => (
                 <div key={curr.code} className="flex items-baseline gap-2">
-                  <span className="text-lg sm:text-xl font-bold text-red-600">
+                  <span className="text-lg sm:text-xl font-bold text-destructive">
                     {formatCurrency(stats.expense.current[curr.code] || 0, curr.code)}
                   </span>
                   <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
@@ -304,7 +321,7 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium">
               Beneficios Netos
             </CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-500" />
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -312,7 +329,7 @@ export default function Dashboard() {
                 const net = (stats.income.current[curr.code] || 0) - (stats.expense.current[curr.code] || 0)
                 return (
                   <div key={curr.code} className="flex items-baseline gap-2">
-                    <span className={`text-lg sm:text-xl font-bold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-lg sm:text-xl font-bold ${net >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {formatCurrency(net, curr.code)}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground">{curr.code}</span>
@@ -345,7 +362,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {quickLinks.map((link) => (
             <Link key={link.to} to={link.to}>
-              <Card className={`transition-all hover:shadow-md cursor-pointer h-full ${link.color}`}>
+              <Card className={`transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] cursor-pointer h-full ${link.color}`}>
                 <CardHeader>
                   <div className="flex flex-col items-center text-center">
                     {link.icon}
@@ -423,13 +440,13 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="name"
-                  stroke="#888888"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
-                  stroke="#888888"
+                  stroke="hsl(var(--muted-foreground))"
                   fontSize={12}
                   tickLine={false}
                   axisLine={false}
@@ -438,15 +455,21 @@ export default function Dashboard() {
                 />
                 <Tooltip
                   cursor={{ fill: 'transparent' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  contentStyle={{
+                    borderRadius: '8px',
+                    backgroundColor: 'hsl(var(--card))',
+                    color: 'hsl(var(--card-foreground))',
+                    border: '1px solid hsl(var(--border))',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
+                  }}
                   formatter={(value) => formatCurrency(value, barCurrencyFilter)}
                 />
                 <Legend />
                 {(barTypeFilter === 'all' || barTypeFilter === 'income') && (
-                  <Bar dataKey="ingresos" name="Ingresos" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="ingresos" name="Ingresos" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
                 )}
                 {(barTypeFilter === 'all' || barTypeFilter === 'expense') && (
-                  <Bar dataKey="gastos" name="Gastos" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gastos" name="Gastos" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} />
                 )}
               </BarChart>
             </ResponsiveContainer>

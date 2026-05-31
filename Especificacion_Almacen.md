@@ -1,7 +1,7 @@
 # Especificación Funcional y Diseño UX/UI: Módulo Almacén
 
 ## 1. Visión General
-El módulo **Almacén** de **FinanSys** tiene como objetivo gestionar el inventario de forma sencilla y eficiente, proporcionando control sobre el stock y soporte para la toma de decisiones financieras.
+El módulo **Almacén** de **FinCo** tiene como objetivo gestionar el inventario de forma sencilla y eficiente, proporcionando control sobre el stock y soporte para la toma de decisiones financieras.
 
 ## 2. Descripción Funcional
 

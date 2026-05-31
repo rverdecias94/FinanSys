@@ -134,10 +134,10 @@ export default function Logs() {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold tracking-tight">Logs de Auditoría</h1>
-        <Alert className="bg-yellow-50 border-yellow-200">
-          <ShieldAlert className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="text-yellow-800">Acceso Restringido</AlertTitle>
-          <AlertDescription className="text-yellow-700 flex flex-col gap-2">
+        <Alert className="bg-blue-50 border-blue-200">
+          <ShieldAlert className="h-4 w-4 text-blue-600" />
+          <AlertTitle className="text-blue-800">Acceso Restringido</AlertTitle>
+          <AlertDescription className="text-blue-700 flex flex-col gap-2">
             <span>
               El historial de auditoría y trazabilidad es una función exclusiva del Plan Premium.
               Actualiza tu tipo de cuenta en configuración para ver quién hizo qué y cuándo.
@@ -155,17 +155,19 @@ export default function Logs() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Fecha</TableHead>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Área</TableHead>
                   <TableHead>Acción</TableHead>
                   <TableHead>Recurso</TableHead>
-                  <TableHead>IP</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell>Hace 2 horas</TableCell>
+                  <TableCell>30 may 2024 10:00:00</TableCell>
+                  <TableCell>user@example.com</TableCell>
+                  <TableCell>Inventario</TableCell>
                   <TableCell>Actualización</TableCell>
-                  <TableCell>Producto #123</TableCell>
-                  <TableCell>192.168.1.1</TableCell>
+                  <TableCell>Transacción: Pago de electrónico</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -188,7 +190,7 @@ export default function Logs() {
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
-        <DateRangeFilter date={dateRange} setDate={setDateRange} />
+        <DateRangeFilter onFilterChange={(filter) => setDateRange({ from: new Date(filter.startDate), to: new Date(filter.endDate) })} />
       </div>
 
       <div className="flex flex-wrap gap-2 items-end md:items-center justify-between flex-1">

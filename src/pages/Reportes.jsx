@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { FileText, FileSpreadsheet, Loader2, File, Zap, Crown, ShieldAlert } from 'lucide-react'
+import { FileText, FileSpreadsheet, Loader2, File, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -10,6 +10,7 @@ import { usePermissions } from '@/context/PermissionContext'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -102,6 +103,14 @@ const Reportes = () => {
   const [previewReport, setPreviewReport] = useState(null)
   const [filename, setFilename] = useState('')
 
+  // Pagination states
+  const [finanzasPage, setFinanzasPage] = useState(1)
+  const [finanzasPageSize, setFinanzasPageSize] = useState(5)
+  const [almacenPage, setAlmacenPage] = useState(1)
+  const [almacenPageSize, setAlmacenPageSize] = useState(5)
+  const [inventarioPage, setInventarioPage] = useState(1)
+  const [inventarioPageSize, setInventarioPageSize] = useState(5)
+
   const { hasPermission } = usePermissions()
   const hasExportPermission = hasPermission('reports.export')
   // We remove the explicit plan check here for UI display purposes
@@ -170,7 +179,20 @@ const Reportes = () => {
 
   const handleFilterChange = (filter) => {
     setDateFilter(filter)
+    setFinanzasPage(1)
+    setAlmacenPage(1)
+    setInventarioPage(1)
   }
+
+  // Derived paginated data
+  const paginatedFinanzas = transactions.slice((finanzasPage - 1) * finanzasPageSize, finanzasPage * finanzasPageSize)
+  const finanzasTotalPages = Math.ceil(transactions.length / finanzasPageSize)
+
+  const paginatedAlmacen = movements.slice((almacenPage - 1) * almacenPageSize, almacenPage * almacenPageSize)
+  const almacenTotalPages = Math.ceil(movements.length / almacenPageSize)
+
+  const paginatedInventario = inventorySummary.slice((inventarioPage - 1) * inventarioPageSize, inventarioPage * inventarioPageSize)
+  const inventarioTotalPages = Math.ceil(inventorySummary.length / inventarioPageSize)
 
   // --- Export Handlers ---
 
@@ -333,7 +355,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {transactions.slice(0, 5).map((t) => (
+                        {paginatedFinanzas.map((t) => (
                           <TableRow key={t.id}>
                             <TableCell>{format(new Date(t.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell className="capitalize">{t.type === 'income' ? 'Ingreso' : 'Gasto'}</TableCell>
@@ -345,11 +367,54 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
-                    {transactions.length > 5 && (
-                      <div className="p-2 text-center text-xs text-muted-foreground bg-muted/50">
-                        Mostrando 5 de {transactions.length} registros. Exporta para ver todo.
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 text-sm text-muted-foreground border-t">
+                      <div className="flex items-center gap-2">
+                        <span>Filas por página:</span>
+                        <Select
+                          value={finanzasPageSize.toString()}
+                          onValueChange={(v) => {
+                            setFinanzasPageSize(Number(v))
+                            setFinanzasPage(1)
+                          }}
+                        >
+                          <SelectTrigger className="w-[70px] h-8">
+                            <SelectValue placeholder="5" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    )}
+
+                      <div className="flex items-center gap-4">
+                        <span>
+                          Página {finanzasPage} de {finanzasTotalPages || 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setFinanzasPage(Math.max(1, finanzasPage - 1))}
+                            disabled={finanzasPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setFinanzasPage(Math.min(finanzasTotalPages, finanzasPage + 1))}
+                            disabled={finanzasPage >= finanzasTotalPages}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -400,7 +465,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {movements.slice(0, 5).map((m) => (
+                        {paginatedAlmacen.map((m) => (
                           <TableRow key={m.id}>
                             <TableCell>{format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
                             <TableCell>{m.products?.name || 'Desconocido'}</TableCell>
@@ -414,11 +479,54 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
-                    {movements.length > 5 && (
-                      <div className="p-2 text-center text-xs text-muted-foreground bg-muted/50">
-                        Mostrando 5 de {movements.length} registros. Exporta para ver todo.
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 text-sm text-muted-foreground border-t">
+                      <div className="flex items-center gap-2">
+                        <span>Filas por página:</span>
+                        <Select
+                          value={almacenPageSize.toString()}
+                          onValueChange={(v) => {
+                            setAlmacenPageSize(Number(v))
+                            setAlmacenPage(1)
+                          }}
+                        >
+                          <SelectTrigger className="w-[70px] h-8">
+                            <SelectValue placeholder="5" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    )}
+
+                      <div className="flex items-center gap-4">
+                        <span>
+                          Página {almacenPage} de {almacenTotalPages || 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setAlmacenPage(Math.max(1, almacenPage - 1))}
+                            disabled={almacenPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setAlmacenPage(Math.min(almacenTotalPages, almacenPage + 1))}
+                            disabled={almacenPage >= almacenTotalPages}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -431,7 +539,7 @@ const Reportes = () => {
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <div className="space-y-1">
                   <CardTitle>Resumen de Inventario (Activos)</CardTitle>
-                  <CardDescription>Ítems registrados durante: {dateFilter.label}</CardDescription>
+                  <CardDescription> {dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => handlePreview('inventario')}>
@@ -467,7 +575,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {inventorySummary.map((area) => (
+                        {paginatedInventario.map((area) => (
                           <TableRow key={area.id}>
                             <TableCell className="font-medium">{area.name}</TableCell>
                             <TableCell>{area.itemsCount}</TableCell>
@@ -475,6 +583,54 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 text-sm text-muted-foreground border-t">
+                      <div className="flex items-center gap-2">
+                        <span>Filas por página:</span>
+                        <Select
+                          value={inventarioPageSize.toString()}
+                          onValueChange={(v) => {
+                            setInventarioPageSize(Number(v))
+                            setInventarioPage(1)
+                          }}
+                        >
+                          <SelectTrigger className="w-[70px] h-8">
+                            <SelectValue placeholder="5" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="5">5</SelectItem>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <span>
+                          Página {inventarioPage} de {inventarioTotalPages || 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setInventarioPage(Math.max(1, inventarioPage - 1))}
+                            disabled={inventarioPage === 1}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setInventarioPage(Math.min(inventarioTotalPages, inventarioPage + 1))}
+                            disabled={inventarioPage >= inventarioTotalPages}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
