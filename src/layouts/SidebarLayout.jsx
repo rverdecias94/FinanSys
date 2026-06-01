@@ -182,7 +182,7 @@ export default function SidebarLayout() {
       <div className="flex flex-col h-screen overflow-hidden">
         {/* Mobile Header */}
         <header className="sticky top-0 z-30 flex items-center border-b bg-background px-4 py-3 lg:hidden">
-          <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:invert" />
+          <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
           <div className="ml-auto flex items-center gap-2">
             <span className="text-sm font-semibold">Menú</span>
             <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>

@@ -101,7 +101,7 @@ export default function Login() {
       {/* Left side - Promotional Content */}
       <div className="hidden lg:flex flex-1 flex-col justify-center bg-primary text-primary-foreground p-8 lg:p-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-primary/20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
-        
+
         <div className="relative z-10 max-w-lg space-y-6 mx-auto">
           <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
             Bienvenido a tu Sistema Contable
@@ -109,7 +109,7 @@ export default function Login() {
           <p className="text-base text-primary-foreground/80 leading-relaxed">
             Gestiona tus finanzas, controla tu inventario y analiza reportes detallados en una plataforma unificada diseñada para el crecimiento de tu negocio.
           </p>
-          
+
           <div className="space-y-4 pt-4">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
@@ -120,7 +120,7 @@ export default function Login() {
                 <p className="text-primary-foreground/70 text-xs">Monitorea ingresos y gastos al instante.</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                 <Package className="h-5 w-5" />
@@ -130,7 +130,7 @@ export default function Login() {
                 <p className="text-primary-foreground/70 text-xs">Control total sobre tus productos y almacenes.</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
                 <BarChart3 className="h-5 w-5" />
@@ -151,7 +151,7 @@ export default function Login() {
           {/* Header Section */}
           <div className="flex flex-col items-center space-y-2">
             <div className="h-24 w-auto flex items-center justify-center mb-2">
-              <img src="/logo.png" alt="Logo" className="h-20 w-auto object-contain dark:invert" />
+              <img src="/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
             </div>
             <div className="text-center space-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
