@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, computeTotals, getFilteredTotals } from '@/services/finanzas'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
@@ -16,6 +16,8 @@ import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
 
 export default function Finanzas() {
   const { session } = useSession()
@@ -36,6 +38,7 @@ export default function Finanzas() {
 
   const userId = session?.user?.id // ID real del usuario
   const dateKey = dateFilter ? JSON.stringify(dateFilter) : null
+  const isMobile = useIsMobile()
 
   const handleDateSelect = (filter) => {
     setDateFilter(filter)
@@ -59,8 +62,37 @@ export default function Finanzas() {
         from: dateFilter?.startDate || undefined,
         to: dateFilter?.endDate || undefined,
       }),
-    enabled: !!userId && !!businessId, // Asegurar que ambos estén disponibles
+    enabled: !!userId && !!businessId && !isMobile, // Asegurar que ambos estén disponibles
     placeholderData: keepPreviousData, // Keeps previous data while fetching new page
+  })
+
+  const {
+    data: transactionsInfinite,
+    isLoading: isLoadingTransactionsInfinite,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['transactions-infinite', { userId, businessId, pageSize, currencyFilter, categoryFilter, dateKey }],
+    queryFn: ({ pageParam = 1 }) =>
+      listTransactions({
+        userId,
+        businessId,
+        page: pageParam,
+        pageSize,
+        currency: currencyFilter === 'all' ? undefined : currencyFilter,
+        category: categoryFilter === 'all' ? undefined : categoryFilter,
+        from: dateFilter?.startDate || undefined,
+        to: dateFilter?.endDate || undefined,
+      }),
+    enabled: !!userId && !!businessId && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + (p?.data?.length || 0), 0)
+      const total = lastPage?.count || 0
+      if (loaded >= total) return undefined
+      return allPages.length + 1
+    },
   })
 
   // 2. Categories Query
@@ -162,6 +194,12 @@ export default function Finanzas() {
 
   const totalPages = Math.ceil((transactionsData?.count || 0) / pageSize) || 1
 
+  const mobileTransactions = useMemo(() => {
+    return transactionsInfinite?.pages?.flatMap((p) => p?.data || []) || []
+  }, [transactionsInfinite])
+
+  const mobileCount = transactionsInfinite?.pages?.[0]?.count || 0
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -187,13 +225,35 @@ export default function Finanzas() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full">
-          <div className="w-full sm:col-span-2">
-            <DateRangeFilter onFilterChange={handleDateSelect} />
-          </div>
+      <div className="flex w-full items-end gap-2 overflow-x-auto pb-1">
+        <DateRangeFilter
+          onFilterChange={handleDateSelect}
+          className="shrink-0 flex-row flex-nowrap gap-2 items-end"
+        />
 
-        </div>
+        <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+          <SelectTrigger className="w-fit shrink-0">
+            <SelectValue placeholder="Todas las monedas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las monedas</SelectItem>
+            {businessCurrencies.map((c) => (
+              <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-fit shrink-0">
+            <SelectValue placeholder="Todas las categorías" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas las categorías</SelectItem>
+            {availableCategoryOptions.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Summary Cards */}
@@ -222,35 +282,58 @@ export default function Finanzas() {
         ))}
       </div>
 
-      <div className="flex gap-4">
-        <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-          <SelectTrigger className="w-fit">
-            <SelectValue placeholder="Todas las monedas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las monedas</SelectItem>
-            {businessCurrencies.map((c) => (
-              <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+      <div className="sm:hidden">
+        {isLoadingTransactionsInfinite ? (
+          <div className="text-center py-10 text-muted-foreground">Cargando transacciones...</div>
+        ) : mobileTransactions.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">No hay transacciones registradas</div>
+        ) : (
+          <div className="space-y-3">
+            {mobileTransactions.map((t) => (
+              <Card key={t.id}>
+                <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                  <div className="space-y-1">
+                    <CardTitle className="text-base">{t.description}</CardTitle>
+                    <div className="text-xs text-muted-foreground">
+                      {format(new Date(t.date), 'dd/MM/yyyy', { locale: es })}
+                    </div>
+                  </div>
+                  {hasPermission('finanzas.edit') && (
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(t)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">{t.category}</Badge>
+                    <Badge variant="secondary">{t.currency}</Badge>
+                    <Badge variant={t.type === 'income' ? 'default' : 'destructive'}>
+                      {t.type === 'income' ? 'Ingreso' : 'Gasto'}
+                    </Badge>
+                  </div>
+                  <div className="text-lg font-semibold">
+                    {formatCurrency(t.amount, t.currency)}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
-          </SelectContent>
-        </Select>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-fit">
-            <SelectValue placeholder="Todas las categorías" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las categorías</SelectItem>
-            {availableCategoryOptions.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            {hasNextPage && (
+              <InfiniteScrollTrigger
+                disabled={isFetchingNextPage}
+                onLoadMore={() => fetchNextPage()}
+              />
+            )}
+
+            {(isFetchingNextPage || (mobileTransactions.length > 0 && mobileTransactions.length < mobileCount && isLoadingTransactionsInfinite)) && (
+              <div className="text-center py-4 text-sm text-muted-foreground">Cargando más...</div>
+            )}
+          </div>
+        )}
       </div>
 
-
-      {/* Transactions Table */}
-      <div className="border rounded-md">
+      <div className="hidden sm:block border rounded-md">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted/20">
@@ -311,8 +394,7 @@ export default function Finanzas() {
         </div>
       </div>
 
-      {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+      <div className="hidden sm:flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <span>Filas por página:</span>
           <Select

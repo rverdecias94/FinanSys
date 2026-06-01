@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
 import { ShieldAlert, Loader2, Filter, FileSpreadsheet, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -16,12 +16,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateRangeFilter } from '@/components/common/DateRangeFilter'
 import { exportToExcel } from '@/utils/exportUtils'
 import { toast } from 'sonner'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
 
 
 export default function Logs() {
   const { session } = useSession()
   const { canAccessFeature } = useSubscription()
   const userId = session?.user?.id
+  const isMobile = useIsMobile()
   // State for filters and pagination
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -72,12 +75,71 @@ export default function Logs() {
     return { logs: data, count }
   }
 
+  const fetchLogsInfinite = async ({ pageParam = 1 }) => {
+    let query = supabase
+      .from('audit_logs')
+      .select('*', { count: 'exact' })
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (dateRange?.from) {
+      query = query.gte('created_at', dateRange.from.toISOString())
+    }
+    if (dateRange?.to) {
+      const endDate = new Date(dateRange.to)
+      endDate.setHours(23, 59, 59, 999)
+      query = query.lte('created_at', endDate.toISOString())
+    }
+
+    if (areaFilter && areaFilter !== 'all') {
+      query = query.eq('area', areaFilter)
+    }
+
+    if (actionFilter && actionFilter !== 'all') {
+      if (['Crear', 'Actualizar', 'Eliminar'].includes(actionFilter)) {
+        query = query.ilike('action', `%${actionFilter}%`)
+      } else {
+        query = query.eq('action', actionFilter)
+      }
+    }
+
+    const from = (pageParam - 1) * pageSize
+    const to = from + pageSize - 1
+    query = query.range(from, to)
+
+    const { data, count, error } = await query
+    if (error) throw error
+    return { logs: data, count }
+  }
+
   const { data: { logs = [], count = 0 } = {}, isLoading, isError, refetch } = useQuery({
     queryKey: ['auditLogs', userId, page, pageSize, dateRange, areaFilter, actionFilter],
     queryFn: fetchLogs,
-    enabled: !!userId && canAccessFeature('audit_logs'),
+    enabled: !!userId && canAccessFeature('audit_logs') && !isMobile,
     keepPreviousData: true
   })
+
+  const {
+    data: logsInfinite,
+    isLoading: isLoadingInfinite,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery({
+    queryKey: ['auditLogs-infinite', userId, pageSize, dateRange, areaFilter, actionFilter],
+    queryFn: fetchLogsInfinite,
+    enabled: !!userId && canAccessFeature('audit_logs') && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + (p?.logs?.length || 0), 0)
+      const total = lastPage?.count || 0
+      if (loaded >= total) return undefined
+      return allPages.length + 1
+    },
+  })
+
+  const mobileLogs = logsInfinite?.pages?.flatMap((p) => p?.logs || []) || []
+  const mobileCount = logsInfinite?.pages?.[0]?.count || 0
 
   // Export handler
   const handleExport = async () => {
@@ -182,21 +244,22 @@ export default function Logs() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <ShieldAlert className="w-8 h-8 text-primary" />
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <ShieldAlert className="w-8 h-8 text-primary" />
+          </div>
           Logs de Auditoría
         </h1>
         <p className="text-muted-foreground">Registro detallado de seguridad y acciones en tu cuenta.</p>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
-        <DateRangeFilter onFilterChange={(filter) => setDateRange({ from: new Date(filter.startDate), to: new Date(filter.endDate) })} />
-      </div>
 
-      <div className="flex flex-wrap gap-2 items-end md:items-center justify-between flex-1">
-        <div className="flex flex-wrap gap-2 items-center">
+      <DateRangeFilter onFilterChange={(filter) => setDateRange({ from: new Date(filter.startDate), to: new Date(filter.endDate) })} />
+
+      <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-end md:justify-between flex-1">
+        <div className="flex w-full gap-2 md:w-auto md:flex-wrap md:items-center">
           <Select value={areaFilter} onValueChange={setAreaFilter}>
-            <SelectTrigger className="w-[6]">
+            <SelectTrigger className="w-1/2 md:w-fit">
               <Filter className="w-8 h-4 mr-2" />
               <SelectValue placeholder="Área" />
             </SelectTrigger>
@@ -209,7 +272,7 @@ export default function Logs() {
             </SelectContent>
           </Select>
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-[6]">
+            <SelectTrigger className="w-1/2 md:w-fit">
               <Filter className="w-8 h-4" />
               <SelectValue placeholder="Acción" />
             </SelectTrigger>
@@ -221,8 +284,8 @@ export default function Logs() {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" onClick={handleExport} className="flex gap-2 items-end">
-          <FileSpreadsheet className="w-4 h-4 text-green-600" />
+        <Button variant="outline" onClick={handleExport} className="w-full md:w-auto flex gap-2 items-center">
+          <FileSpreadsheet className="w-4 h-4 text-primary" />
           Exportar Excel
         </Button>
       </div>
@@ -231,11 +294,58 @@ export default function Logs() {
         <CardHeader className="pb-3">
           <CardTitle>Historial de Actividad</CardTitle>
           <CardDescription>
-            Mostrando {logs.length} de {count} registros.
+            Mostrando {isMobile ? mobileLogs.length : logs.length} de {isMobile ? mobileCount : count} registros.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isMobile ? (
+            isLoadingInfinite ? (
+              <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+            ) : mobileLogs.length === 0 ? (
+              <div className="text-center p-8 text-muted-foreground">No hay registros que coincidan con los filtros.</div>
+            ) : (
+              <div className="space-y-3">
+                {mobileLogs.map((log) => (
+                  <Card key={log.id}>
+                    <CardHeader className="space-y-2 pb-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <CardTitle className="text-base">
+                            {log.action}
+                          </CardTitle>
+                          <div className="text-xs text-muted-foreground">
+                            {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+                          </div>
+                        </div>
+                        <Badge variant={log.action.includes('Eliminar') ? 'destructive' : 'outline'} className="text-xs shrink-0">
+                          {log.area || 'General'}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <div className="text-xs text-muted-foreground truncate" title={log.user_email || 'N/A'}>
+                        {log.user_email || 'N/A'}
+                      </div>
+                      <div className="font-mono text-xs truncate" title={log.resource}>
+                        {log.resource}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {hasNextPage && (
+                  <InfiniteScrollTrigger
+                    disabled={isFetchingNextPage}
+                    onLoadMore={() => fetchNextPage()}
+                  />
+                )}
+
+                {(isFetchingNextPage || (mobileLogs.length > 0 && mobileLogs.length < mobileCount && isLoadingInfinite)) && (
+                  <div className="text-center py-4 text-sm text-muted-foreground">Cargando más...</div>
+                )}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
           ) : logs.length === 0 ? (
             <div className="text-center p-8 text-muted-foreground">No hay registros que coincidan con los filtros.</div>

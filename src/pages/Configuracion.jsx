@@ -334,32 +334,32 @@ export default function Configuracion() {
               </Card>
 
               {/* Premium Plan */}
-              <Card className={`relative flex flex-col border-yellow-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-yellow-50/50 shadow-md' : ''}`}>
+              <Card className={`relative flex flex-col border-green-400 ${subscription?.plan_id === 'premium' || subscription?.status === 'trial' ? 'bg-green-50/20 shadow-md' : ''}`}>
                 {subscription?.status === 'trial' && (
-                  <div className="absolute -top-3 right-4 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
+                  <div className="absolute -top-3 right-4 bg-green-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-sm">
                     Prueba Activa
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle className="flex justify-between items-center text-yellow-700">
+                  <CardTitle className="flex justify-between items-center text-green-700">
                     <div className="flex items-center gap-2">
-                      <Crown className="w-5 h-5 fill-yellow-500 text-yellow-600" />
+                      <Crown className="w-5 h-5 fill-green-500 text-green-600" />
                       Plan Premium
                     </div>
-                    {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-yellow-500 hover:bg-yellow-600">Actual</Badge>}
+                    {(subscription?.plan_id === 'premium' || subscription?.status === 'trial') && <Badge className="bg-green-500 hover:bg-green-600">Actual</Badge>}
                   </CardTitle>
                   <CardDescription>Para negocios en crecimiento sin límites</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-4">
                   <div className="text-3xl font-bold">$10 <span className="text-sm font-normal text-muted-foreground">/ mes</span></div>
                   <ul className="space-y-2 text-sm">
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Transacciones Ilimitadas</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Productos Ilimitados</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Áreas Ilimitadas</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Múltiples Monedas</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Reportes Avanzados + Exportación</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Hasta 5 Socios</li>
-                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-yellow-600" /> Logs de Auditoría</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Transacciones Ilimitadas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Productos Ilimitados</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Áreas Ilimitadas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Múltiples Monedas</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Reportes Avanzados + Exportación</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Hasta 5 Socios</li>
+                    <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-600" /> Logs de Auditoría</li>
                   </ul>
                 </CardContent>
                 <CardFooter>
@@ -368,7 +368,7 @@ export default function Configuracion() {
                       Plan Activo
                     </Button>
                   ) : (
-                    <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white" onClick={() => handlePlanChange('premium')}>
+                    <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={() => handlePlanChange('premium')}>
                       Suscribirse a Premium
                     </Button>
                   )}
@@ -385,11 +385,11 @@ export default function Configuracion() {
               <CardDescription>Configura el tema visual de la aplicación</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div className="space-y-1">
                   <Label>Tema de la aplicación</Label>
                   <p className="text-sm text-muted-foreground">
-                    Elige entre el tema claro, el tema oscuro (Obsidian) o sincroniza con tu sistema.
+                    Elige entre el tema claro, el tema oscuro o sincroniza con tu sistema.
                   </p>
                 </div>
                 <Select value={theme} onValueChange={setTheme}>

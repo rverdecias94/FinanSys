@@ -12,7 +12,7 @@ export async function uploadAttachments(files, userId) {
     }
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('transaction-images')
       .upload(fileName, file);
 
@@ -24,7 +24,7 @@ export async function uploadAttachments(files, userId) {
     const { data: { publicUrl } } = supabase.storage
       .from('transaction-images')
       .getPublicUrl(fileName);
-      
+
     urls.push(publicUrl);
   }
   return urls;
@@ -43,7 +43,7 @@ export async function deleteAttachments(urls) {
     const { error } = await supabase.storage
       .from('transaction-images')
       .remove(paths);
-    
+
     if (error) {
       console.error('Error deleting files from bucket:', error);
     }

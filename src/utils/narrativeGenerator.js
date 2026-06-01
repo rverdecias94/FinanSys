@@ -1,6 +1,5 @@
 
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
 
 /**
  * Helper to format currency numbers
@@ -59,11 +58,10 @@ export const generateFinanceReport = (transactions, dateFilter) => {
 
   // 3. Section 1: Executive Summary
   const totalTx = transactions.length;
-  const mainCurrency = currencies[0]; // Take the first one found as primary for summary
 
   let summaryText = `Durante el periodo analizado, se registraron un total de ${totalTx} operaciones. `;
 
-  currencies.forEach((curr, index) => {
+  currencies.forEach((curr) => {
     if (dataByCurrency[curr]) {
       const net = dataByCurrency[curr].net;
       summaryText += `En ${curr}, se observa ${net >= 0 ? 'un superávit' : 'un déficit'} operativo de ${fmt(Math.abs(net), curr)}. `;

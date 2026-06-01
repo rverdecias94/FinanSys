@@ -5,11 +5,11 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { 
-  Shield, 
-  Users, 
-  Eye, 
-  Edit3, 
+import {
+  Shield,
+  Users,
+  Eye,
+  Edit3,
   AlertTriangle,
   CheckCircle,
   Info,
@@ -20,14 +20,14 @@ import { usePermissions } from '@/context/PermissionContext'
 import { DashboardPermissions } from '@/components/dashboard/DashboardPermissions'
 
 export function PermissionSettings() {
-  const { 
-    permissionModeEnabled, 
-    togglePermissionMode, 
-    showPermissionToggle, 
-    enablePermissionToggle, 
-    disablePermissionToggle 
+  const {
+    permissionModeEnabled,
+    togglePermissionMode,
+    showPermissionToggle,
+    enablePermissionToggle,
+    disablePermissionToggle
   } = usePermissionMode()
-  
+
   const { isOwner, permissions } = usePermissions()
   const [showAdvanced, setShowAdvanced] = useState(false)
 
@@ -54,7 +54,7 @@ export function PermissionSettings() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Activar/Desactivar Sistema de Permisos */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="flex items-center justify-between p-4 border rounded-lg gap-4">
             <div className="space-y-1">
               <Label htmlFor="permission-system" className="text-base font-medium">
                 Sistema de Permisos
@@ -71,7 +71,7 @@ export function PermissionSettings() {
           </div>
 
           {/* Mostrar/Ocultar Switch de Permisos */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="flex items-center justify-between p-4 border rounded-lg gap-4">
             <div className="space-y-1">
               <Label htmlFor="show-toggle" className="text-base font-medium">
                 Mostrar Switch en Navegación

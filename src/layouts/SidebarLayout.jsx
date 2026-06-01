@@ -46,10 +46,7 @@ export default function SidebarLayout() {
         <div className="mb-6 flex items-center justify-between">
           <div className="flex font-bold text-xl">
             <div className="flex items-center">
-              <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain dark" />
-              {/* <div className="flex flex-col">
-                <span className="text-lg font-bold">GESTIA</span>
-              </div> */}
+              <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain" />
             </div>
           </div>
           <Button
@@ -163,6 +160,7 @@ export default function SidebarLayout() {
             <div className="flex flex-col gap-2">
               {subscription?.plan_id === 'premium' &&
                 <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                  Plan Premium
                 </div>
               }
               {subscription?.plan_id !== 'premium' && (
@@ -183,11 +181,14 @@ export default function SidebarLayout() {
       {/* Main Content */}
       <div className="flex flex-col h-screen overflow-hidden">
         {/* Mobile Header */}
-        <header className="sticky top-0 z-30 flex items-center gap-4 border-b bg-background px-4 py-3 lg:hidden">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-            <Menu className="w-5 h-5" />
-          </Button>
-          <span className="font-semibold">Menú</span>
+        <header className="sticky top-0 z-30 flex items-center border-b bg-background px-4 py-3 lg:hidden">
+          <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain dark:invert" />
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm font-semibold">Menú</span>
+            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">

@@ -1,17 +1,15 @@
 
-import { 
-  Document, 
-  Packer, 
-  Paragraph, 
-  TextRun, 
-  HeadingLevel, 
-  AlignmentType, 
-  Table, 
-  TableRow, 
-  TableCell, 
-  WidthType, 
-  BorderStyle,
-  Header 
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType
 } from 'docx';
 import { saveAs } from 'file-saver';
 
@@ -47,8 +45,8 @@ export const generateDOCX = async (reportData, filename) => {
       );
     });
     children.push(new Paragraph({ text: "", spacing: { after: 300 } })); // Spacer
-    children.push(new Paragraph({ 
-      text: "---", 
+    children.push(new Paragraph({
+      text: "---",
       alignment: AlignmentType.CENTER,
       spacing: { after: 300 }
     }));
@@ -87,11 +85,11 @@ export const generateDOCX = async (reportData, filename) => {
       if (section.headers) {
         tableRows.push(
           new TableRow({
-            children: section.headers.map(header => 
+            children: section.headers.map(header =>
               new TableCell({
-                children: [new Paragraph({ 
+                children: [new Paragraph({
                   children: [new TextRun({ text: header, bold: true, size: 22 })],
-                  alignment: AlignmentType.CENTER 
+                  alignment: AlignmentType.CENTER
                 })],
                 shading: { fill: "F0F0F0" },
                 width: { size: 100 / section.headers.length, type: WidthType.PERCENTAGE },
@@ -107,10 +105,10 @@ export const generateDOCX = async (reportData, filename) => {
         section.rows.forEach(row => {
           tableRows.push(
             new TableRow({
-              children: row.map(cell => 
+              children: row.map(cell =>
                 new TableCell({
-                  children: [new Paragraph({ 
-                    text: cell, 
+                  children: [new Paragraph({
+                    text: cell,
                     size: 22,
                     alignment: isNaN(cell) ? AlignmentType.LEFT : AlignmentType.RIGHT // Auto align numbers
                   })],

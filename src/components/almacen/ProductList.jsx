@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { usePermissions } from '@/context/PermissionContext'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
 
 export function ProductList({
   products,
@@ -25,7 +27,11 @@ export function ProductList({
   search,
   onSearchChange,
   category,
-  onCategoryChange
+  onCategoryChange,
+  isInfinite,
+  onLoadMore,
+  hasMore,
+  loadingMore
 }) {
   const [editingProduct, setEditingProduct] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -86,7 +92,66 @@ export function ProductList({
         )}
       </div>
 
-      <div className="border rounded-md">
+      <div className="sm:hidden">
+        {loading ? (
+          <div className="text-center py-10 text-muted-foreground">Cargando...</div>
+        ) : products.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">No hay productos registrados</div>
+        ) : (
+          <div className="space-y-3">
+            {products.map((p) => {
+              const isLowStock = p.stock <= (p.min_stock || 5)
+              return (
+                <Card key={p.id}>
+                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                    <div className="space-y-1 min-w-0">
+                      <CardTitle className="text-base truncate">{p.name}</CardTitle>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{p.category}</Badge>
+                        {isLowStock ? (
+                          <Badge variant="destructive" className="gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Bajo
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> OK
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    {hasPermission('warehouse.edit') && (
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between gap-4">
+                    <div className="text-sm text-muted-foreground">
+                      Stock: <span className="font-semibold text-foreground">{p.stock}</span>
+                    </div>
+                    <div className="text-sm font-semibold">
+                      {formatCurrency(p.unit_price, p.currency)}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+
+            {isInfinite && hasMore && (
+              <InfiniteScrollTrigger
+                disabled={loadingMore}
+                onLoadMore={onLoadMore}
+              />
+            )}
+
+            {isInfinite && loadingMore && (
+              <div className="text-center py-4 text-sm text-muted-foreground">Cargando más...</div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="hidden sm:block border rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
@@ -149,52 +214,54 @@ export function ProductList({
       </div>
 
       {/* Pagination Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>Filas por página:</span>
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(v) => {
-              onPageSizeChange(Number(v))
-              onPageChange(1)
-            }}
-          >
-            <SelectTrigger className="w-[70px] h-8">
-              <SelectValue placeholder="5" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5</SelectItem>
-              <SelectItem value="10">10</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      {!isInfinite && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <span>Filas por página:</span>
+            <Select
+              value={pageSize.toString()}
+              onValueChange={(v) => {
+                onPageSizeChange(Number(v))
+                onPageChange(1)
+              }}
+            >
+              <SelectTrigger className="w-[70px] h-8">
+                <SelectValue placeholder="5" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="flex items-center gap-4">
-          <span>
-            Página {page} de {totalPages || 1}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onPageChange(Math.max(1, page - 1))}
-              disabled={page === 1 || loading}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages || loading}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-4">
+            <span>
+              Página {page} de {totalPages || 1}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange(Math.max(1, page - 1))}
+                disabled={page === 1 || loading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages || loading}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <ProductModal
         open={modalOpen}

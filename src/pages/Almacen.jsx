@@ -8,7 +8,8 @@ import { listProducts, listMovements, getAlmacenStats, getProductCategories } fr
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 export default function Almacen() {
   const { session } = useSession()
@@ -16,6 +17,7 @@ export default function Almacen() {
   const { getRemainingUsage, subscription } = useSubscription()
   const queryClient = useQueryClient()
   const userId = session?.user?.id // ID real del usuario
+  const isMobile = useIsMobile()
 
   // --- Product Filters & Pagination ---
   const [prodPage, setProdPage] = useState(1)
@@ -49,11 +51,39 @@ export default function Almacen() {
       userId: userId,      // ID del usuario actual
       businessId: businessId // ID del negocio (owner_id si es miembro)
     }),
-    enabled: !!userId && !!businessId,
+    enabled: !!userId && !!businessId && !isMobile,
     placeholderData: keepPreviousData
   })
-  const products = productsData?.data || []
-  const prodCount = productsData?.count || 0
+
+  const {
+    data: productsInfinite,
+    isLoading: loadingProductsInfinite,
+    fetchNextPage: fetchNextProducts,
+    hasNextPage: hasNextProducts,
+    isFetchingNextPage: isFetchingNextProducts,
+  } = useInfiniteQuery({
+    queryKey: ['products-infinite', { pageSize: prodPageSize, search: prodSearch, category: prodCategory, businessId }],
+    queryFn: ({ pageParam = 1 }) =>
+      listProducts({
+        page: pageParam,
+        pageSize: prodPageSize,
+        search: prodSearch,
+        category: prodCategory,
+        userId: userId,
+        businessId: businessId
+      }),
+    enabled: !!userId && !!businessId && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + (p?.data?.length || 0), 0)
+      const total = lastPage?.count || 0
+      if (loaded >= total) return undefined
+      return allPages.length + 1
+    },
+  })
+
+  const products = isMobile ? (productsInfinite?.pages?.flatMap((p) => p?.data || []) || []) : (productsData?.data || [])
+  const prodCount = isMobile ? (productsInfinite?.pages?.[0]?.count || 0) : (productsData?.count || 0)
 
   const { data: categories = [] } = useQuery({
     queryKey: ['productCategories'],
@@ -70,11 +100,39 @@ export default function Almacen() {
       userId: userId,      // ID del usuario actual
       businessId: businessId // ID del negocio (owner_id si es miembro)
     }),
-    enabled: !!userId && !!businessId,
+    enabled: !!userId && !!businessId && !isMobile,
     placeholderData: keepPreviousData
   })
-  const movements = movementsData?.data || []
-  const movCount = movementsData?.count || 0
+
+  const {
+    data: movementsInfinite,
+    isLoading: loadingMovementsInfinite,
+    fetchNextPage: fetchNextMovements,
+    hasNextPage: hasNextMovements,
+    isFetchingNextPage: isFetchingNextMovements,
+  } = useInfiniteQuery({
+    queryKey: ['movements-infinite', { pageSize: movPageSize, type: movType, productId: movProduct, businessId }],
+    queryFn: ({ pageParam = 1 }) =>
+      listMovements({
+        page: pageParam,
+        pageSize: movPageSize,
+        type: movType,
+        productId: movProduct,
+        userId: userId,
+        businessId: businessId
+      }),
+    enabled: !!userId && !!businessId && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + (p?.data?.length || 0), 0)
+      const total = lastPage?.count || 0
+      if (loaded >= total) return undefined
+      return allPages.length + 1
+    },
+  })
+
+  const movements = isMobile ? (movementsInfinite?.pages?.flatMap((p) => p?.data || []) || []) : (movementsData?.data || [])
+  const movCount = isMobile ? (movementsInfinite?.pages?.[0]?.count || 0) : (movementsData?.count || 0)
 
   const { data: allProducts = [] } = useQuery({
     queryKey: ['productsAllSimple', businessId],
@@ -140,10 +198,14 @@ export default function Almacen() {
             onSearchChange={setProdSearch}
             category={prodCategory}
             onCategoryChange={setProdCategory}
-            loading={loadingProducts}
+            loading={isMobile ? loadingProductsInfinite : loadingProducts}
             onRefresh={handleRefresh}
             onProductCreated={refreshProducts}
             categories={categories}
+            isInfinite={isMobile}
+            onLoadMore={fetchNextProducts}
+            hasMore={hasNextProducts}
+            loadingMore={isFetchingNextProducts}
           />
         </TabsContent>
 
@@ -160,8 +222,12 @@ export default function Almacen() {
             productId={movProduct}
             onProductChange={setMovProduct}
             products={allProducts}
-            loading={loadingMovements}
+            loading={isMobile ? loadingMovementsInfinite : loadingMovements}
             onRefresh={handleRefresh}
+            isInfinite={isMobile}
+            onLoadMore={fetchNextMovements}
+            hasMore={hasNextMovements}
+            loadingMore={isFetchingNextMovements}
           />
         </TabsContent>
       </Tabs>

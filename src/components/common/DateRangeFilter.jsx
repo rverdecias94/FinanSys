@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
-export const DateRangeFilter = ({ onFilterChange, children }) => {
+export const DateRangeFilter = ({ onFilterChange, children, className }) => {
   const [filterType, setFilterType] = useState('month')
 
   // States for different filters
@@ -103,8 +104,13 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
   }, [filterType, selectedDate, selectedMonth, selectedYear, selectedQuarter, customStart, customEnd])
 
   return (
-    <div className="flex flex-wrap gap-4 items-end bg-card p-4 rounded-lg border shadow-sm">
-      <div className="space-y-2">
+    <div
+      className={cn(
+        "flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4 items-stretch sm:items-end bg-card p-3 sm:p-4 rounded-lg border shadow-sm w-full sm:w-fit",
+        className
+      )}
+    >
+      <div className="space-y-2 w-full sm:w-auto">
         <Label>Tipo de Reporte</Label>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-full">
@@ -121,9 +127,9 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
       </div>
 
       {filterType === 'day' && (
-        <div className="space-y-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <Label>Fecha</Label>
-          <div className="w-[200px]">
+          <div className="w-full sm:w-[200px]">
             <Calendar value={selectedDate} onChange={setSelectedDate} />
           </div>
         </div>
@@ -131,10 +137,10 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
 
       {filterType === 'month' && (
         <>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Mes</Label>
             <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,10 +150,10 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Año</Label>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[100px]">
+              <SelectTrigger className="w-full sm:w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -162,10 +168,10 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
 
       {filterType === 'quarter' && (
         <>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Trimestre</Label>
             <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -175,10 +181,10 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Año</Label>
             <Select value={selectedYear} onValueChange={setSelectedYear}>
-              <SelectTrigger className="w-[100px]">
+              <SelectTrigger className="w-full sm:w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -192,10 +198,10 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
       )}
 
       {filterType === 'year' && (
-        <div className="space-y-2">
+        <div className="space-y-2 w-full sm:w-auto">
           <Label>Año</Label>
           <Select value={selectedYear} onValueChange={setSelectedYear}>
-            <SelectTrigger className="w-[100px]">
+            <SelectTrigger className="w-full sm:w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -209,22 +215,22 @@ export const DateRangeFilter = ({ onFilterChange, children }) => {
 
       {filterType === 'custom' && (
         <>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Desde</Label>
-            <div className="w-[160px]">
+            <div className="w-full sm:w-[200px]">
               <Calendar value={customStart} onChange={setCustomStart} />
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 w-full sm:w-auto">
             <Label>Hasta</Label>
-            <div className="w-[160px]">
+            <div className="w-full sm:w-[200px]">
               <Calendar value={customEnd} onChange={setCustomEnd} />
             </div>
           </div>
         </>
       )}
 
-      {children && <div className="ml-auto">{children}</div>}
+      {children && <div className="w-full sm:w-auto sm:ml-auto">{children}</div>}
     </div>
   )
 }
