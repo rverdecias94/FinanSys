@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, computeTotals, getFilteredTotals } from '@/services/finanzas'
+import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals } from '@/services/finanzas'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
@@ -225,35 +225,37 @@ export default function Finanzas() {
       </div>
 
       {/* Filters */}
-      <div className="flex w-full items-end gap-2 overflow-x-auto pb-1">
+      <div className="flex flex-col w-full items-start gap-2 overflow-x-auto pb-1">
         <DateRangeFilter
           onFilterChange={handleDateSelect}
           className="shrink-0 flex-row flex-nowrap gap-2 items-end"
         />
 
-        <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-          <SelectTrigger className="w-fit shrink-0">
-            <SelectValue placeholder="Todas las monedas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las monedas</SelectItem>
-            {businessCurrencies.map((c) => (
-              <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-2 items-center mt-4 sm:flex-row w-full">
+          <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+            <SelectTrigger className="w-full shrink-0 sm:w-fit">
+              <SelectValue placeholder="Todas las monedas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las monedas</SelectItem>
+              {businessCurrencies.map((c) => (
+                <SelectItem key={c.code} value={c.code}>{c.code}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-fit shrink-0">
-            <SelectValue placeholder="Todas las categorías" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas las categorías</SelectItem>
-            {availableCategoryOptions.map((cat) => (
-              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full shrink-0 sm:w-fit">
+              <SelectValue placeholder="Todas las categorías" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las categorías</SelectItem>
+              {availableCategoryOptions.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Summary Cards */}
