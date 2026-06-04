@@ -25,12 +25,12 @@ describe('Balance Configuration Service', () => {
     const userId = 'user-123'
     const initialUsd = 1000
     const initialCup = 5000
-
+    
     // Mock successful response
     const mockResponse = {
-      data: {
-        initial_usd: 1000, initial_cup: 5000,
-        total_usd: 1000, total_cup: 5000
+      data: { 
+        initial_usd: 1000, initial_cup: 5000, 
+        total_usd: 1000, total_cup: 5000 
       },
       error: null
     }
@@ -42,7 +42,7 @@ describe('Balance Configuration Service', () => {
       p_new_initial_usd: 1000,
       p_new_initial_cup: 5000
     })
-
+    
     expect(result).toEqual(mockResponse.data)
   })
 

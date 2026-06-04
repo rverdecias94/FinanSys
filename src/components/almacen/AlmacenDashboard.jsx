@@ -18,7 +18,7 @@ export function AlmacenDashboard({ stats, loading }) {
     'hsl(var(--chart-4))',
     'hsl(var(--chart-5))'
   ]
-
+ 
   const getCategoryColor = (index) => {
     if (index < CHART_COLORS.length) return CHART_COLORS[index]
     const hue = (index * 137.508) % 360
@@ -93,9 +93,9 @@ export function AlmacenDashboard({ stats, loading }) {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stats.movementsTrend}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 12 }}
+              <XAxis 
+                dataKey="date" 
+                tick={{fontSize: 12}} 
                 tickFormatter={(value) => {
                   if (!value) return ''
                   const [year, month, day] = value.split('-')
@@ -139,7 +139,7 @@ export function AlmacenDashboard({ stats, loading }) {
             <BarChart layout="vertical" data={stats.topProducts} margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-muted" />
               <XAxis type="number" stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
-              <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
+              <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
                   borderRadius: '8px',

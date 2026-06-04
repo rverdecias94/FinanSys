@@ -127,21 +127,21 @@ export function MovementList({
                 </Card>
               )
             })}
-
+ 
             {isInfinite && hasMore && (
               <InfiniteScrollTrigger
                 disabled={loadingMore}
                 onLoadMore={onLoadMore}
               />
             )}
-
+ 
             {isInfinite && loadingMore && (
               <div className="text-center py-4 text-sm text-muted-foreground">Cargando más...</div>
             )}
           </div>
         )}
       </div>
-
+ 
       <div className="hidden sm:block border rounded-md">
         <Table>
           <TableHeader>
@@ -201,51 +201,51 @@ export function MovementList({
       {/* Pagination Controls */}
       {!isInfinite && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span>Filas por página:</span>
-            <Select
-              value={pageSize.toString()}
-              onValueChange={(v) => {
-                onPageSizeChange(Number(v))
-                onPageChange(1)
-              }}
-            >
-              <SelectTrigger className="w-[70px] h-8">
-                <SelectValue placeholder="5" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="5">5</SelectItem>
-                <SelectItem value="10">10</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex items-center gap-2">
+          <span>Filas por página:</span>
+          <Select
+            value={pageSize.toString()}
+            onValueChange={(v) => {
+              onPageSizeChange(Number(v))
+              onPageChange(1)
+            }}
+          >
+            <SelectTrigger className="w-[70px] h-8">
+              <SelectValue placeholder="5" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">5</SelectItem>
+              <SelectItem value="10">10</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="flex items-center gap-4">
-            <span>
-              Página {page} de {totalPages || 1}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onPageChange(Math.max(1, page - 1))}
-                disabled={page === 1 || loading}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-                disabled={page >= totalPages || loading}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+        <div className="flex items-center gap-4">
+          <span>
+            Página {page} de {totalPages || 1}
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onPageChange(Math.max(1, page - 1))}
+              disabled={page === 1 || loading}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+              disabled={page >= totalPages || loading}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
+      </div>
       )}
 
       <MovementModal

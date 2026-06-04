@@ -27,10 +27,10 @@ describe('Balance System Integration', () => {
     const initialUsd = 1000
     const initialCup = 2000
     await updateBalanceConfig(testUserId, initialUsd, initialCup)
-
+    
     let config = await getBalanceConfig(testUserId)
     expect(Number(config.initial_balance_usd)).toBe(initialUsd)
-
+    
     // 2. Create Transaction (Income USD 500)
     const transaction = await createTransaction({
       user_id: testUserId,
@@ -51,7 +51,7 @@ describe('Balance System Integration', () => {
     // 4. Update Initial Balance (to 2000)
     // New Total should be: New Initial (2000) + Net Transactions (+500) = 2500
     await updateBalanceConfig(testUserId, 2000, initialCup)
-
+    
     config = await getBalanceConfig(testUserId)
     expect(Number(config.initial_balance_usd)).toBe(2000)
     expect(Number(config.balance_total_usd)).toBe(2500)
@@ -63,7 +63,7 @@ describe('Balance System Integration', () => {
       .eq('user_id', testUserId)
       .order('changed_at', { ascending: false })
       .limit(1)
-
+      
     expect(logs[0].action_type).toBe('UPDATE_INITIAL')
     expect(Number(logs[0].new_initial_usd)).toBe(2000)
 
