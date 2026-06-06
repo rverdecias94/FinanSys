@@ -11,9 +11,7 @@ export default function ProtectedRoute({ requiredPermission }) {
   const { session, loading: sessionLoading } = useSession()
   const { hasPermission, loading: permLoading, isOwner } = usePermissions()
 
-  if (sessionLoading) {
-    return <Outlet />
-  }
+  if (sessionLoading || permLoading) return <Outlet />
 
   if (!session) {
     return <Navigate to="/login" replace />

@@ -1,17 +1,19 @@
-import React, { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-import { FileText, FileSpreadsheet, Loader2, File } from 'lucide-react'
+import { ChevronLeft, ChevronRight, File, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { listTransactions } from '@/services/finanzas'
-import { listMovements } from '@/services/almacen'
+import { PermissionGuard } from '@/components/common/PermissionGuard'
+import { fetchTransactionsForExport, listTransactions } from '@/services/finanzas'
+import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
 import { generateDOCX } from '@/utils/docxGenerator'
@@ -88,11 +90,186 @@ const ReportPreview = ({ report }) => {
 
 const Reportes = () => {
   const { session } = useSession()
+  const { businessId } = useBusiness()
+  const isMobile = useIsMobile()
   const userId = session?.user?.id
+  const effectiveUserId = businessId || userId
   const [dateFilter, setDateFilter] = useState(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewReport, setPreviewReport] = useState(null)
   const [filename, setFilename] = useState('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  const [financePage, setFinancePage] = useState(1)
+  const [warehousePage, setWarehousePage] = useState(1)
+  const [inventoryPage, setInventoryPage] = useState(1)
+
+  const PAGE_SIZE_DESKTOP = 10
+  const PAGE_SIZE_MOBILE = 10
+  const INVENTORY_PAGE_SIZE_DESKTOP = 10
+  const INVENTORY_PAGE_SIZE_MOBILE = 5
+
+  useEffect(() => {
+    setFinancePage(1)
+    setWarehousePage(1)
+    setInventoryPage(1)
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, left: 0 })
+  }, [dateFilter, effectiveUserId])
+
+  const getTotalPages = (count, pageSize) => {
+    const c = Number(count || 0)
+    if (!c) return 1
+    return Math.max(1, Math.ceil(c / pageSize))
+  }
+
+  const getPaginationItems = (page, totalPages) => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
+    const items = []
+    const add = (v) => items.push(v)
+    add(1)
+    const left = Math.max(2, page - 1)
+    const right = Math.min(totalPages - 1, page + 1)
+    if (left > 2) add('…')
+    for (let p = left; p <= right; p++) add(p)
+    if (right < totalPages - 1) add('…')
+    add(totalPages)
+    return items
+  }
+
+  const financePageQuery = useQuery({
+    queryKey: ['reportes-finanzas-page', effectiveUserId, dateFilter, financePage, PAGE_SIZE_DESKTOP],
+    queryFn: () => listTransactions({
+      from: dateFilter?.startDate,
+      to: dateFilter?.endDate,
+      userId,
+      businessId,
+      page: financePage,
+      pageSize: PAGE_SIZE_DESKTOP
+    }),
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile,
+  })
+
+  const financeInfiniteQuery = useInfiniteQuery({
+    queryKey: ['reportes-finanzas-infinite', effectiveUserId, dateFilter, PAGE_SIZE_MOBILE],
+    queryFn: ({ pageParam = 1 }) => listTransactions({
+      from: dateFilter?.startDate,
+      to: dateFilter?.endDate,
+      userId,
+      businessId,
+      page: pageParam,
+      pageSize: PAGE_SIZE_MOBILE
+    }),
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const count = Number(lastPage?.count || 0)
+      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
+      if (!count || loaded >= count) return undefined
+      return allPages.length + 1
+    }
+  })
+
+  const warehousePageQuery = useQuery({
+    queryKey: ['reportes-almacen-page', effectiveUserId, dateFilter, warehousePage, PAGE_SIZE_DESKTOP],
+    queryFn: () => listMovements({
+      startDate: dateFilter?.startDate,
+      endDate: dateFilter?.endDate,
+      userId,
+      businessId,
+      page: warehousePage,
+      pageSize: PAGE_SIZE_DESKTOP
+    }),
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile
+  })
+
+  const warehouseInfiniteQuery = useInfiniteQuery({
+    queryKey: ['reportes-almacen-infinite', effectiveUserId, dateFilter, PAGE_SIZE_MOBILE],
+    queryFn: ({ pageParam = 1 }) => listMovements({
+      startDate: dateFilter?.startDate,
+      endDate: dateFilter?.endDate,
+      userId,
+      businessId,
+      page: pageParam,
+      pageSize: PAGE_SIZE_MOBILE
+    }),
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const count = Number(lastPage?.count || 0)
+      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
+      if (!count || loaded >= count) return undefined
+      return allPages.length + 1
+    }
+  })
+
+  const inventoryPageQuery = useQuery({
+    queryKey: ['reportes-inventario-page', effectiveUserId, dateFilter, inventoryPage, INVENTORY_PAGE_SIZE_DESKTOP],
+    queryFn: async () => {
+      const res = await listAreas(effectiveUserId, { page: inventoryPage, pageSize: INVENTORY_PAGE_SIZE_DESKTOP })
+      const areas = res?.data || []
+      const summary = await Promise.all(areas.map(async (area) => {
+        const { count } = await listItems(area.id, {
+          page: 1,
+          pageSize: 1,
+          startDate: dateFilter?.startDate,
+          endDate: dateFilter?.endDate
+        }, effectiveUserId)
+        return { ...area, itemsCount: count }
+      }))
+      return { data: summary, count: res?.count || 0 }
+    },
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile
+  })
+
+  const inventoryInfiniteQuery = useInfiniteQuery({
+    queryKey: ['reportes-inventario-infinite', effectiveUserId, dateFilter, INVENTORY_PAGE_SIZE_MOBILE],
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await listAreas(effectiveUserId, { page: pageParam, pageSize: INVENTORY_PAGE_SIZE_MOBILE })
+      const areas = res?.data || []
+      const summary = await Promise.all(areas.map(async (area) => {
+        const { count } = await listItems(area.id, {
+          page: 1,
+          pageSize: 1,
+          startDate: dateFilter?.startDate,
+          endDate: dateFilter?.endDate
+        }, effectiveUserId)
+        return { ...area, itemsCount: count }
+      }))
+      return { data: summary, count: res?.count || 0 }
+    },
+    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const count = Number(lastPage?.count || 0)
+      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
+      if (!count || loaded >= count) return undefined
+      return allPages.length + 1
+    }
+  })
+
+  const transactionsDesktop = financePageQuery.data?.data || []
+  const transactionsDesktopCount = financePageQuery.data?.count || 0
+  const transactionsMobile = useMemo(() => {
+    const pages = financeInfiniteQuery.data?.pages || []
+    return pages.flatMap(p => p?.data || [])
+  }, [financeInfiniteQuery.data])
+  const transactionsMobileCount = financeInfiniteQuery.data?.pages?.[0]?.count || 0
+
+  const movementsDesktop = warehousePageQuery.data?.data || []
+  const movementsDesktopCount = warehousePageQuery.data?.count || 0
+  const movementsMobile = useMemo(() => {
+    const pages = warehouseInfiniteQuery.data?.pages || []
+    return pages.flatMap(p => p?.data || [])
+  }, [warehouseInfiniteQuery.data])
+  const movementsMobileCount = warehouseInfiniteQuery.data?.pages?.[0]?.count || 0
+
+  const inventoryDesktop = inventoryPageQuery.data?.data || []
+  const inventoryDesktopCount = inventoryPageQuery.data?.count || 0
+  const inventoryMobile = useMemo(() => {
+    const pages = inventoryInfiniteQuery.data?.pages || []
+    return pages.flatMap(p => p?.data || [])
+  }, [inventoryInfiniteQuery.data])
+  const inventoryMobileCount = inventoryInfiniteQuery.data?.pages?.[0]?.count || 0
 
   // Finanzas Query
   const { data: transactions = [], isLoading: loadingFinanzas } = useQuery({
@@ -101,9 +278,10 @@ const Reportes = () => {
       from: dateFilter?.startDate,
       to: dateFilter?.endDate,
       userId,
+      businessId,
       limit: 1000 // Limit for report preview/export
     }),
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!effectiveUserId && !!dateFilter
   })
 
   // Almacén Query
@@ -112,10 +290,12 @@ const Reportes = () => {
     queryFn: () => listMovements({
       startDate: dateFilter?.startDate,
       endDate: dateFilter?.endDate,
-      userUuid: userId,
-      pageSize: 1000
+      userId,
+      businessId,
+      pageSize: 1000,
+      page: 1
     }),
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!effectiveUserId && !!dateFilter
   })
   const movements = movementsData?.data || []
 
@@ -123,14 +303,14 @@ const Reportes = () => {
   const { data: inventorySummary = [], isLoading: loadingInventario } = useQuery({
     queryKey: ['reportes-inventario', dateFilter, userId],
     queryFn: async () => {
-      const areas = await listAreas(userId)
+      const areas = await listAreas(effectiveUserId)
       const summaryPromises = areas.map(async (area) => {
         const { count } = await listItems(area.id, {
           page: 1,
           pageSize: 1,
           startDate: dateFilter?.startDate,
           endDate: dateFilter?.endDate
-        }, userId)
+        }, effectiveUserId)
         return {
           ...area,
           itemsCount: count
@@ -138,18 +318,48 @@ const Reportes = () => {
       })
       return Promise.all(summaryPromises)
     },
-    enabled: !!userId && !!dateFilter
+    enabled: !!userId && !!effectiveUserId && !!dateFilter
   })
 
   const handleFilterChange = (filter) => {
     setDateFilter(filter)
   }
 
-  // --- Export Handlers ---
+  const fetchInventorySummaryForExport = async () => {
+    const pageSize = 50
+    const first = await listAreas(effectiveUserId, { page: 1, pageSize })
+    const total = Number(first?.count || 0)
+    const pages = Math.max(1, Math.ceil(total / pageSize))
+    const allAreas = [...(first?.data || [])]
 
-  const exportFinanzas = (type) => {
-    const data = transactions.map(t => ({
-      Fecha: format(new Date(t.date), 'dd/MM/yyyy'),
+    for (let p = 2; p <= pages; p++) {
+      const res = await listAreas(effectiveUserId, { page: p, pageSize })
+      allAreas.push(...(res?.data || []))
+    }
+
+    const summary = await Promise.all(allAreas.map(async (area) => {
+      const { count } = await listItems(area.id, {
+        page: 1,
+        pageSize: 1,
+        startDate: dateFilter?.startDate,
+        endDate: dateFilter?.endDate
+      }, effectiveUserId)
+      return { ...area, itemsCount: count }
+    }))
+
+    return summary
+  }
+
+  const exportFinanzas = async (type) => {
+    const rows = await fetchTransactionsForExport({
+      from: dateFilter?.startDate,
+      to: dateFilter?.endDate,
+      userId,
+      businessId
+    })
+
+    const data = rows.map(t => ({
+      Fecha: t.date ? format(new Date(t.date), 'dd/MM/yyyy') : '',
       Tipo: t.type === 'income' ? 'Ingreso' : 'Gasto',
       Categoría: t.category,
       Monto: `${t.amount} ${t.currency}`,
@@ -159,16 +369,24 @@ const Reportes = () => {
 
     if (type === 'pdf') {
       const headers = ['Fecha', 'Tipo', 'Categoría', 'Monto', 'Descripción', 'Método']
-      const rows = data.map(Object.values)
-      exportToPDF(`Reporte de Finanzas - ${dateFilter?.label}`, headers, rows, `finanzas_${dateFilter?.type}`)
-    } else {
-      exportToExcel('Finanzas', data, `finanzas_${dateFilter?.type}`)
+      const body = data.map(Object.values)
+      exportToPDF(`Reporte de Finanzas - ${dateFilter?.label}`, headers, body, `finanzas_${dateFilter?.type}`)
+      return
     }
+
+    exportToExcel('Finanzas', data, `finanzas_${dateFilter?.type}`)
   }
 
-  const exportAlmacen = (type) => {
-    const data = movements.map(m => ({
-      Fecha: format(new Date(m.created_at), 'dd/MM/yyyy HH:mm'),
+  const exportAlmacen = async (type) => {
+    const rows = await fetchMovementsForExport({
+      startDate: dateFilter?.startDate,
+      endDate: dateFilter?.endDate,
+      userId,
+      businessId
+    })
+
+    const data = rows.map(m => ({
+      Fecha: m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : '',
       Producto: m.products?.name || 'Producto Eliminado',
       Tipo: m.type === 'in' ? 'Entrada' : 'Salida',
       Cantidad: m.qty,
@@ -177,15 +395,17 @@ const Reportes = () => {
 
     if (type === 'pdf') {
       const headers = ['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Categoría']
-      const rows = data.map(Object.values)
-      exportToPDF(`Reporte de Almacén - ${dateFilter?.label}`, headers, rows, `almacen_${dateFilter?.type}`)
-    } else {
-      exportToExcel('Movimientos', data, `almacen_${dateFilter?.type}`)
+      const body = data.map(Object.values)
+      exportToPDF(`Reporte de Almacén - ${dateFilter?.label}`, headers, body, `almacen_${dateFilter?.type}`)
+      return
     }
+
+    exportToExcel('Movimientos', data, `almacen_${dateFilter?.type}`)
   }
 
-  const exportInventario = (type) => {
-    const data = inventorySummary.map(area => ({
+  const exportInventario = async (type) => {
+    const summary = await fetchInventorySummaryForExport()
+    const data = summary.map(area => ({
       Área: area.name,
       'Ítems Registrados (en periodo)': area.itemsCount,
       'Icono': area.icon
@@ -193,41 +413,51 @@ const Reportes = () => {
 
     if (type === 'pdf') {
       const headers = ['Área', 'Ítems Registrados', 'Icono']
-      const rows = data.map(Object.values)
-      exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, rows, `inventario_${dateFilter?.type}`)
-    } else {
-      exportToExcel('Inventario', data, `inventario_${dateFilter?.type}`)
+      const body = data.map(Object.values)
+      exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, body, `inventario_${dateFilter?.type}`)
+      return
     }
+
+    exportToExcel('Inventario', data, `inventario_${dateFilter?.type}`)
   }
 
-  const handlePreview = (type) => {
-    let report = null
-    let fname = ''
+  const handlePreview = async (type) => {
+    if (!dateFilter) return
+    setPreviewLoading(true)
+    try {
+      let report = null
+      let fname = ''
 
-    switch (type) {
-      case 'finanzas':
-        report = generateFinanceReport(transactions, dateFilter)
+      if (type === 'finanzas') {
+        const rows = await fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId })
+        report = generateFinanceReport(rows, dateFilter)
         fname = `informe_finanzas_${dateFilter?.type}`
-        break
-      case 'almacen':
-        report = generateWarehouseReport(movements, dateFilter)
+      } else if (type === 'almacen') {
+        const rows = await fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId })
+        report = generateWarehouseReport(rows, dateFilter)
         fname = `informe_almacen_${dateFilter?.type}`
-        break
-      case 'inventario':
-        report = generateInventoryReport(inventorySummary, dateFilter)
+      } else if (type === 'inventario') {
+        const summary = await fetchInventorySummaryForExport()
+        report = generateInventoryReport(summary, dateFilter)
         fname = `informe_inventario_${dateFilter?.type}`
-        break
-      case 'global':
-        report = generateGlobalReport({ transactions, movements, inventorySummary }, dateFilter)
+      } else if (type === 'global') {
+        const [tx, mov, inv] = await Promise.all([
+          fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId }),
+          fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
+          fetchInventorySummaryForExport()
+        ])
+        report = generateGlobalReport({ transactions: tx, movements: mov, inventorySummary: inv }, dateFilter)
         fname = `informe_global_${dateFilter?.type}`
-        break
-      default:
+      } else {
         return
-    }
+      }
 
-    setPreviewReport(report)
-    setFilename(fname)
-    setPreviewOpen(true)
+      setPreviewReport(report)
+      setFilename(fname)
+      setPreviewOpen(true)
+    } finally {
+      setPreviewLoading(false)
+    }
   }
 
   const handleDownloadDOCX = () => {
@@ -235,18 +465,71 @@ const Reportes = () => {
     setPreviewOpen(false)
   }
 
+  const financeSentinelRef = useRef(null)
+  const warehouseSentinelRef = useRef(null)
+  const inventorySentinelRef = useRef(null)
+
+  const useInfiniteScroll = ({ enabled, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage }) => {
+    useEffect(() => {
+      if (!enabled) return
+      const el = sentinelRef.current
+      if (!el) return
+
+      const observer = new IntersectionObserver((entries) => {
+        const first = entries[0]
+        if (!first?.isIntersecting) return
+        if (!hasNextPage) return
+        if (isFetchingNextPage) return
+        fetchNextPage()
+      }, { rootMargin: '240px' })
+
+      observer.observe(el)
+      return () => observer.disconnect()
+    }, [enabled, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage])
+  }
+
+  useInfiniteScroll({
+    enabled: isMobile,
+    sentinelRef: financeSentinelRef,
+    hasNextPage: financeInfiniteQuery.hasNextPage,
+    isFetchingNextPage: financeInfiniteQuery.isFetchingNextPage,
+    fetchNextPage: financeInfiniteQuery.fetchNextPage
+  })
+
+  useInfiniteScroll({
+    enabled: isMobile,
+    sentinelRef: warehouseSentinelRef,
+    hasNextPage: warehouseInfiniteQuery.hasNextPage,
+    isFetchingNextPage: warehouseInfiniteQuery.isFetchingNextPage,
+    fetchNextPage: warehouseInfiniteQuery.fetchNextPage
+  })
+
+  useInfiniteScroll({
+    enabled: isMobile,
+    sentinelRef: inventorySentinelRef,
+    hasNextPage: inventoryInfiniteQuery.hasNextPage,
+    isFetchingNextPage: inventoryInfiniteQuery.isFetchingNextPage,
+    fetchNextPage: inventoryInfiniteQuery.fetchNextPage
+  })
+
   return (
-    <div className="space-y-6 p-6 pb-20">
+    <div className="space-y-6 p-4 sm:p-6 pb-20">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Reportes y Resúmenes</h1>
         <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
       </div>
 
       <DateRangeFilter onFilterChange={handleFilterChange}>
-        <Button onClick={() => handlePreview('global')} className="bg-blue-600 hover:bg-blue-700">
-          <File className="mr-2 h-4 w-4" />
-          Resumen General (DOCX)
-        </Button>
+        <PermissionGuard permission="reports.export" mode="disable">
+          <Button
+            onClick={() => handlePreview('global')}
+            className="bg-blue-600 hover:bg-blue-700 w-full mt-1"
+            disabled={!dateFilter || previewLoading}
+          >
+            <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+            Resumen General (DOCX)
+          </Button>
+        </PermissionGuard>
       </DateRangeFilter>
 
       {dateFilter && (
@@ -260,33 +543,77 @@ const Reportes = () => {
           {/* --- FINANZAS --- */}
           <TabsContent value="finanzas" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="space-y-1">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
+                <div className="space-y-1 min-w-0">
                   <CardTitle>Resumen Financiero</CardTitle>
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handlePreview('finanzas')}>
-                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Finanzas
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportFinanzas('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportFinanzas('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
-                    PDF
-                  </Button>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('finanzas')} disabled={previewLoading}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      {isMobile ? <span className="sr-only">Word</span> : 'Word'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportFinanzas('excel')}>
+                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportFinanzas('pdf')}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
+                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
+                    </Button>
+                  </PermissionGuard>
                 </div>
               </CardHeader>
               <CardContent>
-                {loadingFinanzas ? (
+                {isMobile ? (
+                  financeInfiniteQuery.isLoading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                  ) : transactionsMobile.length === 0 ? (
+                    <div className="text-center p-8 text-muted-foreground">No hay transacciones en este periodo.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {transactionsMobile.map((t) => (
+                        <div key={t.id} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium">{t.category || '-'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''} • {t.type === 'income' ? 'Ingreso' : 'Gasto'}
+                              </div>
+                            </div>
+                            <div className={`text-sm font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                              {t.type === 'income' ? '+' : '-'}{t.amount} {t.currency}
+                            </div>
+                          </div>
+                          {t.description ? (
+                            <div className="mt-2 text-xs text-muted-foreground break-words">
+                              {t.description}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                      <div ref={financeSentinelRef} />
+                      {financeInfiniteQuery.isFetchingNextPage ? (
+                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                      ) : null}
+                      {!financeInfiniteQuery.hasNextPage && transactionsMobile.length > 0 ? (
+                        <div className="text-center text-xs text-muted-foreground py-2">
+                          Mostrando {transactionsMobile.length} de {transactionsMobileCount}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : financePageQuery.isLoading ? (
                   <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : transactions.length === 0 ? (
+                ) : transactionsDesktop.length === 0 ? (
                   <div className="text-center p-8 text-muted-foreground">No hay transacciones en este periodo.</div>
                 ) : (
-                  <div className="rounded-md border">
+                  <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -297,7 +624,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {transactions.slice(0, 5).map((t) => (
+                        {transactionsDesktop.map((t) => (
                           <TableRow key={t.id}>
                             <TableCell>{format(new Date(t.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell className="capitalize">{t.type === 'income' ? 'Ingreso' : 'Gasto'}</TableCell>
@@ -309,11 +636,42 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
-                    {transactions.length > 5 && (
-                      <div className="p-2 text-center text-xs text-muted-foreground bg-muted/50">
-                        Mostrando 5 de {transactions.length} registros. Exporta para ver todo.
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
+                      <div className="text-xs text-muted-foreground">
+                        Mostrando {transactionsDesktop.length} de {transactionsDesktopCount}
                       </div>
-                    )}
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFinancePage(p => Math.max(1, p - 1))}
+                          disabled={financePage <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Anterior</span>
+                        </Button>
+                        {getPaginationItems(financePage, getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP)).map((it, idx) => (
+                          <Button
+                            key={`${it}-${idx}`}
+                            variant={it === financePage ? 'default' : 'outline'}
+                            size="sm"
+                            disabled={it === '…'}
+                            onClick={() => typeof it === 'number' && setFinancePage(it)}
+                          >
+                            {it}
+                          </Button>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setFinancePage(p => Math.min(getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP), p + 1))}
+                          disabled={financePage >= getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP)}
+                        >
+                          <span className="mr-1 hidden sm:inline">Siguiente</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -323,33 +681,77 @@ const Reportes = () => {
           {/* --- ALMACEN --- */}
           <TabsContent value="almacen" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="space-y-1">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
+                <div className="space-y-1 min-w-0">
                   <CardTitle>Movimientos de Almacén</CardTitle>
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handlePreview('almacen')}>
-                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Almacén
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportAlmacen('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportAlmacen('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
-                    PDF
-                  </Button>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('almacen')} disabled={previewLoading}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      {isMobile ? <span className="sr-only">Resumen de Almacén</span> : 'Resumen de Almacén'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportAlmacen('excel')}>
+                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportAlmacen('pdf')}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
+                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
+                    </Button>
+                  </PermissionGuard>
                 </div>
               </CardHeader>
               <CardContent>
-                {loadingAlmacen ? (
+                {isMobile ? (
+                  warehouseInfiniteQuery.isLoading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                  ) : movementsMobile.length === 0 ? (
+                    <div className="text-center p-8 text-muted-foreground">No hay movimientos en este periodo.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {movementsMobile.map((m) => (
+                        <div key={m.id} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium">{m.products?.name || 'Desconocido'}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : ''} • {m.type === 'in' ? 'Entrada' : 'Salida'}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold whitespace-nowrap">
+                              {m.qty}
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {m.type === 'in' ? 'Entrada' : 'Salida'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={warehouseSentinelRef} />
+                      {warehouseInfiniteQuery.isFetchingNextPage ? (
+                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                      ) : null}
+                      {!warehouseInfiniteQuery.hasNextPage && movementsMobile.length > 0 ? (
+                        <div className="text-center text-xs text-muted-foreground py-2">
+                          Mostrando {movementsMobile.length} de {movementsMobileCount}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : warehousePageQuery.isLoading ? (
                   <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : movements.length === 0 ? (
+                ) : movementsDesktop.length === 0 ? (
                   <div className="text-center p-8 text-muted-foreground">No hay movimientos en este periodo.</div>
                 ) : (
-                  <div className="rounded-md border">
+                  <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -360,7 +762,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {movements.slice(0, 5).map((m) => (
+                        {movementsDesktop.map((m) => (
                           <TableRow key={m.id}>
                             <TableCell>{format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
                             <TableCell>{m.products?.name || 'Desconocido'}</TableCell>
@@ -374,11 +776,42 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
-                    {movements.length > 5 && (
-                      <div className="p-2 text-center text-xs text-muted-foreground bg-muted/50">
-                        Mostrando 5 de {movements.length} registros. Exporta para ver todo.
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
+                      <div className="text-xs text-muted-foreground">
+                        Mostrando {movementsDesktop.length} de {movementsDesktopCount}
                       </div>
-                    )}
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setWarehousePage(p => Math.max(1, p - 1))}
+                          disabled={warehousePage <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Anterior</span>
+                        </Button>
+                        {getPaginationItems(warehousePage, getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP)).map((it, idx) => (
+                          <Button
+                            key={`${it}-${idx}`}
+                            variant={it === warehousePage ? 'default' : 'outline'}
+                            size="sm"
+                            disabled={it === '…'}
+                            onClick={() => typeof it === 'number' && setWarehousePage(it)}
+                          >
+                            {it}
+                          </Button>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setWarehousePage(p => Math.min(getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP), p + 1))}
+                          disabled={warehousePage >= getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP)}
+                        >
+                          <span className="mr-1 hidden sm:inline">Siguiente</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -388,33 +821,70 @@ const Reportes = () => {
           {/* --- INVENTARIO --- */}
           <TabsContent value="inventario" className="space-y-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="space-y-1">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
+                <div className="space-y-1 min-w-0">
                   <CardTitle>Resumen de Inventario (Activos)</CardTitle>
                   <CardDescription>Ítems registrados durante: {dateFilter.label}</CardDescription>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => handlePreview('inventario')}>
-                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
-                    Resumen de Inventario
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportInventario('excel')}>
-                    <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                    Excel
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => exportInventario('pdf')}>
-                    <FileText className="mr-2 h-4 w-4 text-red-600" />
-                    PDF
-                  </Button>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('inventario')} disabled={previewLoading}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      {isMobile ? <span className="sr-only">Resumen de Inventario</span> : 'Resumen de Inventario'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportInventario('excel')}>
+                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
+                    </Button>
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportInventario('pdf')}>
+                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
+                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
+                    </Button>
+                  </PermissionGuard>
                 </div>
               </CardHeader>
               <CardContent>
-                {loadingInventario ? (
+                {isMobile ? (
+                  inventoryInfiniteQuery.isLoading ? (
+                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                  ) : inventoryMobile.length === 0 ? (
+                    <div className="text-center p-8 text-muted-foreground">No hay áreas configuradas.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {inventoryMobile.map((area) => (
+                        <div key={area.id} className="rounded-lg border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium">{area.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Ítems en período: {area.itemsCount}
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold whitespace-nowrap">{area.itemsCount}</div>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={inventorySentinelRef} />
+                      {inventoryInfiniteQuery.isFetchingNextPage ? (
+                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
+                      ) : null}
+                      {!inventoryInfiniteQuery.hasNextPage && inventoryMobile.length > 0 ? (
+                        <div className="text-center text-xs text-muted-foreground py-2">
+                          Mostrando {inventoryMobile.length} de {inventoryMobileCount}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                ) : inventoryPageQuery.isLoading ? (
                   <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : inventorySummary.length === 0 ? (
+                ) : inventoryDesktop.length === 0 ? (
                   <div className="text-center p-8 text-muted-foreground">No hay áreas configuradas.</div>
                 ) : (
-                  <div className="rounded-md border">
+                  <div className="rounded-md border overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -423,7 +893,7 @@ const Reportes = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {inventorySummary.map((area) => (
+                        {inventoryDesktop.map((area) => (
                           <TableRow key={area.id}>
                             <TableCell className="font-medium">{area.name}</TableCell>
                             <TableCell>{area.itemsCount}</TableCell>
@@ -431,6 +901,42 @@ const Reportes = () => {
                         ))}
                       </TableBody>
                     </Table>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
+                      <div className="text-xs text-muted-foreground">
+                        Mostrando {inventoryDesktop.length} de {inventoryDesktopCount}
+                      </div>
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setInventoryPage(p => Math.max(1, p - 1))}
+                          disabled={inventoryPage <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          <span className="ml-1 hidden sm:inline">Anterior</span>
+                        </Button>
+                        {getPaginationItems(inventoryPage, getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP)).map((it, idx) => (
+                          <Button
+                            key={`${it}-${idx}`}
+                            variant={it === inventoryPage ? 'default' : 'outline'}
+                            size="sm"
+                            disabled={it === '…'}
+                            onClick={() => typeof it === 'number' && setInventoryPage(it)}
+                          >
+                            {it}
+                          </Button>
+                        ))}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setInventoryPage(p => Math.min(getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP), p + 1))}
+                          disabled={inventoryPage >= getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP)}
+                        >
+                          <span className="mr-1 hidden sm:inline">Siguiente</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -456,10 +962,12 @@ const Reportes = () => {
 
               <DialogFooter className="mt-6">
                 <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
-                <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700">
-                  <File className="mr-2 h-4 w-4" />
-                  Descargar DOCX
-                </Button>
+                <PermissionGuard permission="reports.export" mode="disable">
+                  <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
+                    <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                    {isMobile ? <span className="sr-only">Descargar DOCX</span> : 'Descargar DOCX'}
+                  </Button>
+                </PermissionGuard>
               </DialogFooter>
             </>
           )}

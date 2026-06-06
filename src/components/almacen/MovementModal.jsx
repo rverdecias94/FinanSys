@@ -13,6 +13,7 @@ import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
+  const safeProducts = Array.isArray(products) ? products : []
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     product_id: '',
@@ -41,7 +42,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
     }
   }
 
-  const selectedProduct = products.find(p => String(p.id) === String(formData.product_id))
+  const selectedProduct = safeProducts.find(p => String(p.id) === String(formData.product_id))
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
@@ -66,7 +67,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
                 <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
-                {products.map(p => (
+                {safeProducts.map(p => (
                   <SelectItem key={p.id} value={String(p.id)}>
                     {p.name} (Stock: {p.stock})
                   </SelectItem>

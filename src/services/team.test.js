@@ -2,10 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { inviteMember, acceptPendingInvitations } from './team'
 import { supabase } from '@/config/supabase'
 
+vi.mock('@/services/auditLogger', () => ({
+  logAction: vi.fn().mockResolvedValue(undefined)
+}))
+
 // Mock Supabase
 vi.mock('@/config/supabase', () => ({
   supabase: {
     rpc: vi.fn(),
+    auth: {
+      getUser: vi.fn(),
+    },
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
@@ -71,21 +78,24 @@ describe('Team Service', () => {
 
   describe('acceptPendingInvitations', () => {
     it('should accept pending invitations via RPC', async () => {
-      // Mock RPC response for success
-      supabase.rpc.mockResolvedValueOnce({ data: true, error: null })
+      supabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
+      supabase.rpc
+        .mockResolvedValueOnce({ data: true, error: null })
+        .mockResolvedValueOnce({ data: { businessId: 'owner-1', isOwner: false, roleId: 'role-1', permissions: ['finanzas.view'] }, error: null })
 
       const result = await acceptPendingInvitations('test@example.com')
 
-      expect(result).toBe(true)
-      expect(supabase.rpc).toHaveBeenCalledWith('accept_invitation_by_email', { email_input: 'test@example.com' })
+      expect(result).toEqual(expect.objectContaining({ businessId: 'owner-1', isOwner: false }))
+      expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'accept_invitation_for_current_user', { email_input: 'test@example.com' })
+      expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'get_user_business_context', { user_uuid: 'user-1' })
     })
 
-    it('should return false if RPC returns false', async () => {
-      // Mock RPC response for failure/no invite
+    it('should return null if RPC returns false', async () => {
+      supabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } } })
       supabase.rpc.mockResolvedValueOnce({ data: false, error: null })
 
       const result = await acceptPendingInvitations('test@example.com')
-      expect(result).toBe(false)
+      expect(result).toBeNull()
     })
   })
 })

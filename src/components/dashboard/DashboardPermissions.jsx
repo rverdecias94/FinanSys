@@ -15,9 +15,9 @@ import { usePermissionCheck } from '@/components/common/PermissionGuard'
 
 /**
  * Componente para mostrar el estado de permisos del usuario actual
- * Muestra qué puede hacer según su rol (Visualizador, Editor, etc.)
+ * Muestra qué puede hacer según su rol (Consultor, Editor, etc.)
  */
-export function DashboardPermissions({ userRole = 'Visualizador' }) {
+export function DashboardPermissions({ userRole = 'Consultor' }) {
   const { 
     canView, 
     canCreate, 
@@ -147,8 +147,8 @@ export function DashboardPermissions({ userRole = 'Visualizador' }) {
     
     if (canView('finanzas') && canView('warehouse') && canView('inventory')) {
       return {
-        title: 'Visualizador',
-        description: 'Solo puede ver datos y reportes. No puede crear, editar ni eliminar',
+        title: 'Consultor',
+        description: 'Solo lectura. Puede ver datos y reportes. No puede crear, editar ni eliminar',
         color: 'text-green-600 bg-green-100'
       }
     }
@@ -348,7 +348,7 @@ export function PermissionSummary({ compact = false }) {
     )
   }
 
-  const roleType = canEdit('finanzas') ? 'Editor' : canView('finanzas') ? 'Visualizador' : 'Usuario'
+  const roleType = canEdit('finanzas') ? 'Editor' : canView('finanzas') ? 'Consultor' : 'Usuario'
   const roleColor = canEdit('finanzas') ? 'text-blue-600' : canView('finanzas') ? 'text-green-600' : 'text-gray-600'
   const roleIcon = canEdit('finanzas') ? <Edit3 className="w-4 h-4" /> : <Eye className="w-4 h-4" />
 
@@ -365,7 +365,7 @@ export function PermissionSummary({ compact = false }) {
     <div className="flex items-center gap-2">
       <div className={`px-2 py-1 rounded-full text-xs font-medium ${
         roleType === 'Editor' ? 'bg-blue-100 text-blue-800' :
-        roleType === 'Visualizador' ? 'bg-green-100 text-green-800' :
+        roleType === 'Consultor' ? 'bg-green-100 text-green-800' :
         'bg-gray-100 text-gray-800'
       }`}>
         {roleIcon}

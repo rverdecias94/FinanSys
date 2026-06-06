@@ -1,4 +1,5 @@
 import { usePermissions } from '@/context/PermissionContext'
+import React from 'react'
 
 /**
  * Componente para mostrar/ocultar elementos según permisos del usuario
@@ -11,12 +12,12 @@ import { usePermissions } from '@/context/PermissionContext'
  * @param {React.ReactNode} props.fallback - Contenido alternativo si no tiene permiso
  * @param {string} props.mode - Modo de renderizado: 'show' (por defecto), 'disable', 'readonly'
  */
-export function PermissionGuard({ 
-  permission, 
-  anyPermission, 
-  allPermissions, 
+export function PermissionGuard({
+  permission,
+  anyPermission,
+  allPermissions,
   inverse = false,
-  children, 
+  children,
   fallback = null,
   mode = 'show'
 }) {
@@ -51,18 +52,20 @@ export function PermissionGuard({
 
   // Modo disable: deshabilitar el contenido
   if (mode === 'disable') {
-    return React.cloneElement(children, { 
-      ...children.props, 
-      disabled: !hasAccess 
+    if (!React.isValidElement(children)) return fallback
+    return React.cloneElement(children, {
+      ...children.props,
+      disabled: !hasAccess
     })
   }
 
   // Modo readonly: hacer solo lectura
   if (mode === 'readonly') {
-    return React.cloneElement(children, { 
-      ...children.props, 
+    if (!React.isValidElement(children)) return fallback
+    return React.cloneElement(children, {
+      ...children.props,
       readOnly: !hasAccess,
-      disabled: !hasAccess 
+      disabled: !hasAccess
     })
   }
 
@@ -104,7 +107,7 @@ export function ActionButtons({ children, module }) {
     if (!React.isValidElement(child)) return null
 
     const { action } = child.props
-    
+
     switch (action) {
       case 'create':
         return canCreate(module) ? child : null

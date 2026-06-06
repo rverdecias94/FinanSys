@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
-import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, computeTotals, getFilteredTotals } from '@/services/finanzas'
+import { useMemo, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil, Eye, Download } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
@@ -19,21 +19,21 @@ import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function FinanzasMejorado() {
   const { session } = useSession()
-  const { businessId } = useBusiness()
+  const { businessId, loading: businessLoading } = useBusiness()
   const { checkLimit, recordUsage, getRemainingUsage, subscription } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
-  const { canView, canCreate, canEdit, canDelete, canExport } = usePermissionCheck()
+  const { canView, canEdit, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
 
   // Estado local
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(5)
+  const pageSize = 5;
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
   const [currencyFilter, setCurrencyFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [dateFilter, setDateFilter] = useState(null)
-  const [viewMode, setViewMode] = useState('list') // 'list' o 'readonly'
+  const [isExporting, setIsExporting] = useState(false)
 
   const userId = session?.user?.id
   const dateKey = dateFilter ? JSON.stringify(dateFilter) : null
@@ -50,7 +50,8 @@ export default function FinanzasMejorado() {
   const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['transactions', { userId, businessId, page, pageSize, currencyFilter, categoryFilter, dateKey }],
     queryFn: () => listTransactions({
-      userId: businessId || userId,
+      userId,
+      businessId,
       page,
       pageSize,
       currency: currencyFilter !== 'all' ? currencyFilter : undefined,
@@ -58,37 +59,32 @@ export default function FinanzasMejorado() {
       from: dateFilter?.startDate || undefined,
       to: dateFilter?.endDate || undefined,
     }),
-    enabled: !!userId && !!businessId && canView('finanzas'),
+    enabled: !!userId && !!businessId && !businessLoading && !permissionLoading && canView('finanzas'),
   })
 
   const { data: categories } = useQuery({
     queryKey: ['financeCategories', businessId || userId],
-    queryFn: () => getFinanceCategories(businessId || userId),
-    enabled: !!userId && !!businessId,
+    queryFn: () => getFinanceCategories(),
+    enabled: !!userId && !!businessId && !businessLoading,
   })
 
   const { data: paymentMethods } = useQuery({
     queryKey: ['paymentMethods', businessId || userId],
-    queryFn: () => getPaymentMethods(businessId || userId),
-    enabled: !!userId && !!businessId,
-  })
-
-  const { data: totals } = useQuery({
-    queryKey: ['totals', businessId || userId],
-    queryFn: () => computeTotals(businessId || userId),
-    enabled: !!userId && !!businessId,
+    queryFn: () => getPaymentMethods(),
+    enabled: !!userId && !!businessId && !businessLoading,
   })
 
   const { data: filteredTotals } = useQuery({
     queryKey: ['filteredTotals', { userId: businessId || userId, currency: currencyFilter, category: categoryFilter, dateKey }],
     queryFn: () => getFilteredTotals({
-      userId: businessId || userId,
+      userId,
+      businessId,
       currency: currencyFilter !== 'all' ? currencyFilter : undefined,
       category: categoryFilter !== 'all' ? categoryFilter : undefined,
       from: dateFilter?.startDate || undefined,
       to: dateFilter?.endDate || undefined,
     }),
-    enabled: !!userId && !!businessId,
+    enabled: !!userId && !!businessId && !businessLoading && !permissionLoading,
   })
 
   // Mutaciones
@@ -147,12 +143,70 @@ export default function FinanzasMejorado() {
     setModalOpen(true)
   }
 
-  const handleExport = () => {
-    // Implementar exportación
-    notify.success('Exportación de datos iniciada')
+  const handleExport = async () => {
+    if (!canExport('finanzas')) {
+      notify.error('No tienes permisos para exportar finanzas')
+      return
+    }
+
+    setIsExporting(true)
+    try {
+      const result = await exportTransactions({
+        userId,
+        businessId,
+        currency: currencyFilter !== 'all' ? currencyFilter : undefined,
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        from: dateFilter?.startDate || undefined,
+        to: dateFilter?.endDate || undefined,
+        format: 'xlsx'
+      })
+
+      if (!result?.count) {
+        notify.error('No hay datos para exportar con los filtros actuales')
+        return
+      }
+
+      notify.success(`Exportación completada (${result.count} registros)`)
+    } catch (error) {
+      notify.error('Error al exportar datos')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
-  const totalPages = Math.ceil((transactionsData?.count || 0) / pageSize) || 1
+  const totalPages = Math.ceil(((transactionsData?.count || 0) / 5)) || 1
+  const rows = transactionsData?.data ?? []
+  const summaryCurrencies = useMemo(() => {
+    const incomeCurrencies = Object.keys(filteredTotals?.income || {})
+    const expenseCurrencies = Object.keys(filteredTotals?.expense || {})
+    const currenciesFromTotals = [...new Set([...incomeCurrencies, ...expenseCurrencies])]
+
+    if (currencyFilter !== 'all') return [currencyFilter]
+    if (currenciesFromTotals.length > 0) return currenciesFromTotals
+
+    return businessCurrencies?.map(currency => currency.code) || []
+  }, [businessCurrencies, currencyFilter, filteredTotals])
+
+  const financeSummary = useMemo(() => (
+    summaryCurrencies.map(code => {
+      const income = Number(filteredTotals?.income?.[code] || 0)
+      const expense = Number(filteredTotals?.expense?.[code] || 0)
+
+      return {
+        code,
+        income,
+        expense,
+        net: income - expense
+      }
+    })
+  ), [filteredTotals, summaryCurrencies])
+
+  const categoryOptions = useMemo(() => {
+    if (!categories) return []
+    const income = Array.isArray(categories.income) ? categories.income : []
+    const expense = Array.isArray(categories.expense) ? categories.expense : []
+    return Array.from(new Set([...income, ...expense].filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es'))
+  }, [categories])
 
   // Si no tiene permisos de visualización, mostrar mensaje
   if (!canView('finanzas')) {
@@ -188,15 +242,15 @@ export default function FinanzasMejorado() {
             )}
           </div>
         </h1>
-        
+
         <div className="flex gap-2">
           <PermissionGuard permission="finanzas.export">
-            <Button variant="outline" onClick={handleExport}>
+            <Button variant="outline" onClick={handleExport} disabled={isExporting}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>
           </PermissionGuard>
-          
+
           <PermissionGuard permission="finanzas.create">
             <Button onClick={handleCreate}>
               <Plus className="mr-2 h-4 w-4" />
@@ -233,9 +287,9 @@ export default function FinanzasMejorado() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas las categorías</SelectItem>
-              {categories?.map(category => (
-                <SelectItem key={category.id} value={category.name}>
-                  {category.name}
+              {categoryOptions.map(categoryName => (
+                <SelectItem key={categoryName} value={categoryName}>
+                  {categoryName}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -251,8 +305,12 @@ export default function FinanzasMejorado() {
             <TrendingUp className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(filteredTotals?.totalIncome || 0, currencyFilter)}
+            <div className="space-y-1">
+              {financeSummary.map(item => (
+                <div key={item.code} className={`font-bold text-green-600 ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                  {formatCurrency(item.income, item.code)}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -263,8 +321,12 @@ export default function FinanzasMejorado() {
             <TrendingDown className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(filteredTotals?.totalExpense || 0, currencyFilter)}
+            <div className="space-y-1">
+              {financeSummary.map(item => (
+                <div key={item.code} className={`font-bold text-red-600 ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                  {formatCurrency(item.expense, item.code)}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -275,10 +337,15 @@ export default function FinanzasMejorado() {
             <Wallet className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${
-              (filteredTotals?.netBalance || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {formatCurrency(filteredTotals?.netBalance || 0, currencyFilter)}
+            <div className="space-y-1">
+              {financeSummary.map(item => (
+                <div
+                  key={item.code}
+                  className={`font-bold ${item.net >= 0 ? 'text-green-600' : 'text-red-600'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
+                >
+                  {formatCurrency(item.net, item.code)}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -302,25 +369,24 @@ export default function FinanzasMejorado() {
           <CardTitle>Transacciones</CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoadingTransactions ? (
+          {(businessLoading || permissionLoading || isLoadingTransactions) ? (
             <div className="text-center py-8">Cargando transacciones...</div>
           ) : (
             <div className="space-y-4">
-              {transactionsData?.data?.length === 0 ? (
+              {rows.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   No hay transacciones registradas
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    {transactionsData.data.map(transaction => (
+                    {rows.map(transaction => (
                       <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
-                          <div className={`p-2 rounded-full ${
-                            transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'
-                          }`}>
-                            {transaction.type === 'income' ? 
-                              <TrendingUp className="w-4 h-4 text-green-600" /> : 
+                          <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'
+                            }`}>
+                            {transaction.type === 'income' ?
+                              <TrendingUp className="w-4 h-4 text-green-600" /> :
                               <TrendingDown className="w-4 h-4 text-red-600" />
                             }
                           </div>
@@ -331,17 +397,16 @@ export default function FinanzasMejorado() {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <div className={`font-semibold ${
-                              transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                            }`}>
+                            <div className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                              }`}>
                               {formatCurrency(transaction.amount, transaction.currency)}
                             </div>
                             <Badge variant="outline">{transaction.category}</Badge>
                           </div>
-                          
+
                           <ActionButtons module="finanzas">
                             <Button
                               variant="ghost"
@@ -351,7 +416,7 @@ export default function FinanzasMejorado() {
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            
+
                             <Button
                               variant="ghost"
                               size="sm"
@@ -365,7 +430,7 @@ export default function FinanzasMejorado() {
                       </div>
                     ))}
                   </div>
-                  
+
                   {/* Paginación */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between">
@@ -378,11 +443,11 @@ export default function FinanzasMejorado() {
                         <ChevronLeft className="w-4 h-4" />
                         Anterior
                       </Button>
-                      
+
                       <span className="text-sm text-muted-foreground">
                         Página {page} de {totalPages}
                       </span>
-                      
+
                       <Button
                         variant="outline"
                         size="sm"

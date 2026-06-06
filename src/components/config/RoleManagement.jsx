@@ -108,7 +108,7 @@ export function RoleManagement() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {roles.map((role) => (
+        {roles.filter((r) => String(r.name || '').toLowerCase() !== 'visualizador').map((role) => (
           <Card key={role.id} className={`flex flex-col ${role.is_system ? 'bg-muted/30' : ''}`}>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">

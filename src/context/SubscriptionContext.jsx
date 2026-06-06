@@ -276,7 +276,12 @@ export const SubscriptionProvider = ({ children }) => {
 
   const isPremium = () => {
     if (!subscription) return false
-    return subscription.plan_id === 'premium' && subscription.status === 'active'
+    if (subscription.plan_id !== 'premium') return false
+    if (subscription.status === 'active') return true
+    if (subscription.status === 'trial' && subscription.trial_end_at) {
+      return new Date(subscription.trial_end_at).getTime() > Date.now()
+    }
+    return false
   }
 
   return (

@@ -75,7 +75,7 @@
     --muted-foreground: 0 0% 64%;
     --accent: 0 0% 19%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 7 60% 21%;
+    --destructive: 7 50% 60%;
     --destructive-foreground: 12 12% 92%;
     --border: 0 0% 16%;
     --input: 0 0% 14%;
@@ -189,4 +189,16 @@
   html {
     font-size: 14px;
   }
+}
+
+html.font-compact {
+  font-size: 14px !important;
+}
+
+html.font-normal {
+  font-size: 16px !important;
+}
+
+html.font-accessible {
+  font-size: 18px !important;
 }

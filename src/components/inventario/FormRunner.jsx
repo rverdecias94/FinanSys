@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { listFields, listItems, createItem, updateItem, deleteItem, validateValuesAgainstFields } from '@/services/dynamicInventory'
 import { Button } from '@/components/ui/button'
@@ -8,13 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Trash2, Pencil } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Trash2, Pencil, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { notify } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { usePermissions } from '@/context/PermissionContext'
+import { placeholderForType, toLabelFromName } from '@/utils/inventoryFormUtils'
 
-
-export function FormRunner({ areaId, userId, currentArea }) {
+export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false }) {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -22,6 +23,7 @@ export function FormRunner({ areaId, userId, currentArea }) {
   const [editingId, setEditingId] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
   const { hasPermission } = usePermissions()
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
@@ -39,6 +41,12 @@ export function FormRunner({ areaId, userId, currentArea }) {
   const items = itemsData?.data || []
   const count = itemsData?.count || 0
   const totalPages = Math.ceil(count / pageSize) || 1
+
+  useEffect(() => {
+    if (!initialItem) return
+    setValues(initialItem.values || {})
+    setEditingId(initialItem.id || null)
+  }, [initialItem])
 
   // Mutaciones con mensajes automáticos configurados en 'meta'
   const createMutation = useMutation({
@@ -81,7 +89,15 @@ export function FormRunner({ areaId, userId, currentArea }) {
     e.preventDefault()
     const validation = await validateValuesAgainstFields(values, areaId, userId)
     if (!validation.ok) {
-      notify.warning(`Faltan campos requeridos: ${validation.missing.join(', ')}`)
+      if (validation.missing?.length) {
+        notify.warning(`Faltan campos requeridos: ${validation.missing.join(', ')}`)
+        return
+      }
+      if (validation.invalidNumbers?.length) {
+        notify.warning(`Los campos numéricos deben ser mínimo 1: ${validation.invalidNumbers.join(', ')}`)
+        return
+      }
+      notify.warning('Revisa los datos ingresados')
       return
     }
 
@@ -109,7 +125,17 @@ export function FormRunner({ areaId, userId, currentArea }) {
     setEditingId(null)
   }
 
-  const canShowForm = editingId ? hasPermission('inventory.edit') : hasPermission('inventory.create')
+  const canShowForm = readOnly ? true : (editingId ? hasPermission('inventory.edit') : hasPermission('inventory.create'))
+
+  const visibleItems = useMemo(() => {
+    if (!searchTerm) return items
+    const t = searchTerm.toLowerCase()
+    return items.filter(it => {
+      const sku = String(it.sku || '').toLowerCase()
+      const v = JSON.stringify(it.values || {}).toLowerCase()
+      return sku.includes(t) || v.includes(t)
+    })
+  }, [items, searchTerm])
 
   return (
     <div className="space-y-6">
@@ -126,6 +152,7 @@ export function FormRunner({ areaId, userId, currentArea }) {
             ) : (
               <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {fields.map(f => {
+                  const label = f.label || toLabelFromName(f.name)
                   const commonProps = {
                     id: `field_${f.name}`,
                     required: f.required,
@@ -135,34 +162,64 @@ export function FormRunner({ areaId, userId, currentArea }) {
                   if (f.type === 'text' || f.type === 'textarea') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{f.label}
+                        <Label htmlFor={commonProps.id}>{label}
                           {f.required ? <b className="text-red-500 ml-1">*</b> : <span className="text-muted-foreground ml-1">(Opcional)</span>}
                         </Label>
-                        <Input {...commonProps} />
+                        {f.type === 'textarea' ? (
+                          <Textarea
+                            id={commonProps.id}
+                            value={commonProps.value}
+                            required={commonProps.required}
+                            onChange={readOnly ? undefined : commonProps.onChange}
+                            disabled={readOnly}
+                            placeholder={placeholderForType('textarea')}
+                          />
+                        ) : (
+                          <Input {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} placeholder={placeholderForType('text')} />
+                        )}
                       </div>
                     )
                   }
                   if (f.type === 'number') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{f.label}</Label>
-                        <Input type="number" {...commonProps} />
+                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          id={commonProps.id}
+                          required={commonProps.required}
+                          value={commonProps.value}
+                          placeholder={placeholderForType('number')}
+                          disabled={readOnly}
+                          onChange={(e) => {
+                            if (readOnly) return
+                            const raw = e.target.value
+                            if (raw === '') {
+                              setValues({ ...values, [f.name]: '' })
+                              return
+                            }
+                            const n = Number(raw)
+                            if (!Number.isFinite(n)) return
+                            setValues({ ...values, [f.name]: String(Math.max(1, n)) })
+                          }}
+                        />
                       </div>
                     )
                   }
                   if (f.type === 'date') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{f.label}</Label>
-                        <Input type="date" {...commonProps} />
+                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Input type="date" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
                       </div>
                     )
                   }
                   if (f.type === 'color') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{f.label}</Label>
-                        <Input type="color" {...commonProps} />
+                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Input type="color" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
                       </div>
                     )
                   }
@@ -171,9 +228,13 @@ export function FormRunner({ areaId, userId, currentArea }) {
                       <div key={f.id} className="flex items-center gap-2">
                         <Checkbox
                           checked={Boolean(values[f.name])}
-                          onCheckedChange={(checked) => setValues({ ...values, [f.name]: Boolean(checked) })}
+                          disabled={readOnly}
+                          onCheckedChange={(checked) => {
+                            if (readOnly) return
+                            setValues({ ...values, [f.name]: Boolean(checked) })
+                          }}
                         />
-                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}</Label>
                       </div>
                     )
                   }
@@ -181,13 +242,17 @@ export function FormRunner({ areaId, userId, currentArea }) {
                     const options = Array.isArray(f.options) ? f.options : []
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{f.label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}</Label>
                         <Select
+                          disabled={readOnly}
                           value={String(values[f.name] ?? '')}
-                          onValueChange={(v) => setValues({ ...values, [f.name]: v })}
+                          onValueChange={(v) => {
+                            if (readOnly) return
+                            setValues({ ...values, [f.name]: v })
+                          }}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
+                            <SelectValue placeholder={placeholderForType('select')} />
                           </SelectTrigger>
                           <SelectContent>
                             {options.map(opt => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
@@ -198,78 +263,100 @@ export function FormRunner({ areaId, userId, currentArea }) {
                   }
                   return null
                 })}
-                <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
-                  {editingId && (
-                    <Button type="button" variant="outline" onClick={handleCancelEdit}>
-                      Cancelar Edición
+                {!readOnly && (
+                  <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                    {editingId && (
+                      <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                        Cancelar Edición
+                      </Button>
+                    )}
+                    <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                      {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
                     </Button>
-                  )}
-                  <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
-                    {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
-                  </Button>
-                </div>
+                  </div>
+                )}
               </form>
             )}
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Artículos Registrados</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loadingItems ? (
-            <div className="text-muted-foreground">Cargando items...</div>
-          ) : items.length === 0 ? (
-            <div className="text-muted-foreground">No hay items registrados</div>
-          ) : (
-            items.map(item => (
-              <div key={item.id} className="border rounded-md p-3 flex items-start justify-between gap-3">
-                <div className="text-sm">
-                  <div className="text-muted-foreground">SKU {item.sku || '—'}</div>
-                  {Object.entries(item.values || {}).map(([k, v]) => (
-                    <div key={k}><span className="font-medium">{k}:</span> {String(v)}</div>
-                  ))}
+      {mode === 'full' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Artículos Registrados</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por SKU o contenido..."
+                className="pl-10"
+              />
+            </div>
+
+            {loadingItems ? (
+              <div className="text-muted-foreground">Cargando items...</div>
+            ) : visibleItems.length === 0 ? (
+              <div className="text-muted-foreground">No hay items registrados</div>
+            ) : (
+              visibleItems.map(item => (
+                <div key={item.id} className="border rounded-md p-3 flex items-start justify-between gap-3">
+                  <div className="text-sm">
+                    <div className="text-muted-foreground">SKU {item.sku || '—'}</div>
+                    {Object.entries(item.values || {}).map(([k, v]) => (
+                      <div key={k}><span className="font-medium">{k}:</span> {String(v)}</div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {hasPermission('inventory.edit') && (
+                      <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {hasPermission('inventory.delete') && (
+                      <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {hasPermission('inventory.edit') && (
-                    <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                  )}
-                  {hasPermission('inventory.delete') && (
-                    <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+              ))
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Filas por página:</span>
+                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
+                  <SelectTrigger className="w-[96px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-end gap-3">
+                <div className="text-sm text-muted-foreground">Página {page} de {totalPages}</div>
+                <div className="inline-flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} aria-label="Página siguiente">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
-            ))
-          )}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>Filas por página:</span>
-              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                <SelectTrigger className="w-[90px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Página {page} de {totalPages}
-              <div className="inline-flex gap-2 ml-3">
-                <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>Anterior</Button>
-                <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages}>Siguiente</Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={(o) => {

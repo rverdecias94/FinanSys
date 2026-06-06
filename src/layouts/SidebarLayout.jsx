@@ -3,12 +3,10 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, Eye } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
-import { usePermissionMode } from '@/context/PermissionModeContext'
-import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
 
 export default function SidebarLayout() {
   const location = useLocation()
@@ -16,7 +14,6 @@ export default function SidebarLayout() {
   const { subscription } = useSubscription()
   const { session } = useSession()
   const { isOwner } = useBusiness()
-  const { permissionModeEnabled } = usePermissionMode()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -65,83 +62,47 @@ export default function SidebarLayout() {
             <span>Panel General</span>
           </NavLink>
 
-          {permissionModeEnabled ? (
-            <>
-              <PermissionGuard requiredPermission="finanzas.view">
-                <NavLink to="/finanzas" className={linkClass}>
-                  <Wallet className="w-4 h-4" />
-                  <span>Finanzas</span>
-                </NavLink>
-              </PermissionGuard>
+          <PermissionGuard requiredPermission="finanzas.view">
+            <NavLink to="/finanzas" className={linkClass}>
+              <Wallet className="w-4 h-4" />
+              <span>Finanzas</span>
+            </NavLink>
+          </PermissionGuard>
 
-              <PermissionGuard requiredPermission="inventory.view">
-                <NavLink to="/almacen" className={linkClass}>
-                  <Warehouse className="w-4 h-4" />
-                  <span>Almacén</span>
-                </NavLink>
-              </PermissionGuard>
+          <PermissionGuard requiredPermission="warehouse.view">
+            <NavLink to="/almacen" className={linkClass}>
+              <Warehouse className="w-4 h-4" />
+              <span>Almacén</span>
+            </NavLink>
+          </PermissionGuard>
 
-              <PermissionGuard requiredPermission="inventory.view">
-                <NavLink to="/inventario" className={linkClass}>
-                  <Layers className="w-4 h-4" />
-                  <span>Inventario</span>
-                </NavLink>
-              </PermissionGuard>
+          <PermissionGuard requiredPermission="inventory.view">
+            <NavLink to="/inventario" className={linkClass}>
+              <Layers className="w-4 h-4" />
+              <span>Inventario</span>
+            </NavLink>
+          </PermissionGuard>
 
-              <PermissionGuard requiredPermission="reports.view">
-                <NavLink to="/reportes" className={linkClass}>
-                  <FileText className="w-4 h-4" />
-                  <span>Reportes</span>
-                </NavLink>
-              </PermissionGuard>
+          <PermissionGuard requiredPermission="reports.view">
+            <NavLink to="/reportes" className={linkClass}>
+              <FileText className="w-4 h-4" />
+              <span>Reportes</span>
+            </NavLink>
+          </PermissionGuard>
 
-              <PermissionGuard requiredPermission="logs.view">
-                <NavLink to="/logs" className={linkClass}>
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Auditoría</span>
-                </NavLink>
-              </PermissionGuard>
+          <PermissionGuard requiredPermission="logs.view">
+            <NavLink to="/logs" className={linkClass}>
+              <ShieldAlert className="w-4 h-4" />
+              <span>Auditoría</span>
+            </NavLink>
+          </PermissionGuard>
 
-              <PermissionGuard requiredPermission="config.view">
-                <NavLink to="/configuracion" className={linkClass}>
-                  <Settings className="w-4 h-4" />
-                  <span>Configuración</span>
-                </NavLink>
-              </PermissionGuard>
-            </>
-          ) : (
-            <>
-              <NavLink to="/finanzas" className={linkClass}>
-                <Wallet className="w-4 h-4" />
-                <span>Finanzas</span>
-              </NavLink>
-
-              <NavLink to="/almacen" className={linkClass}>
-                <Warehouse className="w-4 h-4" />
-                <span>Almacén</span>
-              </NavLink>
-
-              <NavLink to="/inventario" className={linkClass}>
-                <Layers className="w-4 h-4" />
-                <span>Inventario</span>
-              </NavLink>
-
-              <NavLink to="/reportes" className={linkClass}>
-                <FileText className="w-4 h-4" />
-                <span>Reportes</span>
-              </NavLink>
-
-              <NavLink to="/logs" className={linkClass}>
-                <ShieldAlert className="w-4 h-4" />
-                <span>Auditoría</span>
-              </NavLink>
-
-              <NavLink to="/configuracion" className={linkClass}>
-                <Settings className="w-4 h-4" />
-                <span>Configuración</span>
-              </NavLink>
-            </>
-          )}
+          <PermissionGuard requiredPermission="config.view">
+            <NavLink to="/configuracion" className={linkClass}>
+              <Settings className="w-4 h-4" />
+              <span>Configuración</span>
+            </NavLink>
+          </PermissionGuard>
         </nav>
 
         <div className="mt-auto pt-4 border-t space-y-4">

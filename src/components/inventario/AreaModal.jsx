@@ -11,7 +11,7 @@ import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInvento
 import { AREA_ICONS } from '@/lib/areaIcons'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
-export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
+export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId }) {
   const { session } = useSession()
   const userId = session?.user?.id
   const queryClient = useQueryClient()
@@ -28,7 +28,7 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
           prefix: ''
         })
         if (userId) {
-          getAreaPrefix(areaToEdit.id, userId).then(p => {
+          getAreaPrefix(areaToEdit.id, userId, businessId).then(p => {
             setFormData(prev => ({ ...prev, prefix: p }))
           })
         }
@@ -36,16 +36,16 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit }) {
         setFormData({ name: '', icon: 'Home', slug: '', prefix: '' })
       }
     }
-  }, [open, areaToEdit, userId])
+  }, [open, areaToEdit, userId, businessId])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
       if (areaToEdit) {
-        await updateArea(areaToEdit.id, formData, userId)
+        await updateArea(areaToEdit.id, formData, userId, businessId)
       } else {
-        await createArea(formData, userId)
+        await createArea(formData, userId, businessId)
       }
       queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
       onSuccess?.()

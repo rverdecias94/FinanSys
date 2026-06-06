@@ -2,6 +2,7 @@ import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId, validateResourceAccess } from '@/services/team'
+import { exportToExcel } from '@/utils/exportUtils'
 
 /**
  * Función auxiliar para obtener el userUuid efectivo
@@ -54,6 +55,24 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
   const { data, count, error } = await q
   if (error) throw error
   return { data, count }
+}
+
+export async function listProductsForSelection({ userId, businessId, limit = 5000 } = {}) {
+  if (!userId) throw new Error('User ID is required for security isolation')
+
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId)
+
+  let q = supabase
+    .from('products')
+    .select('id, name, stock, category')
+    .eq('user_id', effectiveUserId)
+    .order('name', { ascending: true })
+
+  if (limit) q = q.limit(limit)
+
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
 }
 
 export async function getProduct(id, userId, businessId) {
@@ -230,6 +249,34 @@ export async function registerMovement({ product_id, qty, type, userId, business
   })
 }
 
+export async function recordMovement(movementData, userId, businessId) {
+  const productId = movementData.product_id || movementData.product?.id
+  const qty = movementData.qty
+  const type = movementData.type
+
+  return registerMovement({ product_id: productId, qty, type, userId, businessId })
+}
+
+export async function exportProducts(businessId) {
+  const { data: authData } = await supabase.auth.getUser()
+  const userId = authData?.user?.id
+  if (!userId || !businessId) throw new Error('User ID and business ID are required')
+
+  const { data } = await listProducts({ page: 1, pageSize: 5000, userId, businessId })
+  const rows = (data || []).map(p => ({
+    name: p.name,
+    category: p.category,
+    unit_price: p.unit_price,
+    stock: p.stock,
+    min_stock: p.min_stock,
+    currency: p.currency,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
+  }))
+
+  exportToExcel('Productos', rows, `productos_${new Date().toISOString().slice(0, 10)}`)
+}
+
 export async function listMovements({ page = 1, pageSize = 10, type = 'all', productId = 'all', startDate = null, endDate = null, userId, businessId } = {}) {
   if (!userId) throw new Error('User ID is required')
 
@@ -269,6 +316,26 @@ export async function listMovements({ page = 1, pageSize = 10, type = 'all', pro
   const { data, count, error } = await q
   if (error) throw error
   return { data, count }
+}
+
+export async function fetchMovementsForExport({ type = 'all', productId = 'all', startDate = null, endDate = null, userId, businessId } = {}) {
+  const pageSize = 1000
+  const first = await listMovements({ page: 1, pageSize, type, productId, startDate, endDate, userId, businessId })
+  const initialRows = first?.data || []
+  const count = Number(first?.count || 0)
+
+  if (!count || initialRows.length === 0) return []
+
+  const totalPages = Math.ceil(count / pageSize)
+  if (totalPages <= 1) return initialRows
+
+  const rows = [...initialRows]
+  for (let page = 2; page <= totalPages; page++) {
+    const res = await listMovements({ page, pageSize, type, productId, startDate, endDate, userId, businessId })
+    rows.push(...(res?.data || []))
+  }
+
+  return rows
 }
 
 export async function getProductCategories() {

@@ -85,8 +85,9 @@ export async function getRoles() {
 
   if (error) throw error
 
-  // Transform data to include permissions array
-  return data.map(role => ({
+  const filtered = (data || []).filter((role) => String(role.name || '').toLowerCase() !== 'visualizador')
+
+  return filtered.map(role => ({
     ...role,
     permissions: role.role_permissions.map(rp => rp.permissions?.code).filter(Boolean)
   }))
@@ -97,6 +98,9 @@ export async function getRoles() {
  */
 export async function createRole({ name, description, permissionIds, owner_id }) {
   if (!owner_id) throw new Error('Owner ID is required for custom roles')
+  if (String(name || '').trim().toLowerCase() === 'visualizador') {
+    throw new Error('El rol "Visualizador" no está permitido.')
+  }
 
   return await withCrud({ action: 'create', table: 'roles' }, async () => {
     // 1. Create Role
@@ -146,6 +150,9 @@ export async function createRole({ name, description, permissionIds, owner_id })
  * Update an existing custom role
  */
 export async function updateRole(roleId, { name, description, permissionIds }) {
+  if (String(name || '').trim().toLowerCase() === 'visualizador') {
+    throw new Error('El rol "Visualizador" no está permitido.')
+  }
   return await withCrud({ action: 'update', table: 'roles' }, async () => {
     // 1. Update Role Details
     const { data: role, error: roleError } = await supabase
@@ -262,10 +269,8 @@ export async function acceptPendingInvitations(email) {
 
     console.log('Usuario autenticado:', user.id)
 
-    // Use the new RPC function that takes user_id as parameter
-    const { data: accepted, error } = await supabase.rpc('accept_invitation_by_email_with_user', {
-      email_input: email,
-      user_uuid: user.id
+    const { data: accepted, error } = await supabase.rpc('accept_invitation_for_current_user', {
+      email_input: email
     })
 
     console.log('Resultado de accept_invitation_by_email:', { accepted, error })

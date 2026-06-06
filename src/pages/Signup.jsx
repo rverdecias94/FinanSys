@@ -116,10 +116,7 @@ export default function Signup() {
 
       const userId = data?.user?.id || null
       if (userId) {
-        // 2. Create Profile
-        await supabase.from('profiles').insert({ id: userId, role: 'employee' })
-
-        // 3. Check and Accept Invitations (Implicit Linking)
+        // 2. Check and Accept Invitations (Implicit Linking)
         // Esperar un momento para asegurar que la autenticación esté completa
         await new Promise(resolve => setTimeout(resolve, 1000))
 
@@ -131,7 +128,7 @@ export default function Signup() {
           })
           // Skip subscription creation as they are part of a team now
         } else {
-          // 4. Create Free Subscription (Standard Flow)
+          // 3. Create Free Subscription (Standard Flow)
           await createSubscription(userId)
         }
       }

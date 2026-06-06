@@ -6,9 +6,6 @@ import { useBusiness } from '@/context/BusinessContext'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrency } from '@/context/CurrencyContext'
-import { PermissionModeToggle } from '@/components/common/PermissionModeToggle'
-import { DashboardPermissions } from '@/components/dashboard/DashboardPermissions'
-import { usePermissionMode } from '@/context/PermissionModeContext'
 import {
   Select,
   SelectContent,
@@ -51,8 +48,7 @@ const CHART_COLORS = [
 export default function Dashboard() {
   const { session } = useSession()
   const { businessId } = useBusiness()
-  const { businessCurrencies, formatCurrency, loading: currencyLoading } = useCurrency()
-  const { permissionModeEnabled } = usePermissionMode()
+  const { businessCurrencies, formatCurrency } = useCurrency()
   const [summaryFilter, setSummaryFilter] = useState('ALL')
 
   // Filtros para el gráfico de distribución
@@ -112,13 +108,6 @@ export default function Dashboard() {
   const recentActivityCount = recentActivityQuery.data?.length ?? 0
   const financialDistribution = financialDistributionQuery.data ?? []
   const yearData = yearlySummaryQuery.data ?? {}
-
-  const loading = statsQuery.isLoading
-    || recentActivityQuery.isLoading
-    || currencyLoading
-
-  const hasError = statsQuery.isError
-    || recentActivityQuery.isError
 
   const monthNames = useMemo(() => (["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]), [])
 
@@ -215,17 +204,8 @@ export default function Dashboard() {
           </h1>
           <p className="text-muted-foreground">Bienvenido al sistema de gestión contable.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <PermissionModeToggle compact />
-        </div>
+        <div className="flex items-center gap-4" />
       </div>
-
-      {/* Permission Dashboard - Solo visible cuando el modo está activado */}
-      {permissionModeEnabled && (
-        <div className="mb-6">
-          <DashboardPermissions />
-        </div>
-      )}
 
       {/* Stats Cards */}
       <div className="grid gap-2 grid-cols-2 md:grid-cols-5">
@@ -240,7 +220,7 @@ export default function Dashboard() {
             <div className="space-y-1">
               {businessCurrencies.map(curr => (
                 <div key={curr.code} className="flex items-baseline gap-2">
-                  <span className="text-xl sm:text-2xl font-bold">
+                  <span className="text-xl sm:text-1xl font-bold">
                     {formatCurrency(stats.balance[curr.code] || 0, curr.code)}
                   </span>
                 </div>
@@ -430,9 +410,9 @@ export default function Dashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent className="pl-5">
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={financialData} margin={{ left: 12, right: 24, top: 10, bottom: 10 }}>
+              <BarChart data={financialData} margin={{ left: 24, right: 24, top: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="name"
@@ -523,7 +503,7 @@ export default function Dashboard() {
                     cx="50%"
                     cy="50%"
                     labelLine={true}
-                    outerRadius={80}
+                    outerRadius={30}
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   >

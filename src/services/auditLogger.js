@@ -13,11 +13,19 @@ export const logAction = async ({ action, resource, details, area }) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    let businessId = user.id
+    try {
+      const { data: context } = await supabase.rpc('get_user_business_context', { user_uuid: user.id })
+      businessId = context?.businessId || user.id
+    } catch {
+      businessId = user.id
+    }
+
     // Check subscription status
     const { data: subscription } = await supabase
       .from('subscriptions')
       .select('plan_id')
-      .eq('user_id', user.id)
+      .eq('user_id', businessId)
       .single()
 
     // Only log for premium users, EXCEPT for some critical configuration changes (like currencies)
@@ -35,6 +43,8 @@ export const logAction = async ({ action, resource, details, area }) => {
     }
 
     const { error } = await supabase.from('audit_logs').insert({
+      business_id: businessId,
+      actor_id: user.id,
       user_id: user.id,
       user_email: user.email,
       action,

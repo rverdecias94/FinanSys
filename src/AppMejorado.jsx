@@ -16,7 +16,10 @@ import {
   FinanzasMejorado,
   AlmacenMejorado,
   InventarioMejorado,
-  ReportesMejorado,
+  InventarioNuevo,
+  InventarioItem,
+  InventarioConfigFormulario,
+  Reportes,
   ConfiguracionMejorado,
   LogsMejorado
 } from '@/pages'
@@ -49,11 +52,16 @@ export default function AppMejorado() {
                   {/* Inventario - con permisos mejorados */}
                   <Route path="/inventario" element={<ProtectedRoute requiredPermission="inventory.view" />}>
                     <Route index element={<InventarioMejorado />} />
+                    <Route path="nuevo" element={<ProtectedRoute requiredPermission="inventory.create" />}>
+                      <Route index element={<InventarioNuevo />} />
+                    </Route>
+                    <Route path=":id" element={<InventarioItem />} />
+                    <Route path="config-formulario" element={<InventarioConfigFormulario />} />
                   </Route>
                   
                   {/* Reportes - con permisos mejorados */}
                   <Route path="/reportes" element={<ProtectedRoute requiredPermission="reports.view" />}>
-                    <Route index element={<ReportesMejorado />} />
+                    <Route index element={<Reportes />} />
                   </Route>
                   
                   {/* Configuración - con permisos mejorados */}

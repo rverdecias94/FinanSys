@@ -2,56 +2,71 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { updateBalanceConfig } from '../services/finanzas'
 import { supabase } from '@/config/supabase'
 
-// Mock Supabase
-vi.mock('@/config/supabase', () => ({
-  supabase: {
-    rpc: vi.fn(),
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn()
-        }))
-      }))
-    }))
-  }
+vi.mock('@/services/auditLogger', () => ({
+  logAction: vi.fn().mockResolvedValue(undefined)
 }))
+
+vi.mock('@/config/supabase', () => {
+  const createTransactionsQuery = (result) => {
+    const q = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      then: (resolve) => Promise.resolve(resolve(result)),
+    }
+    return q
+  }
+
+  const createBalancesQuery = (result) => {
+    const q = {
+      upsert: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue(result),
+    }
+    return q
+  }
+
+  const from = vi.fn((table) => {
+    if (table === 'transactions') {
+      return createTransactionsQuery({
+        data: [
+          { amount: 100, type: 'income' },
+          { amount: 50, type: 'expense' },
+        ],
+        error: null,
+      })
+    }
+
+    if (table === 'business_balances') {
+      return createBalancesQuery({
+        data: { user_id: 'b1', currency_code: 'USD', initial_balance: 100, current_balance: 150 },
+        error: null,
+      })
+    }
+
+    return createBalancesQuery({ data: null, error: null })
+  })
+
+  return {
+    supabase: {
+      from
+    }
+  }
+})
 
 describe('Balance Configuration Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('updateBalanceConfig calls the secure RPC with correct parameters', async () => {
-    const userId = 'user-123'
-    const initialUsd = 1000
-    const initialCup = 5000
-    
-    // Mock successful response
-    const mockResponse = {
-      data: { 
-        initial_usd: 1000, initial_cup: 5000, 
-        total_usd: 1000, total_cup: 5000 
-      },
-      error: null
-    }
-    supabase.rpc.mockResolvedValue(mockResponse)
-
-    const result = await updateBalanceConfig(userId, initialUsd, initialCup)
-
-    expect(supabase.rpc).toHaveBeenCalledWith('update_balance_config_secure', {
-      p_new_initial_usd: 1000,
-      p_new_initial_cup: 5000
-    })
-    
-    expect(result).toEqual(mockResponse.data)
+  it('updateBalanceConfig returns null when balances is empty', async () => {
+    const result = await updateBalanceConfig('u1', 'b1', [])
+    expect(result).toBeNull()
   })
 
-  it('updateBalanceConfig throws error if RPC fails', async () => {
-    supabase.rpc.mockResolvedValue({
-      data: null,
-      error: { message: 'RPC Error' }
-    })
-
-    await expect(updateBalanceConfig('uid', 100, 100)).rejects.toEqual({ message: 'RPC Error' })
+  it('updateBalanceConfig upserts business_balances using effective user id', async () => {
+    const result = await updateBalanceConfig('u1', 'b1', [{ currency_code: 'USD', initial_balance: 100 }])
+    expect(result).toEqual(expect.any(Array))
+    expect(supabase.from).toHaveBeenCalledWith('transactions')
+    expect(supabase.from).toHaveBeenCalledWith('business_balances')
   })
 })

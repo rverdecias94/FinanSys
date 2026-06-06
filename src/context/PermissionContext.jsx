@@ -2,13 +2,11 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { useSession } from '@/hooks/useSession'
 import { getUserPermissions } from '@/services/team'
 import { toast } from 'sonner'
-import { usePermissionMode } from './PermissionModeContext'
 
 const PermissionContext = createContext()
 
 export function PermissionProvider({ children }) {
   const { session } = useSession()
-  const { permissionModeEnabled } = usePermissionMode()
   const [permissions, setPermissions] = useState([]) // Array of strings e.g. ['finanzas.view', 'config.edit']
   const [loading, setLoading] = useState(true)
   const [isOwner, setIsOwner] = useState(false)
@@ -45,9 +43,6 @@ export function PermissionProvider({ children }) {
    * @returns {boolean}
    */
   const hasPermission = (requiredPermission) => {
-    // Si el modo de permisos está desactivado, dar acceso completo
-    if (!permissionModeEnabled) return true
-    
     if (loading) return false
     if (isOwner) return true // Super Admin access
     if (!requiredPermission) return true

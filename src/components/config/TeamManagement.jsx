@@ -32,21 +32,23 @@ export function TeamManagement() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState(null)
 
+  const allowedRole = (role) => String(role?.name || '').toLowerCase() !== 'visualizador'
+
   const fetchData = async () => {
     if (!session?.user?.id) return
     try {
       setLoading(true)
       const [membersData, rolesData] = await Promise.all([
-        getTeamMembers(session.user.id),
+        getTeamMembers(businessId || session.user.id),
         getRoles()
       ])
       setMembers(membersData || [])
-      setRoles(rolesData || [])
+      const nextRoles = (rolesData || []).filter(allowedRole)
+      setRoles(nextRoles)
 
       // Set default role if available
-      if (rolesData && rolesData.length > 0 && !selectedRole) {
-        // Prefer 'Visualizador' or the last system role
-        const defaultRole = rolesData.find(r => r.name === 'Visualizador') || rolesData[rolesData.length - 1]
+      if (nextRoles.length > 0 && !selectedRole) {
+        const defaultRole = nextRoles.find(r => r.name === 'Consultor') || nextRoles.find(r => r.name === 'Editor') || nextRoles[0]
         setSelectedRole(defaultRole.id)
       }
     } catch (error) {

@@ -7,6 +7,7 @@ import {
   Calendar,
   TrendingUp,
   Package,
+  Archive,
   DollarSign,
   BarChart3,
   PieChart,
@@ -68,9 +69,15 @@ export default function ReportesMejorado() {
 
     setIsGenerating(true)
     try {
+      const normalizedFormat = format === 'excel' ? 'xlsx' : format
+      if (normalizedFormat === 'csv') {
+        notify.error('CSV no está disponible por el momento')
+        return
+      }
+
       await exportReport(type, businessId || userId, { 
         dateRange, 
-        format,
+        format: normalizedFormat,
         modules: selectedModules 
       })
       notify.success(`Reporte exportado exitosamente en formato ${format.toUpperCase()}`)
@@ -239,7 +246,7 @@ export default function ReportesMejorado() {
               <CardContent>
                 <Badge variant="default">Visualización Activa</Badge>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Visualizador puede ver todos los datos
+                  Consultor puede ver todos los datos
                 </p>
               </CardContent>
             </Card>

@@ -2,6 +2,7 @@ import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId } from '@/services/team'
+import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
 
 export async function uploadAttachments(files, userId) {
   const urls = [];
@@ -24,7 +25,7 @@ export async function uploadAttachments(files, userId) {
     const { data: { publicUrl } } = supabase.storage
       .from('transaction-images')
       .getPublicUrl(fileName);
-      
+
     urls.push(publicUrl);
   }
   return urls;
@@ -43,7 +44,7 @@ export async function deleteAttachments(urls) {
     const { error } = await supabase.storage
       .from('transaction-images')
       .remove(paths);
-    
+
     if (error) {
       console.error('Error deleting files from bucket:', error);
     }
@@ -232,6 +233,61 @@ export async function listTransactions({ from, to, category, type, currency, use
     return { data, count }
   }
   return data
+}
+
+export async function fetchTransactionsForExport({ from, to, category, type, currency, userId, businessId }) {
+  const pageSize = 1000
+  const first = await listTransactions({ from, to, category, type, currency, userId, businessId, page: 1, pageSize })
+  const initialRows = first?.data || []
+  const count = Number(first?.count || 0)
+
+  if (!count || initialRows.length === 0) return []
+
+  const totalPages = Math.ceil(count / pageSize)
+  if (totalPages <= 1) return initialRows
+
+  const rows = [...initialRows]
+  for (let page = 2; page <= totalPages; page++) {
+    const res = await listTransactions({ from, to, category, type, currency, userId, businessId, page, pageSize })
+    rows.push(...(res?.data || []))
+  }
+
+  return rows
+}
+
+export async function exportTransactions({ from, to, category, type, currency, userId, businessId, format = 'xlsx' }) {
+  const rows = await fetchTransactionsForExport({ from, to, category, type, currency, userId, businessId })
+
+  const filename = `finanzas_${new Date().toISOString().slice(0, 10)}`
+
+  if (format === 'pdf') {
+    const headers = ['Fecha', 'Tipo', 'Categoría', 'Monto', 'Moneda', 'Descripción']
+    const body = rows.map(r => [
+      r.date ? new Date(r.date).toLocaleString() : '',
+      r.type === 'income' ? 'Ingreso' : r.type === 'expense' ? 'Gasto' : (r.type || ''),
+      r.category || '',
+      r.amount ?? '',
+      r.currency || '',
+      r.description || ''
+    ])
+    exportToPDF('Finanzas (Filtrado)', headers, body, filename)
+    return { count: rows.length }
+  }
+
+  const excelRows = rows.map(r => ({
+    Fecha: r.date ? new Date(r.date).toLocaleString() : '',
+    Tipo: r.type === 'income' ? 'Ingreso' : r.type === 'expense' ? 'Gasto' : (r.type || ''),
+    Categoría: r.category || '',
+    Monto: r.amount ?? '',
+    Moneda: r.currency || '',
+    Descripción: r.description || '',
+    'Método de Pago': r.details?.payment_method || '',
+    Referencia: r.details?.reference_number || '',
+    Notas: r.details?.notes || '',
+  }))
+
+  exportToExcel('Finanzas', excelRows, filename)
+  return { count: rows.length }
 }
 
 export async function getFilteredTotals({ from, to, category, type, currency, userId, businessId }) {

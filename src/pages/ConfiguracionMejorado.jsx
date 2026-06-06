@@ -1,33 +1,19 @@
-import { useState } from 'react'
-import { 
-  Settings, 
-  Users, 
-  DollarSign, 
-  Shield, 
-  AlertTriangle,
-  Eye,
-  Edit3,
-  Lock,
-  UserCheck,
-  Key,
-  Mail,
-  Bell,
-  Palette,
-  Globe
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Settings, Users, Shield, AlertTriangle, Lock, Crown, Coins } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useSession } from '@/hooks/useSession'
-import { useBusiness } from '@/context/BusinessContext'
-import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
+import { useSubscription } from '@/context/SubscriptionContext'
+import { usePermissionCheck } from '@/components/common/PermissionGuard'
 import { DashboardPermissions, PermissionSummary } from '@/components/dashboard/DashboardPermissions'
+import { TeamManagement } from '@/components/config/TeamManagement'
+import { RoleManagement } from '@/components/config/RoleManagement'
+import { PlansPanel } from '@/components/config/PlansPanel'
+import { CurrenciesPanel } from '@/components/config/CurrenciesPanel'
+import { GeneralSettingsPanel } from '@/components/config/GeneralSettingsPanel'
 
 export default function ConfiguracionMejorado() {
-  const { session } = useSession()
-  const { businessId } = useBusiness()
-  const { canView, canEdit, isOwner, loading } = usePermissionCheck()
+  const { canView, isOwner } = usePermissionCheck()
+  const { subscription } = useSubscription()
 
   // Si no tiene permisos de visualización, mostrar mensaje de acceso restringido
   if (!canView('config')) {
@@ -73,7 +59,16 @@ export default function ConfiguracionMejorado() {
         </h1>
         
         {/* Resumen de permisos actual */}
-        <PermissionSummary compact />
+        <div className="flex items-center gap-3">
+          <Badge variant="secondary" className="hidden sm:inline-flex">
+            {subscription?.plan_id === 'premium' ? (
+              <span className="inline-flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Plan Premium</span>
+            ) : (
+              <span className="inline-flex items-center gap-2"><Coins className="h-3.5 w-3.5" /> Plan Gratuito</span>
+            )}
+          </Badge>
+          <PermissionSummary compact />
+        </div>
       </div>
 
       {/* Mensaje de advertencia para usuarios no propietarios */}
@@ -99,354 +94,56 @@ export default function ConfiguracionMejorado() {
       )}
 
       {/* Tabs de configuración */}
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+      <Tabs defaultValue="planes" className="space-y-4">
+        <TabsList className="w-full overflow-x-auto flex gap-2 justify-start">
+          <TabsTrigger value="planes" className="flex items-center gap-2">
+            <Crown className="w-4 h-4" />
+            Planes
+          </TabsTrigger>
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             General
           </TabsTrigger>
-          <TabsTrigger value="moneda" className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4" />
-            Moneda
+          <TabsTrigger value="monedas" className="flex items-center gap-2">
+            <Coins className="w-4 h-4" />
+            Monedas
           </TabsTrigger>
           <TabsTrigger value="equipo" className="flex items-center gap-2">
             <Users className="w-4 h-4" />
             Equipo
           </TabsTrigger>
+          <TabsTrigger value="roles" className="flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Roles
+          </TabsTrigger>
           <TabsTrigger value="permisos" className="flex items-center gap-2">
             <Shield className="w-4 h-4" />
             Permisos
           </TabsTrigger>
-          <TabsTrigger value="notificaciones" className="flex items-center gap-2">
-            <Bell className="w-4 h-4" />
-            Notificaciones
-          </TabsTrigger>
         </TabsList>
 
-        {/* Tab General */}
+        <TabsContent value="planes" className="space-y-4">
+          <PlansPanel />
+        </TabsContent>
+
         <TabsContent value="general" className="space-y-4">
-          <PermissionGuard 
-            permission="config.edit" 
-            mode="readonly"
-            fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="w-5 h-5" />
-                    Configuración General
-                    <Badge variant="secondary">Solo Lectura</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Eye className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Información de la Empresa</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Puedes ver la configuración actual de la empresa, pero no puedes modificarla.
-                      </p>
-                    </div>
-                    
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Lock className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Configuración del Sistema</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Los ajustes del sistema están bloqueados para tu rol actual.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            }
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-5 h-5" />
-                  Configuración General
-                  {isOwner && <Badge variant="default">Acceso Total</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Nombre de la Empresa</label>
-                    <input 
-                      type="text" 
-                      className="w-full px-3 py-2 border rounded-md bg-background"
-                      placeholder="Nombre de tu empresa"
-                      disabled={!canEdit('config')}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Descripción</label>
-                    <textarea 
-                      className="w-full px-3 py-2 border rounded-md bg-background min-h-[100px]"
-                      placeholder="Descripción de tu empresa"
-                      disabled={!canEdit('config')}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button disabled={!canEdit('config')}>
-                      Guardar Cambios
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </PermissionGuard>
+          <GeneralSettingsPanel />
         </TabsContent>
 
-        {/* Tab Moneda */}
-        <TabsContent value="moneda" className="space-y-4">
-          <PermissionGuard 
-            permission="config.edit" 
-            mode="readonly"
-            fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5" />
-                    Configuración de Moneda
-                    <Badge variant="secondary">Solo Lectura</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Eye className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Monedas Configuradas</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Puedes ver las monedas configuradas en el sistema, pero no puedes modificarlas.
-                      </p>
-                    </div>
-                    
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Globe className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Divisas y Tasas</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        La configuración de divisas está restringida para tu rol actual.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            }
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="w-5 h-5" />
-                  Configuración de Moneda
-                  {isOwner && <Badge variant="default">Acceso Total</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Moneda Principal</label>
-                    <select className="w-full px-3 py-2 border rounded-md bg-background" disabled={!canEdit('config')}>
-                      <option value="USD">USD - Dólar Americano</option>
-                      <option value="CUP">CUP - Peso Cubano</option>
-                      <option value="EUR">EUR - Euro</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Monedas Adicionales</label>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input type="checkbox" id="cup" disabled={!canEdit('config')} />
-                        <label htmlFor="cup" className="text-sm">CUP - Peso Cubano</label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input type="checkbox" id="eur" disabled={!canEdit('config')} />
-                        <label htmlFor="eur" className="text-sm">EUR - Euro</label>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button disabled={!canEdit('config')}>
-                      Guardar Cambios
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </PermissionGuard>
+        <TabsContent value="monedas" className="space-y-4">
+          <CurrenciesPanel />
         </TabsContent>
 
-        {/* Tab Equipo */}
         <TabsContent value="equipo" className="space-y-4">
-          <PermissionGuard 
-            permission="team.manage" 
-            mode="readonly"
-            fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5" />
-                    Gestión de Equipo
-                    <Badge variant="secondary">Solo Lectura</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Eye className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Miembros del Equipo</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Puedes ver los miembros del equipo, pero no puedes gestionarlos.
-                      </p>
-                    </div>
-                    
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Mail className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Invitaciones</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        No puedes enviar invitaciones ni gestionar roles de otros usuarios.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            }
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Gestión de Equipo
-                  {isOwner && <Badge variant="default">Acceso Total</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h4 className="font-medium">Invitar Nuevos Miembros</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Agrega nuevos miembros a tu equipo de trabajo
-                      </p>
-                    </div>
-                    <Button disabled={!canEdit('team')}>
-                      <Users className="w-4 h-4 mr-2" />
-                      Invitar Miembro
-                    </Button>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-2">Miembros Actuales</h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                            <UserCheck className="w-4 h-4 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-medium">Tú (Propietario)</p>
-                            <p className="text-sm text-muted-foreground">Acceso completo</p>
-                          </div>
-                        </div>
-                        <Badge variant="default">Propietario</Badge>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </PermissionGuard>
+          <TeamManagement />
         </TabsContent>
 
-        {/* Tab Permisos */}
+        <TabsContent value="roles" className="space-y-4">
+          <RoleManagement />
+        </TabsContent>
+
         <TabsContent value="permisos" className="space-y-4">
           <DashboardPermissions />
-        </TabsContent>
-
-        {/* Tab Notificaciones */}
-        <TabsContent value="notificaciones" className="space-y-4">
-          <PermissionGuard 
-            permission="config.edit" 
-            mode="readonly"
-            fallback={
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Bell className="w-5 h-5" />
-                    Configuración de Notificaciones
-                    <Badge variant="secondary">Solo Lectura</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Eye className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Preferencias de Notificación</span>
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Puedes ver las configuraciones de notificación, pero no puedes modificarlas.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            }
-          >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Configuración de Notificaciones
-                  {isOwner && <Badge variant="default">Acceso Total</Badge>}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Notificaciones por Email</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Recibe notificaciones importantes por correo electrónico
-                      </p>
-                    </div>
-                    <input type="checkbox" className="toggle" disabled={!canEdit('config')} />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Notificaciones en la Aplicación</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Muestra notificaciones dentro de la aplicación
-                      </p>
-                    </div>
-                    <input type="checkbox" className="toggle" disabled={!canEdit('config')} />
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button disabled={!canEdit('config')}>
-                      Guardar Cambios
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </PermissionGuard>
         </TabsContent>
       </Tabs>
     </div>
