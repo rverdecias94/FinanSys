@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
@@ -13,7 +13,7 @@ export default function SidebarLayout() {
   const navigate = useNavigate()
   const { subscription } = useSubscription()
   const { session } = useSession()
-  const { isOwner } = useBusiness()
+  const { isOwner, roleName, roleId } = useBusiness()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -119,21 +119,33 @@ export default function SidebarLayout() {
 
           {isOwner && (
             <div className="flex flex-col gap-2">
-              {subscription?.plan_id === 'premium' &&
-                <div className={`text-xs font-semibold px-2 py-1 rounded text-center ${subscription?.plan_id === 'premium' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+              {subscription?.plan_id === 'premium' && (
+                <div className="text-xs font-semibold px-2 py-1 rounded text-center bg-primary/10 text-primary">
                   Plan Premium
                 </div>
-              }
-              {subscription?.plan_id !== 'premium' && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="w-full text-xs font-bold uppercase bg-primary/70"
-                  onClick={() => navigate('/configuracion')}
-                >
-                  MEJORAR PLAN
-                </Button>
               )}
+              {subscription?.plan_id !== 'premium' && (
+                <>
+                  <div className="text-xs font-semibold px-2 py-1 rounded text-center bg-muted text-muted-foreground">
+                    Plan Gratuito
+                  </div>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full text-xs font-bold uppercase bg-primary/70"
+                    onClick={() => navigate('/configuracion')}
+                  >
+                    MEJORAR PLAN
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {!isOwner && (roleName || roleId) && (
+            <div className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">
+              <Shield className="h-3.5 w-3.5 shrink-0" />
+              <span>{roleName || 'Miembro'}</span>
             </div>
           )}
         </div>

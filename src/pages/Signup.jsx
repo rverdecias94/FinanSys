@@ -5,8 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-import { acceptPendingInvitations } from '@/services/team'
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -17,22 +15,18 @@ export default function Signup() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // UI States
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // Validation States
   const [strength, setStrength] = useState({ score: 0, label: 'Débil', color: 'bg-gray-200' })
   const [passMatch, setPassMatch] = useState(false)
   const [isTouched, setIsTouched] = useState(false)
 
-  // Password Requirements
   const requirements = {
     length: password.length >= 8,
     alphanumeric: /[a-zA-Z]/.test(password) && /\d/.test(password)
   }
 
-  // Calculate Password Strength
   useEffect(() => {
     if (!password) {
       setStrength({ score: 0, label: 'Débil', color: 'bg-gray-200' })
@@ -59,12 +53,10 @@ export default function Signup() {
     setStrength({ score, label, color })
   }, [password])
 
-  // Check Password Match
   useEffect(() => {
     setPassMatch(password === confirmPassword && password !== '')
   }, [password, confirmPassword])
 
-  // Form Validity
   const isFormValid =
     email &&
     password &&
@@ -74,34 +66,6 @@ export default function Signup() {
     (strength.label === 'Normal' || strength.label === 'Fuerte') &&
     passMatch
 
-  const createSubscription = async (userId) => {
-    try {
-      // Crear suscripción free para nuevo usuario
-      const { error: subscriptionError } = await supabase
-        .from('subscriptions')
-        .insert({
-          user_id: userId,
-          plan_id: 'free',
-          status: 'active'
-        })
-
-      if (subscriptionError) {
-        console.error('Error al crear suscripción:', subscriptionError)
-        throw subscriptionError
-      }
-
-      toast.success('Cuenta creada exitosamente', {
-        description: 'Se ha asignado un plan gratuito a tu cuenta.'
-      })
-    } catch (error) {
-      console.error('Error en creación de suscripción:', error)
-      // No bloquear el registro, pero mostrar advertencia
-      toast.warning('Error al configurar suscripción', {
-        description: 'Tu cuenta se ha creado con plan gratuito por defecto.'
-      })
-    }
-  }
-
   const handleSignup = async (e) => {
     e.preventDefault()
     if (!isFormValid) return
@@ -110,33 +74,22 @@ export default function Signup() {
     setError(null)
 
     try {
-      // 1. Create Auth User
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
 
-      const userId = data?.user?.id || null
-      if (userId) {
-        // 2. Check and Accept Invitations (Implicit Linking)
-        // Esperar un momento para asegurar que la autenticación esté completa
-        await new Promise(resolve => setTimeout(resolve, 1000))
+      await supabase.auth.signOut()
 
-        const hasInvitations = await acceptPendingInvitations(email)
-
-        if (hasInvitations) {
-          toast.success('¡Te has unido al equipo correctamente!', {
-            description: 'Se encontraron invitaciones pendientes y han sido aceptadas automáticamente.'
-          })
-          // Skip subscription creation as they are part of a team now
-        } else {
-          // 3. Create Free Subscription (Standard Flow)
-          await createSubscription(userId)
+      navigate('/login', {
+        replace: true,
+        state: {
+          email,
+          notice:
+            'Cuenta creada correctamente. Revisa tu correo y haz clic en el enlace de confirmación. Después, inicia sesión para acceder al sistema.'
         }
-      }
-
-      navigate('/')
-    } catch (error) {
-      console.error(error)
-      setError(error.message)
+      })
+    } catch (err) {
+      console.error(err)
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -146,7 +99,6 @@ export default function Signup() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
 
-        {/* Header Section */}
         <div className="flex flex-col items-center space-y-4">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
             <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
@@ -161,7 +113,6 @@ export default function Signup() {
           </div>
         </div>
 
-        {/* Form Section */}
         <form className="space-y-6" onSubmit={handleSignup}>
           {error && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm flex items-center animate-in fade-in slide-in-from-top-1">
@@ -170,7 +121,6 @@ export default function Signup() {
           )}
 
           <div className="space-y-4">
-            {/* Email Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none text-gray-700">
                 Correo Electrónico
@@ -185,14 +135,13 @@ export default function Signup() {
               />
             </div>
 
-            {/* Password Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none text-gray-700">
                 Contraseña
               </label>
               <div className="relative">
                 <Input
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Crear contraseña"
                   value={password}
                   onChange={(e) => {
@@ -211,19 +160,18 @@ export default function Signup() {
                 </button>
               </div>
 
-              {/* Strength Meter */}
               {password && (
                 <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
                   <div className="flex gap-1 h-1.5 mt-2">
-                    <div className={cn("h-full rounded-full flex-1 transition-all duration-500",
-                      strength.score >= 0 ? strength.color : "bg-gray-100")} />
-                    <div className={cn("h-full rounded-full flex-1 transition-all duration-500",
-                      strength.score >= 2 ? strength.color : "bg-gray-100")} />
-                    <div className={cn("h-full rounded-full flex-1 transition-all duration-500",
-                      strength.score >= 4 ? strength.color : "bg-gray-100")} />
+                    <div className={cn('h-full rounded-full flex-1 transition-all duration-500',
+                      strength.score >= 0 ? strength.color : 'bg-gray-100')} />
+                    <div className={cn('h-full rounded-full flex-1 transition-all duration-500',
+                      strength.score >= 2 ? strength.color : 'bg-gray-100')} />
+                    <div className={cn('h-full rounded-full flex-1 transition-all duration-500',
+                      strength.score >= 4 ? strength.color : 'bg-gray-100')} />
                   </div>
                   <div className="flex justify-between items-center text-xs">
-                    <span className={cn("font-medium transition-colors duration-300",
+                    <span className={cn('font-medium transition-colors duration-300',
                       strength.label === 'Débil' ? 'text-red-500' :
                         strength.label === 'Normal' ? 'text-yellow-600' : 'text-green-600'
                     )}>
@@ -231,11 +179,11 @@ export default function Signup() {
                     </span>
                   </div>
                   <ul className="text-xs space-y-1 text-gray-500 mt-2">
-                    <li className={cn("flex items-center gap-1.5 transition-colors", requirements.length ? "text-green-600" : "")}>
+                    <li className={cn('flex items-center gap-1.5 transition-colors', requirements.length ? 'text-green-600' : '')}>
                       {requirements.length ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-gray-400" />}
                       Mínimo 8 caracteres
                     </li>
-                    <li className={cn("flex items-center gap-1.5 transition-colors", requirements.alphanumeric ? "text-green-600" : "")}>
+                    <li className={cn('flex items-center gap-1.5 transition-colors', requirements.alphanumeric ? 'text-green-600' : '')}>
                       {requirements.alphanumeric ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-gray-400" />}
                       Incluir letras y números
                     </li>
@@ -244,21 +192,20 @@ export default function Signup() {
               )}
             </div>
 
-            {/* Confirm Password Field */}
             <div className="space-y-2">
               <label className="text-sm font-medium leading-none text-gray-700">
                 Repetir Contraseña
               </label>
               <div className="relative">
                 <Input
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Repetir contraseña"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className={cn(
-                    "h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10",
-                    confirmPassword && !passMatch ? "border-red-200 focus:border-red-500 focus:ring-red-500" :
-                      confirmPassword && passMatch ? "border-green-200 focus:border-green-500 focus:ring-green-500" : ""
+                    'h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10',
+                    confirmPassword && !passMatch ? 'border-red-200 focus:border-red-500 focus:ring-red-500' :
+                      confirmPassword && passMatch ? 'border-green-200 focus:border-green-500 focus:ring-green-500' : ''
                   )}
                   required
                   disabled={!password}

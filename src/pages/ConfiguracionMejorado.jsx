@@ -12,10 +12,13 @@ import { CurrenciesPanel } from '@/components/config/CurrenciesPanel'
 import { GeneralSettingsPanel } from '@/components/config/GeneralSettingsPanel'
 
 export default function ConfiguracionMejorado() {
-  const { canView, isOwner } = usePermissionCheck()
+  const { canView, isOwner, hasPermission } = usePermissionCheck()
   const { subscription } = useSubscription()
 
-  // Si no tiene permisos de visualización, mostrar mensaje de acceso restringido
+  const isPremium = subscription?.plan_id === 'premium'
+  const canManageTeam = isOwner || hasPermission('team.manage')
+  const showTeamTabs = canManageTeam && isPremium
+
   if (!canView('config')) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -49,7 +52,6 @@ export default function ConfiguracionMejorado() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
@@ -57,11 +59,10 @@ export default function ConfiguracionMejorado() {
           </div>
           Configuración
         </h1>
-        
-        {/* Resumen de permisos actual */}
+
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="hidden sm:inline-flex">
-            {subscription?.plan_id === 'premium' ? (
+            {isPremium ? (
               <span className="inline-flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Plan Premium</span>
             ) : (
               <span className="inline-flex items-center gap-2"><Coins className="h-3.5 w-3.5" /> Plan Gratuito</span>
@@ -71,7 +72,6 @@ export default function ConfiguracionMejorado() {
         </div>
       </div>
 
-      {/* Mensaje de advertencia para usuarios no propietarios */}
       {!isOwner && (
         <Card className="border-yellow-200 bg-yellow-50">
           <CardHeader>
@@ -81,25 +81,21 @@ export default function ConfiguracionMejorado() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-yellow-700 mb-3">
-              Estás viendo la configuración en modo de solo lectura. Como usuario con permisos limitados, 
-              puedes ver la configuración actual pero no puedes realizar cambios.
+            <p className="text-yellow-700">
+              Estás viendo la configuración en modo de solo lectura. Contacta al propietario del negocio si necesitas realizar cambios.
             </p>
-            <div className="flex items-center gap-2 text-sm text-yellow-600">
-              <UserCheck className="w-4 h-4" />
-              <span>Contacta al propietario del negocio si necesitas realizar cambios en la configuración.</span>
-            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Tabs de configuración */}
-      <Tabs defaultValue="planes" className="space-y-4">
+      <Tabs defaultValue={isOwner ? 'planes' : 'general'} className="space-y-4">
         <TabsList className="w-full overflow-x-auto flex gap-2 justify-start">
-          <TabsTrigger value="planes" className="flex items-center gap-2">
-            <Crown className="w-4 h-4" />
-            Planes
-          </TabsTrigger>
+          {isOwner && (
+            <TabsTrigger value="planes" className="flex items-center gap-2">
+              <Crown className="w-4 h-4" />
+              Planes
+            </TabsTrigger>
+          )}
           <TabsTrigger value="general" className="flex items-center gap-2">
             <Settings className="w-4 h-4" />
             General
@@ -108,23 +104,31 @@ export default function ConfiguracionMejorado() {
             <Coins className="w-4 h-4" />
             Monedas
           </TabsTrigger>
-          <TabsTrigger value="equipo" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Equipo
-          </TabsTrigger>
-          <TabsTrigger value="roles" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Roles
-          </TabsTrigger>
-          <TabsTrigger value="permisos" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Permisos
-          </TabsTrigger>
+          {showTeamTabs && (
+            <TabsTrigger value="equipo" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Equipo
+            </TabsTrigger>
+          )}
+          {showTeamTabs && (
+            <TabsTrigger value="roles" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Roles
+            </TabsTrigger>
+          )}
+          {canManageTeam && (
+            <TabsTrigger value="permisos" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Permisos
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="planes" className="space-y-4">
-          <PlansPanel />
-        </TabsContent>
+        {isOwner && (
+          <TabsContent value="planes" className="space-y-4">
+            <PlansPanel />
+          </TabsContent>
+        )}
 
         <TabsContent value="general" className="space-y-4">
           <GeneralSettingsPanel />
@@ -134,17 +138,23 @@ export default function ConfiguracionMejorado() {
           <CurrenciesPanel />
         </TabsContent>
 
-        <TabsContent value="equipo" className="space-y-4">
-          <TeamManagement />
-        </TabsContent>
+        {showTeamTabs && (
+          <TabsContent value="equipo" className="space-y-4">
+            <TeamManagement />
+          </TabsContent>
+        )}
 
-        <TabsContent value="roles" className="space-y-4">
-          <RoleManagement />
-        </TabsContent>
+        {showTeamTabs && (
+          <TabsContent value="roles" className="space-y-4">
+            <RoleManagement />
+          </TabsContent>
+        )}
 
-        <TabsContent value="permisos" className="space-y-4">
-          <DashboardPermissions />
-        </TabsContent>
+        {canManageTeam && (
+          <TabsContent value="permisos" className="space-y-4">
+            <DashboardPermissions />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )

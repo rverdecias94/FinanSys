@@ -4,12 +4,14 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { getBalanceConfig, updateBalanceConfig } from '@/services/finanzas'
+import { getBusinessSettings, upsertBusinessSettings, uploadCompanyLogo } from '@/services/businessSettings'
 import { toast } from 'sonner'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BalanceBaseSection } from '@/components/config/general/BalanceBaseSection'
 import { AppearanceSection } from '@/components/config/general/AppearanceSection'
 import { BusinessProfileSection } from '@/components/config/general/BusinessProfileSection'
 import { RegionFormatsSection } from '@/components/config/general/RegionFormatsSection'
+import { Button } from '@/components/ui/button'
 
 const STORAGE_KEY = 'configuracion.general.v1'
 
@@ -34,8 +36,16 @@ export function GeneralSettingsPanel() {
   const { businessId, isOwner } = useBusiness()
   const { theme, setTheme } = useTheme()
   const { businessCurrencies, setMainCurrency, toggleCurrency } = useCurrency()
+  const queryClient = useQueryClient()
 
   const effectiveId = businessId || session?.user?.id
+
+  const settingsQuery = useQuery({
+    queryKey: ['configuracion', 'general-settings', effectiveId],
+    queryFn: () => getBusinessSettings(session?.user?.id, businessId),
+    enabled: !!session?.user?.id && !!effectiveId,
+    staleTime: 10_000
+  })
 
   const balanceQuery = useQuery({
     queryKey: ['configuracion', 'balances', effectiveId],
@@ -71,10 +81,12 @@ export function GeneralSettingsPanel() {
     taxId: '',
     phone: '',
     email: '',
-    logoDataUrl: ''
+    logoUrl: ''
   })
 
   const [logoUploading, setLogoUploading] = useState(false)
+  const [hasEdits, setHasEdits] = useState(false)
+  const [savedSnapshot, setSavedSnapshot] = useState(null)
 
   const [initialBalances, setInitialBalances] = useState(() => ({
     CUP: '',
@@ -98,8 +110,28 @@ export function GeneralSettingsPanel() {
     if (saved.dateFormat) setDateFormat(saved.dateFormat)
     if (saved.timeZone) setTimeZone(saved.timeZone)
     if (saved.numberFormat) setNumberFormat(saved.numberFormat)
-    if (saved.company) setCompany((prev) => ({ ...prev, ...saved.company }))
+    if (saved.company) {
+      const { logoDataUrl: _legacy, ...rest } = saved.company
+      setCompany((prev) => ({ ...prev, ...rest }))
+    }
   }, [effectiveId])
+
+  useEffect(() => {
+    if (!settingsQuery.data || hasEdits) return
+    const s = settingsQuery.data
+
+    if (s.valuation_method) setValuationMethod(s.valuation_method)
+    if (s.company) setCompany((prev) => ({ ...prev, ...s.company }))
+    if (s.region?.dateFormat) setDateFormat(s.region.dateFormat)
+    if (s.region?.timeZone) setTimeZone(s.region.timeZone)
+    if (s.region?.numberFormat) setNumberFormat(s.region.numberFormat)
+
+    setSavedSnapshot({
+      valuationMethod: s.valuation_method || 'fifo',
+      company: s.company || {},
+      region: s.region || {}
+    })
+  }, [hasEdits, settingsQuery.data])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -114,13 +146,14 @@ export function GeneralSettingsPanel() {
   }, [fontSize])
 
   useEffect(() => {
+    const { logoDataUrl: _legacy, ...companyForCache } = company
     const next = {
       valuationMethod,
       fontSize,
       dateFormat,
       timeZone,
       numberFormat,
-      company
+      company: companyForCache
     }
     if (!effectiveId) return
     try {
@@ -150,6 +183,57 @@ export function GeneralSettingsPanel() {
       return fallback
     }
   }, [])
+
+  const settingsPayload = useMemo(() => {
+    return {
+      valuationMethod,
+      company,
+      region: {
+        dateFormat,
+        timeZone,
+        numberFormat
+      }
+    }
+  }, [company, dateFormat, numberFormat, timeZone, valuationMethod])
+
+  const isDirty = useMemo(() => {
+    if (!savedSnapshot) return false
+    const a = JSON.stringify(savedSnapshot)
+    const b = JSON.stringify(settingsPayload)
+    return a !== b
+  }, [savedSnapshot, settingsPayload])
+
+  const saveSettingsMutation = useMutation({
+    mutationFn: async () => {
+      if (!session?.user?.id) throw new Error('no_session')
+      return await upsertBusinessSettings(session.user.id, businessId, {
+        company: settingsPayload.company,
+        region: settingsPayload.region,
+        valuationMethod: settingsPayload.valuationMethod
+      })
+    },
+    onSuccess: (data) => {
+      setSavedSnapshot({
+        valuationMethod: data?.valuation_method || settingsPayload.valuationMethod,
+        company: data?.company || settingsPayload.company,
+        region: data?.region || settingsPayload.region
+      })
+      setHasEdits(false)
+      queryClient.setQueryData(['configuracion', 'general-settings', effectiveId], data || null)
+      toast.success('Configuración general guardada')
+    },
+    onError: () => {
+      toast.error('No se pudo guardar la configuración general')
+    }
+  })
+
+  const canSave = useMemo(() => {
+    if (!isOwner) return false
+    if (saveSettingsMutation.isPending) return false
+    if (settingsQuery.isLoading) return false
+    if (!savedSnapshot) return true
+    return isDirty
+  }, [isDirty, isOwner, saveSettingsMutation.isPending, savedSnapshot, settingsQuery.isLoading])
 
   const handleSaveBaseCurrency = async () => {
     if (!isOwner) return
@@ -192,7 +276,7 @@ export function GeneralSettingsPanel() {
   }
 
   const onLogoFile = async (file) => {
-    if (!file) return
+    if (!file || !session?.user?.id) return
     const allowed = ['image/png', 'image/svg+xml']
     if (!allowed.includes(file.type)) {
       toast.error('Formato no permitido', { description: 'Solo PNG o SVG (máx. 2MB).' })
@@ -204,13 +288,9 @@ export function GeneralSettingsPanel() {
     }
     setLogoUploading(true)
     try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result || ''))
-        reader.onerror = () => reject(new Error('read_error'))
-        reader.readAsDataURL(file)
-      })
-      setCompany((prev) => ({ ...prev, logoDataUrl: dataUrl }))
+      const logoUrl = await uploadCompanyLogo(session.user.id, businessId, file)
+      setHasEdits(true)
+      setCompany((prev) => ({ ...prev, logoUrl }))
       toast.success('Logo cargado')
     } catch {
       toast.error('No se pudo cargar el logo')
@@ -228,7 +308,10 @@ export function GeneralSettingsPanel() {
         mainCurrency={mainCurrency}
         onChangeMainCurrency={setMainCurrencyLocal}
         valuationMethod={valuationMethod}
-        onChangeValuationMethod={setValuationMethod}
+        onChangeValuationMethod={(v) => {
+          setHasEdits(true)
+          setValuationMethod(v)
+        }}
         initialBalances={initialBalances}
         onChangeInitialBalance={(code, value) => setInitialBalances((prev) => ({ ...prev, [code]: value }))}
         currentBalances={{
@@ -254,7 +337,10 @@ export function GeneralSettingsPanel() {
       <BusinessProfileSection
         isOwner={isOwner}
         company={company}
-        onCompany={(patch) => setCompany((p) => ({ ...p, ...patch }))}
+        onCompany={(patch) => {
+          setHasEdits(true)
+          setCompany((p) => ({ ...p, ...patch }))
+        }}
         onLogoFile={onLogoFile}
         logoUploading={logoUploading}
       />
@@ -262,13 +348,39 @@ export function GeneralSettingsPanel() {
       <RegionFormatsSection
         isOwner={isOwner}
         dateFormat={dateFormat}
-        onDateFormat={setDateFormat}
+        onDateFormat={(v) => {
+          setHasEdits(true)
+          setDateFormat(v)
+        }}
         timeZone={timeZone}
-        onTimeZone={setTimeZone}
+        onTimeZone={(v) => {
+          setHasEdits(true)
+          setTimeZone(v)
+        }}
         timeZones={timeZones}
         numberFormat={numberFormat}
-        onNumberFormat={setNumberFormat}
+        onNumberFormat={(v) => {
+          setHasEdits(true)
+          setNumberFormat(v)
+        }}
       />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs text-muted-foreground">
+          {settingsQuery.isLoading
+            ? 'Cargando configuración guardada…'
+            : saveSettingsMutation.isPending
+              ? 'Guardando…'
+              : !savedSnapshot
+                ? 'Aún no se ha guardado en la nube.'
+                : isDirty
+                  ? 'Hay cambios sin guardar.'
+                  : 'Todo está guardado.'}
+        </div>
+        <Button onClick={() => saveSettingsMutation.mutate()} disabled={!canSave}>
+          Guardar Perfil y Formatos
+        </Button>
+      </div>
     </div>
   )
 }

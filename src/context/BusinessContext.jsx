@@ -1,67 +1,85 @@
-import { createContext, useContext, useState, useEffect } from 'react'
-import { supabase } from '@/config/supabase'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/hooks/useSession'
-import { getBusinessContext } from '@/services/team'
+import { getBusinessContext, acceptPendingInvitations } from '@/services/team'
 
 const BusinessContext = createContext({})
+
+function normalizeContext(raw, userId) {
+  if (!raw) {
+    return {
+      businessId: userId,
+      isOwner: true,
+      roleId: null,
+      permissions: ['*']
+    }
+  }
+
+  const permissions = Array.isArray(raw.permissions)
+    ? raw.permissions
+    : raw.permissions
+      ? JSON.parse(JSON.stringify(raw.permissions))
+      : []
+
+  return {
+    businessId: raw.businessId || userId,
+    isOwner: Boolean(raw.isOwner),
+    roleId: raw.roleId || null,
+    roleName: raw.roleName || null,
+    permissions: raw.isOwner ? ['*'] : permissions
+  }
+}
 
 export function BusinessProvider({ children }) {
   const { session } = useSession()
   const [businessContext, setBusinessContext] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function resolveBusinessContext() {
-      if (!session?.user?.id) {
-        setBusinessContext(null)
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      try {
-        console.log('Resolviendo contexto de negocio para userId:', session.user.id)
-        const context = await getBusinessContext(session.user.id)
-        console.log('Contexto obtenido:', context)
-
-        if (context) {
-          setBusinessContext(context)
-        } else {
-          // Si no hay contexto, el usuario es nuevo y no tiene negocio ni equipo
-          console.log('No hay contexto, asumiendo usuario nuevo')
-          setBusinessContext({
-            businessId: session.user.id,
-            isOwner: true, // Usuario nuevo es owner de su propio negocio
-            roleId: null,
-            permissions: ['*']
-          })
-        }
-      } catch (error) {
-        console.error('Error resolving business context:', error)
-        // Fallback seguro: asumir que es un nuevo usuario creando su negocio
-        setBusinessContext({
-          businessId: session.user.id,
-          isOwner: true,
-          roleId: null,
-          permissions: ['*']
-        })
-      } finally {
-        setLoading(false)
-      }
+  const resolveBusinessContext = useCallback(async () => {
+    if (!session?.user?.id) {
+      setBusinessContext(null)
+      setError(null)
+      setLoading(false)
+      return
     }
 
+    setLoading(true)
+    setError(null)
+
+    try {
+      const email = session.user.email
+      if (email) {
+        await acceptPendingInvitations(email)
+      }
+
+      const context = await getBusinessContext(session.user.id)
+      setBusinessContext(normalizeContext(context, session.user.id))
+    } catch (err) {
+      console.error('Error resolving business context:', err)
+      setError(err)
+      setBusinessContext(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [session?.user?.id, session?.user?.email])
+
+  useEffect(() => {
     resolveBusinessContext()
-  }, [session])
+  }, [resolveBusinessContext])
+
+  const resolved = businessContext
+  const isOwner = resolved?.isOwner ?? false
 
   const value = {
-    businessId: businessContext?.businessId || session?.user?.id,
-    isOwner: businessContext?.isOwner ?? true, // Por defecto asumir owner para usuarios nuevos
-    roleId: businessContext?.roleId || null,
-    permissions: businessContext?.permissions || ['*'], // Por defecto permisos completos para owners
-    loading
+    businessId: loading ? null : (resolved?.businessId ?? null),
+    isOwner,
+    roleId: resolved?.roleId ?? null,
+    roleName: resolved?.roleName ?? null,
+    permissions: loading ? [] : (resolved?.permissions ?? []),
+    loading,
+    error,
+    refreshBusinessContext: resolveBusinessContext
   }
-
-  console.log('BusinessContext value:', value)
 
   return (
     <BusinessContext.Provider value={value}>

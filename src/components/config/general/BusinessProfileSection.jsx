@@ -1,9 +1,21 @@
+import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Building2, UploadCloud } from 'lucide-react'
 
 export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile, logoUploading }) {
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    if (!isOwner || logoUploading) return
+    const file = e.dataTransfer?.files?.[0]
+    if (file) onLogoFile(file)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -40,12 +52,32 @@ export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile
         <div className="space-y-2">
           <Label>Subir Logo del Negocio (PNG/SVG, máx. 2MB)</Label>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="flex-1 rounded-md border border-dashed p-4 cursor-pointer bg-muted/10 hover:bg-muted/20 transition-colors">
+            <label
+              className={`flex-1 rounded-md border border-dashed p-4 cursor-pointer bg-muted/10 transition-colors ${isDragging ? 'bg-muted/30 border-primary/60' : 'hover:bg-muted/20'}`}
+              onDragEnter={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!isOwner || logoUploading) return
+                setIsDragging(true)
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!isOwner || logoUploading) return
+                setIsDragging(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setIsDragging(false)
+              }}
+              onDrop={handleDrop}
+            >
               <div className="flex items-center gap-3">
                 <UploadCloud className="h-5 w-5 text-muted-foreground" />
                 <div className="min-w-0">
                   <div className="text-sm font-medium">Arrastra y suelta o haz clic para seleccionar</div>
-                  <div className="text-xs text-muted-foreground">Se guarda en este dispositivo (por ahora).</div>
+                  <div className="text-xs text-muted-foreground">Se guarda en la cuenta del negocio.</div>
                 </div>
               </div>
               <input
@@ -58,8 +90,8 @@ export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile
             </label>
             <div className="w-full sm:w-[160px]">
               <div className="rounded-md border bg-card p-3 flex items-center justify-center h-[96px]">
-                {company.logoDataUrl ? (
-                  <img src={company.logoDataUrl} alt="Logo" className="max-h-[72px] max-w-[120px] object-contain" />
+                {company.logoUrl ? (
+                  <img src={company.logoUrl} alt="Logo" className="max-h-[72px] max-w-[120px] object-contain" />
                 ) : (
                   <span className="text-xs text-muted-foreground">Sin logo</span>
                 )}
@@ -73,4 +105,3 @@ export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile
     </Card>
   )
 }
-

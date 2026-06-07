@@ -11,7 +11,7 @@ export const useSubscription = () => useContext(SubscriptionContext)
 
 export const SubscriptionProvider = ({ children }) => {
   const { session } = useSession()
-  const { businessId, isOwner } = useBusiness()
+  const { businessId, isOwner, loading: businessLoading } = useBusiness()
   const [subscription, setSubscription] = useState(null)
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
@@ -50,16 +50,13 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   useEffect(() => {
-    console.log(session)
-    if (session?.user && businessId) {
+    if (session?.user && businessId && !businessLoading) {
       fetchSubscription()
       fetchUsage()
-    } else if (session?.user && !businessId) {
-      // Wait for business context to load
-    } else {
+    } else if (!session?.user) {
       setLoading(false)
     }
-  }, [session, businessId])
+  }, [session, businessId, businessLoading])
 
   const fetchSubscription = async () => {
     if (!businessId) return

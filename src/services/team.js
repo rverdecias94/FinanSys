@@ -336,6 +336,15 @@ export async function getBusinessContext(userId) {
       return null
     }
 
+    if (context?.roleId && !context.isOwner) {
+      const { data: role } = await supabase
+        .from('roles')
+        .select('name')
+        .eq('id', context.roleId)
+        .maybeSingle()
+      return { ...context, roleName: role?.name || null }
+    }
+
     return context
   } catch (error) {
     console.error('Exception getting business context:', error)

@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
-import { acceptPendingInvitations } from '@/services/team'
+import { acceptPendingInvitations, getBusinessContext } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3 } from 'lucide-react'
@@ -9,56 +9,49 @@ import { toast } from 'sonner'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
 
-  const validateAndCreateSubscription = async (userId) => {
-    try {
-      // Verificar si existe suscripción
-      const { data: existingSubscription, error: fetchError } = await supabase
+  useEffect(() => {
+    if (location.state?.email) {
+      setEmail(location.state.email)
+    }
+    if (location.state?.notice) {
+      toast.info(location.state.notice, { duration: 8000 })
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, location.pathname, navigate])
+
+  const ensureOwnerSubscription = async (userId) => {
+    const { data: existingSubscription, error: fetchError } = await supabase
+      .from('subscriptions')
+      .select('plan_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('Error al verificar suscripción:', fetchError)
+      return
+    }
+
+    if (!existingSubscription) {
+      const { error: createError } = await supabase
         .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error al verificar suscripción:', fetchError)
-        throw fetchError
-      }
-
-      if (!existingSubscription) {
-        // Crear suscripción free si no existe
-        const { error: createError } = await supabase
-          .from('subscriptions')
-          .insert({
-            user_id: userId,
-            plan_id: 'free',
-            status: 'active',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-
-        if (createError) {
-          console.error('Error al crear suscripción free:', createError)
-          throw createError
-        }
-
-        toast.success('Cuenta configurada exitosamente', {
-          description: 'Se ha asignado un plan gratuito a tu cuenta.'
+        .insert({
+          user_id: userId,
+          plan_id: 'free',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
-      }
 
-      return existingSubscription?.plan_id || 'free'
-    } catch (error) {
-      console.error('Error en validación de suscripción:', error)
-      // No lanzar error para permitir login, pero mostrar advertencia
-      toast.warning('Error al verificar suscripción', {
-        description: 'Tu cuenta se ha creado con plan gratuito por defecto.'
-      })
-      return 'free'
+      if (createError) {
+        console.error('Error al crear suscripción free:', createError)
+      }
     }
   }
 
@@ -71,26 +64,29 @@ export default function Login() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
 
-      // Verificar y aceptar invitaciones pendientes
-      try {
-        await acceptPendingInvitations(email)
-      } catch (inviteError) {
-        console.error('Error procesando invitaciones:', inviteError)
-        // No bloqueamos el login por esto
+      await acceptPendingInvitations(email)
+
+      const context = await getBusinessContext(data.user.id)
+      const isTeamMember = context && !context.isOwner
+
+      if (!isTeamMember) {
+        await ensureOwnerSubscription(data.user.id)
       }
 
-      // Validar y crear suscripción si no existe
-      await validateAndCreateSubscription(data.user.id)
-
-      toast.success('Bienvenido de nuevo', {
-        description: 'Has iniciado sesión correctamente.'
-      })
+      toast.success(
+        isTeamMember ? 'Bienvenido al equipo' : 'Bienvenido de nuevo',
+        {
+          description: isTeamMember
+            ? 'Has accedido a la cuenta del negocio con tu rol asignado.'
+            : 'Has iniciado sesión correctamente.'
+        }
+      )
 
       navigate('/')
-    } catch (error) {
-      setError(error.message === 'Invalid login credentials'
+    } catch (err) {
+      setError(err.message === 'Invalid login credentials'
         ? 'Credenciales incorrectas. Por favor verifica tu correo y contraseña.'
-        : error.message)
+        : err.message)
     } finally {
       setLoading(false)
     }
@@ -98,7 +94,6 @@ export default function Login() {
 
   return (
     <div className="h-screen w-full flex bg-background overflow-hidden">
-      {/* Left side - Promotional Content */}
       <div className="hidden lg:flex flex-1 flex-col justify-center bg-primary text-primary-foreground p-8 lg:p-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-primary/20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
 
@@ -144,11 +139,9 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right side - Login Form */}
       <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24">
         <div className="mx-auto w-full max-w-md space-y-6">
 
-          {/* Header Section */}
           <div className="flex flex-col items-center space-y-2">
             <div className="h-24 w-auto flex items-center justify-center mb-2">
               <img src="/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
@@ -163,7 +156,6 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Form Section */}
           <form className="space-y-4" onSubmit={handleLogin}>
             {error && (
               <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center animate-in fade-in slide-in-from-top-1">
@@ -200,7 +192,7 @@ export default function Login() {
                 </div>
                 <div className="relative">
                   <Input
-                    type={showPassword ? "text" : "password"}
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}

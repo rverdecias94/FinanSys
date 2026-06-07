@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Wallet2 } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Info, Wallet2 } from 'lucide-react'
 
 export function BalanceBaseSection({
   isOwner,
@@ -62,7 +63,34 @@ export function BalanceBaseSection({
           </div>
 
           <div className="space-y-2">
-            <Label>Método de Valoración de Inventario</Label>
+            <div className="flex items-center gap-2">
+              <Label>Método de Valoración de Inventario</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label="Ayuda: método de valoración"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" align="start">
+                    <div className="max-w-[320px] space-y-2 text-xs">
+                      <div>
+                        <div className="font-medium">PEPS / FIFO</div>
+                        <div>Valora el inventario usando primero el costo de las unidades más antiguas.</div>
+                      </div>
+                      <div>
+                        <div className="font-medium">Promedio Ponderado</div>
+                        <div>Calcula un costo promedio por unidad según existencias y compras.</div>
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Select value={valuationMethod} onValueChange={onChangeValuationMethod} disabled={!isOwner}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecciona" />
@@ -123,4 +151,3 @@ export function BalanceBaseSection({
     </Card>
   )
 }
-
