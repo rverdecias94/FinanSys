@@ -8,7 +8,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { createRole, updateRole } from '@/services/team'
 import { useSession } from '@/hooks/useSession'
 import { toast } from 'sonner'
-import { Shield, Lock } from 'lucide-react'
 
 export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) {
   const { session } = useSession()
@@ -92,8 +91,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
       }
       onSuccess()
       onOpenChange(false)
-    } catch (error) {
-      console.error(error)
+    } catch {
       toast.error('Error al guardar el rol')
     } finally {
       setLoading(false)

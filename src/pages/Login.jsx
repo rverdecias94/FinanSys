@@ -34,7 +34,6 @@ export default function Login() {
       .maybeSingle()
 
     if (fetchError) {
-      console.error('Error al verificar suscripción:', fetchError)
       return
     }
 
@@ -50,7 +49,7 @@ export default function Login() {
         })
 
       if (createError) {
-        console.error('Error al crear suscripción free:', createError)
+        return
       }
     }
   }
@@ -165,10 +164,11 @@ export default function Login() {
 
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
+                <label htmlFor="login-email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
                   Correo Electrónico
                 </label>
                 <Input
+                  id="login-email"
                   type="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
@@ -180,7 +180,7 @@ export default function Login() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
+                  <label htmlFor="login-password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
                     Contraseña
                   </label>
                   <Link
@@ -192,6 +192,7 @@ export default function Login() {
                 </div>
                 <div className="relative">
                   <Input
+                    id="login-password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
@@ -202,7 +203,9 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                    aria-pressed={showPassword}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />

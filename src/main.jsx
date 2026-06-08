@@ -13,9 +13,8 @@ const queryClient = new QueryClient({
     onError: (error) => {
       // Solo notificar errores de queries si son críticos o inesperados
       // Evitar notificar 404s que a veces son esperados
-      console.error("Query Error:", error);
-      const msg = getSupabaseErrorMessage(error);
-      notify.error(`Error de carga: ${msg}`);
+      const msg = getSupabaseErrorMessage(error)
+      notify.error(`Error de carga: ${msg}`)
     },
   }),
   mutationCache: new MutationCache({

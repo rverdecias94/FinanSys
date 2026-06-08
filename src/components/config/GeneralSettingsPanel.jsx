@@ -13,16 +13,6 @@ import { BusinessProfileSection } from '@/components/config/general/BusinessProf
 import { RegionFormatsSection } from '@/components/config/general/RegionFormatsSection'
 import { Button } from '@/components/ui/button'
 
-const STORAGE_KEY = 'configuracion.general.v1'
-
-function safeJsonParse(value) {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
-}
-
 function toDecimalInput(value) {
   if (value === null || value === undefined) return ''
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
@@ -100,21 +90,15 @@ export function GeneralSettingsPanel() {
   }, [defaultCurrency])
 
   useEffect(() => {
-    if (!effectiveId) return
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${effectiveId}`)
-    const saved = raw ? safeJsonParse(raw) : null
-    if (!saved) return
-
-    if (saved.valuationMethod) setValuationMethod(saved.valuationMethod)
-    if (saved.fontSize) setFontSize(saved.fontSize)
-    if (saved.dateFormat) setDateFormat(saved.dateFormat)
-    if (saved.timeZone) setTimeZone(saved.timeZone)
-    if (saved.numberFormat) setNumberFormat(saved.numberFormat)
-    if (saved.company) {
-      const { logoDataUrl: _legacy, ...rest } = saved.company
-      setCompany((prev) => ({ ...prev, ...rest }))
+    try {
+      const savedFontSize = localStorage.getItem('app-font-size')
+      if (savedFontSize) {
+        setFontSize(savedFontSize)
+      }
+    } catch {
+      null
     }
-  }, [effectiveId])
+  }, [])
 
   useEffect(() => {
     if (!settingsQuery.data || hasEdits) return
@@ -144,24 +128,6 @@ export function GeneralSettingsPanel() {
       null
     }
   }, [fontSize])
-
-  useEffect(() => {
-    const { logoDataUrl: _legacy, ...companyForCache } = company
-    const next = {
-      valuationMethod,
-      fontSize,
-      dateFormat,
-      timeZone,
-      numberFormat,
-      company: companyForCache
-    }
-    if (!effectiveId) return
-    try {
-      localStorage.setItem(`${STORAGE_KEY}:${effectiveId}`, JSON.stringify(next))
-    } catch {
-      null
-    }
-  }, [company, dateFormat, effectiveId, fontSize, numberFormat, timeZone, valuationMethod])
 
   useEffect(() => {
     const next = { ...initialBalances }

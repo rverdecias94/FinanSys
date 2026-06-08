@@ -15,7 +15,7 @@ export function getEffectiveUserId(userId, businessId) {
   // Si businessId es diferente de userId, significa que es miembro de equipo
   // En ese caso, usamos businessId (que es el owner_id)
   // Si son iguales, es owner y usamos su propio ID
-  return businessId || userId;
+  return businessId || userId
 }
 
 /**
@@ -30,26 +30,24 @@ export function getEffectiveUserId(userId, businessId) {
  */
 export async function validateResourceAccess(resourceType, resourceId, userId, businessId) {
   try {
-    const effectiveUserId = getEffectiveUserId(userId, businessId);
+    const effectiveUserId = getEffectiveUserId(userId, businessId)
 
     let query = supabase
       .from(resourceType + 's') // products, transactions, etc.
       .select('id')
       .eq('id', resourceId)
       .eq('user_id', effectiveUserId)
-      .single();
+      .single()
 
-    const { data, error } = await query;
+    const { data, error } = await query
 
     if (error || !data) {
-      console.warn(`Access denied: User ${userId} trying to access ${resourceType} ${resourceId}`);
-      return false;
+      return false
     }
 
-    return true;
+    return true
   } catch (error) {
-    console.error('Error validating resource access:', error);
-    return false;
+    return false
   }
 }
 
@@ -243,8 +241,6 @@ export async function checkEmailAvailability(email) {
  */
 export async function acceptPendingInvitations(email) {
   try {
-    console.log('Iniciando aceptación de invitaciones para:', email)
-
     // Get current user ID with retry logic
     let user = null
     let retries = 3
@@ -252,8 +248,6 @@ export async function acceptPendingInvitations(email) {
     while (retries > 0 && !user) {
       const { data } = await supabase.auth.getUser()
       user = data?.user
-
-      console.log(`Intento ${4 - retries} de autenticación:`, user?.id)
 
       if (!user && retries > 1) {
         // Esperar antes de reintentar
@@ -263,30 +257,20 @@ export async function acceptPendingInvitations(email) {
     }
 
     if (!user) {
-      console.error('No se pudo obtener el usuario autenticado')
       return null
     }
-
-    console.log('Usuario autenticado:', user.id)
 
     const { data: accepted, error } = await supabase.rpc('accept_invitation_for_current_user', {
       email_input: email
     })
 
-    console.log('Resultado de accept_invitation_by_email:', { accepted, error })
-
     if (error) {
-      console.error('Error accepting invitation:', error)
       return null
     }
 
     if (accepted) {
-      console.log('Invitación aceptada exitosamente, obteniendo contexto de negocio...')
-
       // Get the business context after successful acceptance
       const context = await getBusinessContext(user.id)
-
-      console.log('Contexto de negocio obtenido:', context)
 
       if (context) {
         await logAction({
@@ -304,10 +288,8 @@ export async function acceptPendingInvitations(email) {
       return context
     }
 
-    console.log('No se encontraron invitaciones pendientes')
     return null
-  } catch (error) {
-    console.error('Exception accepting invitation:', error)
+  } catch {
     return null
   }
 }
@@ -318,21 +300,15 @@ export async function acceptPendingInvitations(email) {
  */
 export async function getBusinessContext(userId) {
   if (!userId) {
-    console.log('getBusinessContext: userId es null')
     return null
   }
 
   try {
-    console.log('Obteniendo contexto de negocio para userId:', userId)
-
     const { data: context, error } = await supabase.rpc('get_user_business_context', {
       user_uuid: userId
     })
 
-    console.log('Resultado de get_user_business_context:', { context, error })
-
     if (error) {
-      console.error('Error getting business context:', error)
       return null
     }
 
@@ -346,8 +322,7 @@ export async function getBusinessContext(userId) {
     }
 
     return context
-  } catch (error) {
-    console.error('Exception getting business context:', error)
+  } catch {
     return null
   }
 }
@@ -356,19 +331,10 @@ export async function getBusinessContext(userId) {
  * Invite a new member to the team
  */
 export async function inviteMember({ email, role_id, owner_id }) {
-  console.log('Inviting member:', { email, role_id, owner_id })
-
   // 1. Validate Email Availability
-  try {
-    const isAvailable = await checkEmailAvailability(email)
-    console.log('Email availability check:', isAvailable)
-
-    if (!isAvailable) {
-      throw new Error('El correo electrónico no está disponible para ser invitado. Puede que ya sea dueño de un negocio o miembro de otro equipo.')
-    }
-  } catch (err) {
-    console.error('Error checking email availability:', err)
-    throw err
+  const isAvailable = await checkEmailAvailability(email)
+  if (!isAvailable) {
+    throw new Error('El correo electrónico no está disponible para ser invitado. Puede que ya sea dueño de un negocio o miembro de otro equipo.')
   }
 
   // 2. Create Invitation
@@ -388,7 +354,6 @@ export async function inviteMember({ email, role_id, owner_id }) {
       .single()
 
     if (error) {
-      console.error('Error creating invitation:', error)
       throw error
     }
 
@@ -479,8 +444,7 @@ export async function getUserPermissions(userId) {
   try {
     const context = await getBusinessContext(userId)
     return context?.permissions || []
-  } catch (error) {
-    console.error('Error getting user permissions:', error)
+  } catch {
     return []
   }
 }

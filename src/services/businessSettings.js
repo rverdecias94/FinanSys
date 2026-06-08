@@ -6,7 +6,8 @@ const LOGO_BUCKET = 'company-logos'
 
 function stripLogoDataUrl(company) {
   if (!company || typeof company !== 'object') return {}
-  const { logoDataUrl: _removed, ...rest } = company
+  const rest = { ...company }
+  delete rest.logoDataUrl
   return rest
 }
 

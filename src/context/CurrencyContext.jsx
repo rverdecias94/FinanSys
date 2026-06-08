@@ -53,7 +53,6 @@ export function CurrencyProvider({ children }) {
         }
       }
     } catch (error) {
-      console.error('Error fetching currencies:', error)
       toast.error('Error al cargar configuración de monedas')
     } finally {
       setLoading(false)
@@ -118,7 +117,6 @@ export function CurrencyProvider({ children }) {
       }
       await fetchCurrencies()
     } catch (error) {
-      console.error('Error toggling currency:', error)
       toast.error('Error al actualizar moneda')
     }
   }
@@ -156,13 +154,11 @@ export function CurrencyProvider({ children }) {
       })
       await fetchCurrencies()
     } catch (error) {
-      console.error('Error setting main currency:', error)
       toast.error('Error al cambiar moneda principal')
     }
   }
 
   const formatCurrency = (amount, currencyCode) => {
-    const currency = availableCurrencies.find(c => c.code === currencyCode) || { symbol: '$' }
     return new Intl.NumberFormat('es-ES', {
       style: 'currency',
       currency: currencyCode || 'USD',

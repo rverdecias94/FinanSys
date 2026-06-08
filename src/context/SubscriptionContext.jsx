@@ -68,9 +68,9 @@ export const SubscriptionProvider = ({ children }) => {
         .eq('user_id', businessId) // Use businessId (owner) for subscription
         .single()
 
-      console.log(data)
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching subscription:', error)
+        setSubscription({ plan_id: 'free', status: 'active' })
+        return
       }
 
       if (!data) {
@@ -90,7 +90,6 @@ export const SubscriptionProvider = ({ children }) => {
             .single()
 
           if (createError) {
-            console.error('Error creating subscription:', createError)
             // Fallback a objeto por defecto
             setSubscription({ plan_id: 'free', status: 'active' })
           } else {
@@ -105,13 +104,8 @@ export const SubscriptionProvider = ({ children }) => {
         }
       } else {
         setSubscription(data)
-        // Verificar si es un usuario premium
-        if (data.plan_id === 'premium') {
-          console.log('Usuario Premium detectado')
-        }
       }
-    } catch (err) {
-      console.error('Subscription error:', err)
+    } catch {
       // Fallback a plan gratuito en caso de error
       setSubscription({ plan_id: 'free', status: 'active' })
     } finally {
@@ -155,8 +149,7 @@ export const SubscriptionProvider = ({ children }) => {
         products: productsResult.count || 0,
         areas: areasResult.count || 0
       })
-    } catch (err) {
-      console.error('Usage error:', err)
+    } catch {
       // Fallback to empty usage on error
       setUsage({
         monthly_transactions: 0,
@@ -230,17 +223,10 @@ export const SubscriptionProvider = ({ children }) => {
       await fetchUsage()
 
       toast.success(`Plan actualizado a ${planId === 'premium' ? 'Premium' : 'Gratuito'}`, {
-        description: 'La aplicación se recargará para aplicar los cambios.',
+        description: 'Los límites y accesos del plan ya fueron actualizados.',
         duration: 3000
       })
-
-      // Recargar la aplicación después de un breve delay para que el usuario vea el mensaje
-      setTimeout(() => {
-        window.location.reload()
-      }, 1500)
-
-    } catch (err) {
-      console.error('Error updating plan:', err)
+    } catch {
       toast.error('Error al actualizar el plan')
     } finally {
       setLoading(false)

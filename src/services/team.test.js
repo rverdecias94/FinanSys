@@ -19,6 +19,7 @@ vi.mock('@/config/supabase', () => ({
       update: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       single: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Consultor' }, error: null })
     }))
   }
 }))
@@ -26,6 +27,14 @@ vi.mock('@/config/supabase', () => ({
 describe('Team Service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    supabase.from.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { name: 'Consultor' }, error: null })
+    }))
   })
 
   describe('inviteMember', () => {

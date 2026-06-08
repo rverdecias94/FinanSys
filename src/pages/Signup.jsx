@@ -20,7 +20,6 @@ export default function Signup() {
 
   const [strength, setStrength] = useState({ score: 0, label: 'Débil', color: 'bg-gray-200' })
   const [passMatch, setPassMatch] = useState(false)
-  const [isTouched, setIsTouched] = useState(false)
 
   const requirements = {
     length: password.length >= 8,
@@ -88,7 +87,6 @@ export default function Signup() {
         }
       })
     } catch (err) {
-      console.error(err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -96,18 +94,18 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm sm:p-10">
 
         <div className="flex flex-col items-center space-y-4">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
             <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Crear una cuenta
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Completa tus datos para registrarte en el sistema
             </p>
           </div>
@@ -122,39 +120,42 @@ export default function Signup() {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none text-gray-700">
+              <label htmlFor="signup-email" className="text-sm font-medium leading-none text-foreground">
                 Correo Electrónico
               </label>
               <Input
+                id="signup-email"
                 type="email"
                 placeholder="nombre@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200"
+                className="h-11 bg-background transition-all duration-200"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none text-gray-700">
+              <label htmlFor="signup-password" className="text-sm font-medium leading-none text-foreground">
                 Contraseña
               </label>
               <div className="relative">
                 <Input
+                  id="signup-password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Crear contraseña"
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value)
-                    setIsTouched(true)
                   }}
-                  className="h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10"
+                  className="h-11 bg-background transition-all duration-200 pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -178,13 +179,13 @@ export default function Signup() {
                       Fortaleza: {strength.label}
                     </span>
                   </div>
-                  <ul className="text-xs space-y-1 text-gray-500 mt-2">
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                     <li className={cn('flex items-center gap-1.5 transition-colors', requirements.length ? 'text-green-600' : '')}>
-                      {requirements.length ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-gray-400" />}
+                      {requirements.length ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-muted-foreground" />}
                       Mínimo 8 caracteres
                     </li>
                     <li className={cn('flex items-center gap-1.5 transition-colors', requirements.alphanumeric ? 'text-green-600' : '')}>
-                      {requirements.alphanumeric ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-gray-400" />}
+                      {requirements.alphanumeric ? <Check className="h-3 w-3" /> : <div className="h-1 w-1 rounded-full bg-muted-foreground" />}
                       Incluir letras y números
                     </li>
                   </ul>
@@ -193,17 +194,18 @@ export default function Signup() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none text-gray-700">
+              <label htmlFor="signup-confirm-password" className="text-sm font-medium leading-none text-foreground">
                 Repetir Contraseña
               </label>
               <div className="relative">
                 <Input
+                  id="signup-confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Repetir contraseña"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className={cn(
-                    'h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10',
+                    'h-11 bg-background transition-all duration-200 pr-10',
                     confirmPassword && !passMatch ? 'border-red-200 focus:border-red-500 focus:ring-red-500' :
                       confirmPassword && passMatch ? 'border-green-200 focus:border-green-500 focus:ring-green-500' : ''
                   )}
@@ -223,7 +225,9 @@ export default function Signup() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    className="rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={showConfirmPassword ? 'Ocultar confirmación de contraseña' : 'Mostrar confirmación de contraseña'}
+                    aria-pressed={showConfirmPassword}
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -250,7 +254,7 @@ export default function Signup() {
             ) : 'Crear Cuenta'}
           </Button>
 
-          <div className="text-center text-sm text-gray-500">
+          <div className="text-center text-sm text-muted-foreground">
             ¿Ya tienes una cuenta?{' '}
             <Link
               to="/login"

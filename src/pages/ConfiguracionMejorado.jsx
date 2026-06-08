@@ -24,20 +24,20 @@ export default function ConfiguracionMejorado() {
       <div className="flex items-center justify-center h-96">
         <Card className="p-6 text-center max-w-md">
           <CardContent className="space-y-4">
-            <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-              <Lock className="w-8 h-8 text-red-600" />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <Lock className="w-8 h-8" />
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2">Acceso Restringido</h3>
               <p className="text-muted-foreground mb-4">
                 No tienes permisos para acceder a la configuración del sistema.
               </p>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                  <AlertTriangle className="mt-0.5 w-4 h-4 text-muted-foreground" />
                   <div className="text-sm">
-                    <p className="font-medium text-yellow-800">¿Por qué no puedo acceder?</p>
-                    <p className="text-yellow-700">
+                    <p className="font-medium">¿Por qué no puedo acceder?</p>
+                    <p className="text-muted-foreground">
                       Solo los usuarios con rol de Propietario o permisos específicos pueden configurar el sistema.
                     </p>
                   </div>
@@ -73,15 +73,15 @@ export default function ConfiguracionMejorado() {
       </div>
 
       {!isOwner && (
-        <Card className="border-yellow-200 bg-yellow-50">
+        <Card className="border-border bg-muted/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-yellow-800">
+            <CardTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
               Vista de Solo Lectura
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-yellow-700">
+            <p className="text-muted-foreground">
               Estás viendo la configuración en modo de solo lectura. Contacta al propietario del negocio si necesitas realizar cambios.
             </p>
           </CardContent>

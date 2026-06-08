@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { UserPlus, Trash2, Loader2, Shield, Mail, CheckCircle2 } from 'lucide-react'
+import { UserPlus, Trash2, Loader2, Shield, Mail } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -52,7 +52,6 @@ export function TeamManagement() {
         setSelectedRole(defaultRole.id)
       }
     } catch (error) {
-      console.error('Error fetching team data:', error)
       toast.error('Error al cargar datos del equipo')
     } finally {
       setLoading(false)
@@ -61,7 +60,7 @@ export function TeamManagement() {
 
   useEffect(() => {
     fetchData()
-  }, [session])
+  }, [session, businessId])
 
   const handleInvite = async () => {
     // Check limit
@@ -92,7 +91,6 @@ export function TeamManagement() {
       })
       fetchData() // Refresh list
     } catch (err) {
-      console.error('Error adding member:', err)
       const msg = getSupabaseErrorMessage(err)
 
       if (msg.includes('check_email_availability')) {
@@ -119,7 +117,6 @@ export function TeamManagement() {
       toast.success('Socio eliminado correctamente')
       setMembers(prev => prev.filter(m => m.id !== memberToDelete.id))
     } catch (err) {
-      console.error('Error deleting member:', err)
       toast.error('Error al eliminar socio')
     } finally {
       setDeleteConfirmOpen(false)
@@ -135,8 +132,7 @@ export function TeamManagement() {
       setMembers(prev => prev.map(m =>
         m.id === memberId ? { ...m, role_id: newRoleId, roles: roles.find(r => r.id === newRoleId) } : m
       ))
-    } catch (error) {
-      console.error(error)
+    } catch {
       toast.error('Error al cambiar rol')
     }
   }
@@ -232,16 +228,17 @@ export function TeamManagement() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={m.status === 'active' ? 'default' : 'secondary'} className={m.status === 'pending' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' : ''}>
-                        {m.status === 'active' ? 'Activo' : 'Pendiente de registro'}
+                      <Badge variant={m.status === 'active' ? 'default' : 'secondary'}>
+                        {m.status === 'active' ? 'Activo' : 'Pendiente'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={() => handleDeleteMember(m)}
+                        aria-label={`Eliminar a ${m.member_email}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

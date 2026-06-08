@@ -8,14 +8,14 @@ export const notify = {
   success: (message, options = {}) => {
     toast.success(message, {
       icon: <CheckCircle className="h-4 w-4 text-green-500" />,
-      className: "border-green-500/20 bg-green-50/50",
+      className: "border-green-500/20 bg-card",
       ...options,
     })
   },
   error: (message, options = {}) => {
     toast.error(message, {
       icon: <XCircle className="h-4 w-4 text-red-500" />,
-      className: "border-red-500/20 bg-red-50/50",
+      className: "border-red-500/20 bg-card",
       duration: 5000,
       ...options,
     })
@@ -23,14 +23,14 @@ export const notify = {
   warning: (message, options = {}) => {
     toast.warning(message, {
       icon: <AlertTriangle className="h-4 w-4 text-amber-500" />,
-      className: "border-amber-500/20 bg-amber-50/50",
+      className: "border-amber-500/20 bg-card",
       ...options,
     })
   },
   info: (message, options = {}) => {
     toast.info(message, {
       icon: <Info className="h-4 w-4 text-blue-500" />,
-      className: "border-blue-500/20 bg-blue-50/50",
+      className: "border-blue-500/20 bg-card",
       ...options,
     })
   },

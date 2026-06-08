@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/hooks/useSession'
-import { getBusinessContext, acceptPendingInvitations } from '@/services/team'
+import { getBusinessContext } from '@/services/team'
 
 const BusinessContext = createContext({})
 
@@ -47,15 +47,9 @@ export function BusinessProvider({ children }) {
     setError(null)
 
     try {
-      const email = session.user.email
-      if (email) {
-        await acceptPendingInvitations(email)
-      }
-
       const context = await getBusinessContext(session.user.id)
       setBusinessContext(normalizeContext(context, session.user.id))
     } catch (err) {
-      console.error('Error resolving business context:', err)
       setError(err)
       setBusinessContext(null)
     } finally {

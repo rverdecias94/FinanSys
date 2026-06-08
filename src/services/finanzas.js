@@ -18,8 +18,7 @@ export async function uploadAttachments(files, userId) {
       .upload(fileName, file);
 
     if (error) {
-      console.error('Error uploading file:', error);
-      throw error;
+      throw error
     }
 
     const { data: { publicUrl } } = supabase.storage
@@ -46,7 +45,7 @@ export async function deleteAttachments(urls) {
       .remove(paths);
 
     if (error) {
-      console.error('Error deleting files from bucket:', error);
+      return
     }
   }
 }
@@ -59,7 +58,6 @@ export async function getFinanceCategories() {
     .order('name')
 
   if (error || !data || data.length === 0) {
-    if (error) console.error('Error al obtener categorías:', error)
     return {
       income: [
         'Ventas', 'Servicios Profesionales', 'Inversiones', 'Reembolsos',
@@ -93,7 +91,6 @@ export async function getPaymentMethods() {
     .order('name')
 
   if (error || !data || data.length === 0) {
-    if (error) console.error('Error al obtener métodos de pago:', error)
     return [
       'Efectivo', 'Transferencia Bancaria', 'Tarjeta de Débito',
       'Tarjeta de Crédito', 'Cheque', 'Depósito Bancario',
@@ -421,7 +418,6 @@ export async function getBalanceConfig(userId, businessId) {
     .eq('user_id', effectiveUserId) // Usar ID efectivo
 
   if (error) {
-    console.error('Error fetching balance config:', error)
     return []
   }
 

@@ -38,8 +38,8 @@ export const logAction = async ({ action, resource, details, area }) => {
       const response = await fetch('https://api.ipify.org?format=json')
       const data = await response.json()
       ip_address = data.ip
-    } catch (e) {
-      console.warn('Failed to get IP address', e)
+    } catch {
+      ip_address = null
     }
 
     const { error } = await supabase.from('audit_logs').insert({
@@ -54,11 +54,8 @@ export const logAction = async ({ action, resource, details, area }) => {
       ip_address
     })
 
-    if (error) {
-      console.error('Error logging action:', error)
-    }
-
-  } catch (err) {
-    console.error('Audit log error:', err)
+    if (error) return
+  } catch {
+    return
   }
 }

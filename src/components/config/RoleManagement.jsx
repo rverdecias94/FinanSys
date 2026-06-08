@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Shield, Lock, Users } from 'lucide-react'
+import { Plus, Pencil, Trash2, Shield, Lock } from 'lucide-react'
 import { getRoles, getPermissions, deleteRole } from '@/services/team'
 import { useSession } from '@/hooks/useSession'
 import { RoleModal } from './RoleModal'
@@ -32,7 +31,6 @@ export function RoleManagement() {
       setRoles(rolesData)
       setPermissions(permsData)
     } catch (error) {
-      console.error('Error fetching roles:', error)
       toast.error('Error al cargar roles')
     } finally {
       setLoading(false)
@@ -84,8 +82,7 @@ export function RoleManagement() {
       await deleteRole(roleToDelete.id)
       toast.success('Rol eliminado')
       fetchData()
-    } catch (error) {
-      console.error(error)
+    } catch {
       toast.error('Error al eliminar rol')
     } finally {
       setDeleteConfirmOpen(false)
@@ -113,7 +110,7 @@ export function RoleManagement() {
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg ${role.is_system ? 'bg-blue-100 text-blue-700' : 'bg-primary/10 text-primary'}`}>
+                  <div className={`p-2 rounded-lg ${role.is_system ? 'bg-secondary text-secondary-foreground' : 'bg-primary/10 text-primary'}`}>
                     {role.is_system ? <Lock className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
                   </div>
                   <CardTitle className="text-base">{role.name}</CardTitle>
@@ -148,7 +145,7 @@ export function RoleManagement() {
                 <Button variant="ghost" size="sm" onClick={() => handleEdit(role)}>
                   <Pencil className="w-3 h-3 mr-1" /> Editar
                 </Button>
-                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDeleteClick(role)}>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(role)}>
                   <Trash2 className="w-3 h-3 mr-1" /> Eliminar
                 </Button>
               </div>

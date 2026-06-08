@@ -186,7 +186,6 @@ export async function registerMovement({ product_id, qty, type, userId, business
         details: { product_id, qty, type, reason: 'product_not_in_business_context' }
       });
 
-      console.error('Security Alert: Attempt to access unauthorized product', { product_id, userId, businessId });
       throw new Error('Access Denied: Product does not belong to user\'s business context');
     }
 
@@ -205,7 +204,6 @@ export async function registerMovement({ product_id, qty, type, userId, business
         details: { product_id, qty, type, reason: 'product_not_found_in_context' }
       });
 
-      console.error('Security Alert: Product not found in business context', { product_id, userId, businessId });
       throw new Error('Access Denied: Product does not belong to user\'s business context');
     }
 
