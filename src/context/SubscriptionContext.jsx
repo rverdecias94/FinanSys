@@ -412,6 +412,9 @@ export const SubscriptionProvider = ({ children }) => {
       activateTrial, // Keep for backward compatibility
       pendingPlanRequest,
       refreshPendingPlanRequest: fetchPendingPlanRequest,
+      refreshSubscription: fetchSubscription,
+      refreshUsage: fetchUsage,
+      refreshPlanLimits: fetchPlanLimits,
       getPlanType,
       isPremium,
       PLAN_LIMITS

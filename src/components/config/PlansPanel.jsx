@@ -10,10 +10,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
+import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog'
 import { Check, Crown, Loader2, Shield, Send } from 'lucide-react'
 
 export function PlansPanel() {
-  const { subscription, loading, updatePlan, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS } = useSubscription()
+  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS } = useSubscription()
   const { isOwner } = useBusiness()
   const [requestOpen, setRequestOpen] = useState(false)
   const [downgradeOpen, setDowngradeOpen] = useState(false)
@@ -257,20 +258,15 @@ export function PlansPanel() {
         </DialogContent>
       </Dialog>
 
-      <ConfirmDialog
-        open={downgradeOpen}
-        onOpenChange={setDowngradeOpen}
-        title="Cambiar a Plan Gratuito"
-        description="Al bajar a Gratuito se aplicarán los límites del plan: se bloquearán áreas extra, se revocarán socios activos y quedará una sola moneda activa."
-        confirmText="Cambiar a Gratuito"
-        cancelText="Cancelar"
-        tone="destructive"
-        loading={loading}
-        onConfirm={async () => {
-          await updatePlan('free')
-          setDowngradeOpen(false)
-        }}
-      />
+      {downgradeOpen && (
+        <DowngradeToFreeDialog
+          open={downgradeOpen}
+          onOpenChange={setDowngradeOpen}
+          onSuccess={() => {
+            setDowngradeOpen(false)
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={cancelOpen}
