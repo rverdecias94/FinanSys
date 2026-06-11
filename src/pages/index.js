@@ -8,6 +8,7 @@ export { default as InventarioConfigFormulario } from './InventarioConfigFormula
 export { default as Reportes } from './Reportes'
 export { default as ConfiguracionMejorado } from './ConfiguracionMejorado'
 export { default as LogsMejorado } from './LogsMejorado'
+export { default as AdminPlans } from './AdminPlans'
 
 // Páginas originales (sin cambios)
 export { default as Dashboard } from './Dashboard'

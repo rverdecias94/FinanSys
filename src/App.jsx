@@ -19,7 +19,8 @@ import {
   InventarioConfigFormulario,
   Reportes,
   ConfiguracionMejorado,
-  LogsMejorado
+  LogsMejorado,
+  AdminPlans
 } from '@/pages'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -55,6 +56,10 @@ export default function App() {
                   </Route>
                   <Route path="/logs" element={<ProtectedRoute requiredPermission="logs.view" />}>
                     <Route index element={<LogsMejorado />} />
+                  </Route>
+
+                  <Route path="/admin/planes" element={<ProtectedRoute systemAdminOnly />}>
+                    <Route index element={<AdminPlans />} />
                   </Route>
                 </Route>
               </Route>

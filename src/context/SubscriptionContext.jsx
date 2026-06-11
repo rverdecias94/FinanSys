@@ -4,6 +4,7 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 import { logAction } from '@/services/auditLogger'
+import { cancelMyPendingPlanChangeRequest, getPendingPlanRequest, requestPlanChange } from '@/services/planRequests'
 
 const SubscriptionContext = createContext({})
 
@@ -13,6 +14,7 @@ export const SubscriptionProvider = ({ children }) => {
   const { session } = useSession()
   const { businessId, isOwner, loading: businessLoading } = useBusiness()
   const [subscription, setSubscription] = useState(null)
+  const [pendingPlanRequest, setPendingPlanRequest] = useState(null)
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
 
@@ -80,6 +82,7 @@ export const SubscriptionProvider = ({ children }) => {
       fetchSubscription()
       fetchPlanLimits()
       fetchUsage()
+      fetchPendingPlanRequest()
     } else if (!session?.user) {
       setLoading(false)
     }
@@ -149,6 +152,17 @@ export const SubscriptionProvider = ({ children }) => {
       setSubscription({ plan_id: 'free', status: 'active' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPendingPlanRequest = async () => {
+    if (!businessId) return
+
+    try {
+      const request = await getPendingPlanRequest(businessId)
+      setPendingPlanRequest(request)
+    } catch {
+      setPendingPlanRequest(null)
     }
   }
 
@@ -232,6 +246,14 @@ export const SubscriptionProvider = ({ children }) => {
       toast.error('Solo el propietario puede actualizar el plan.')
       return
     }
+
+    if (planId === 'premium') {
+      toast.error('El plan Premium requiere aprobación manual.', {
+        description: 'Envía una solicitud de Premium para que podamos revisarla.'
+      })
+      return
+    }
+
     try {
       setLoading(true)
 
@@ -260,6 +282,7 @@ export const SubscriptionProvider = ({ children }) => {
       // Refresh subscription and usage data
       await fetchSubscription()
       await fetchUsage()
+      await fetchPendingPlanRequest()
 
       toast.success(`Plan actualizado a ${planId === 'premium' ? 'Premium' : 'Gratuito'}`, {
         description: 'Los límites y accesos del plan ya fueron actualizados.',
@@ -273,8 +296,77 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const activateTrial = async () => {
-    // Alias to updatePlan('premium') but keeps the naming if other components use it
-    await updatePlan('premium')
+    await requestPremium()
+  }
+
+  const requestPremium = async ({
+    requestedMonths = 1,
+    contactPhone = '',
+    paymentMethod = '',
+    paymentReference = '',
+    userNotes = ''
+  } = {}) => {
+    if (!isOwner) {
+      toast.error('Solo el propietario puede solicitar Premium.')
+      return null
+    }
+
+    if (pendingPlanRequest) {
+      toast.info('Ya tienes una solicitud Premium pendiente.')
+      return pendingPlanRequest
+    }
+
+    try {
+      setLoading(true)
+      const result = await requestPlanChange({
+        targetPlanId: 'premium',
+        requestedMonths,
+        contactPhone,
+        paymentMethod,
+        paymentReference,
+        userNotes
+      })
+
+      await fetchPendingPlanRequest()
+
+      toast.success('Solicitud Premium enviada', {
+        description: 'Revisaremos tu solicitud y te contactaremos para confirmar la activación.'
+      })
+
+      return result
+    } catch (error) {
+      const msg = error?.message || 'No se pudo enviar la solicitud Premium.'
+      toast.error('Error al solicitar Premium', { description: msg })
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const cancelPendingPremiumRequest = async () => {
+    if (!isOwner) {
+      toast.error('Solo el propietario puede cancelar la solicitud.')
+      return null
+    }
+
+    if (!pendingPlanRequest) {
+      toast.info('No hay una solicitud pendiente.')
+      return null
+    }
+
+    try {
+      setLoading(true)
+      const result = await cancelMyPendingPlanChangeRequest()
+      await fetchPendingPlanRequest()
+      toast.success('Solicitud cancelada')
+      return result
+    } catch (error) {
+      const msg = error?.message || 'No se pudo cancelar la solicitud.'
+      toast.error('Error al cancelar', { description: msg })
+      return null
+    } finally {
+      setLoading(false)
+    }
   }
 
   const recordUsage = async (metricKey) => {
@@ -315,7 +407,11 @@ export const SubscriptionProvider = ({ children }) => {
       getRemainingUsage,
       canAccessFeature,
       updatePlan,
+      requestPremium,
+      cancelPendingPremiumRequest,
       activateTrial, // Keep for backward compatibility
+      pendingPlanRequest,
+      refreshPendingPlanRequest: fetchPendingPlanRequest,
       getPlanType,
       isPremium,
       PLAN_LIMITS

@@ -19,7 +19,7 @@ import { useBusiness } from '@/context/BusinessContext'
 export function TeamManagement() {
   const { session } = useSession()
   const { businessId } = useBusiness()
-  const { subscription } = useSubscription()
+  const { subscription, PLAN_LIMITS } = useSubscription()
 
   const [members, setMembers] = useState([])
   const [roles, setRoles] = useState([])
@@ -64,7 +64,7 @@ export function TeamManagement() {
 
   const handleInvite = async () => {
     // Check limit
-    const limit = subscription?.plan_id === 'premium' ? 5 : 0
+    const limit = PLAN_LIMITS?.[subscription?.plan_id || 'free']?.partners ?? 0
     if (members.length >= limit) {
       toast.error('Has alcanzado el límite de socios para tu plan.')
       return

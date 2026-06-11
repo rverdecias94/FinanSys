@@ -338,7 +338,7 @@ export function GeneralSettingsPanel() {
             : saveSettingsMutation.isPending
               ? 'Guardando…'
               : !savedSnapshot
-                ? 'Aún no se ha guardado en la nube.'
+                ? ''
                 : isDirty
                   ? 'Hay cambios sin guardar.'
                   : 'Todo está guardado.'}

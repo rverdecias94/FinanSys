@@ -60,11 +60,10 @@ const pct = (num, den) => {
 /**
  * Analyzes transactions to generate a structured finance report
  */
-export const generateFinanceReport = (transactions, dateFilter) => {
+export const generateFinanceReport = (transactions, dateFilter, comparison = null) => {
   const reportDate = format(new Date(), 'dd/MM/yyyy');
   const periodLabel = dateFilter?.label || 'Periodo no especificado';
 
-  const comparison = arguments.length >= 3 ? arguments[2] : null
   const comparisonTransactions = comparison?.comparisonTransactions || []
   const comparisonLabel = comparison?.comparisonLabel || 'Periodo anterior'
 

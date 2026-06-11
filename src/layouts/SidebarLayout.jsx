@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
+import { isSystemAdmin } from '@/services/planRequests'
 
 export default function SidebarLayout() {
   const location = useLocation()
@@ -16,6 +18,13 @@ export default function SidebarLayout() {
   const { isOwner, roleName, roleId } = useBusiness()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const isAdminQuery = useQuery({
+    queryKey: ['isSystemAdmin'],
+    queryFn: isSystemAdmin,
+    enabled: !!session,
+    staleTime: 5 * 60 * 1000
+  })
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -103,6 +112,13 @@ export default function SidebarLayout() {
               <span>Configuración</span>
             </NavLink>
           </PermissionGuard>
+
+          {isAdminQuery.data && (
+            <NavLink to="/admin/planes" className={linkClass}>
+              <ShieldCheck className="w-4 h-4" />
+              <span>Admin Planes</span>
+            </NavLink>
+          )}
         </nav>
 
         <div className="mt-auto pt-4 border-t space-y-4">
