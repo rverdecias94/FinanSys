@@ -6,7 +6,6 @@ export { default as InventarioNuevo } from './InventarioNuevo'
 export { default as InventarioItem } from './InventarioItem'
 export { default as InventarioConfigFormulario } from './InventarioConfigFormulario'
 export { default as Reportes } from './Reportes'
-export { default as ReportesMejorado } from './ReportesMejorado'
 export { default as ConfiguracionMejorado } from './ConfiguracionMejorado'
 export { default as LogsMejorado } from './LogsMejorado'
 

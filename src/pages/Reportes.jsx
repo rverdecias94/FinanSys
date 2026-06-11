@@ -421,6 +421,19 @@ const Reportes = () => {
     exportToExcel('Inventario', data, `inventario_${dateFilter?.type}`)
   }
 
+  const getPreviousRange = (filter) => {
+    const start = new Date(filter.startDate)
+    const end = new Date(filter.endDate)
+    const durationMs = Math.max(0, end.getTime() - start.getTime())
+    const prevEnd = new Date(start.getTime() - 1)
+    const prevStart = new Date(prevEnd.getTime() - durationMs)
+    return {
+      startDate: prevStart.toISOString(),
+      endDate: prevEnd.toISOString(),
+      label: `Periodo anterior (${filter.label})`
+    }
+  }
+
   const handlePreview = async (type) => {
     if (!dateFilter) return
     setPreviewLoading(true)
@@ -430,7 +443,9 @@ const Reportes = () => {
 
       if (type === 'finanzas') {
         const rows = await fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId })
-        report = generateFinanceReport(rows, dateFilter)
+        const prev = getPreviousRange(dateFilter)
+        const prevRows = await fetchTransactionsForExport({ from: prev.startDate, to: prev.endDate, userId, businessId })
+        report = generateFinanceReport(rows, dateFilter, { comparisonTransactions: prevRows, comparisonLabel: prev.label })
         fname = `informe_finanzas_${dateFilter?.type}`
       } else if (type === 'almacen') {
         const rows = await fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId })
@@ -441,12 +456,14 @@ const Reportes = () => {
         report = generateInventoryReport(summary, dateFilter)
         fname = `informe_inventario_${dateFilter?.type}`
       } else if (type === 'global') {
-        const [tx, mov, inv] = await Promise.all([
+        const prev = getPreviousRange(dateFilter)
+        const [tx, prevTx, mov, inv] = await Promise.all([
           fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId }),
+          fetchTransactionsForExport({ from: prev.startDate, to: prev.endDate, userId, businessId }),
           fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
           fetchInventorySummaryForExport()
         ])
-        report = generateGlobalReport({ transactions: tx, movements: mov, inventorySummary: inv }, dateFilter)
+        report = generateGlobalReport({ transactions: tx, prevTransactions: prevTx, prevLabel: prev.label, movements: mov, inventorySummary: inv }, dateFilter)
         fname = `informe_global_${dateFilter?.type}`
       } else {
         return

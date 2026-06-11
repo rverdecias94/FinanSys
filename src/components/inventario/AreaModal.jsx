@@ -11,7 +11,7 @@ import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInvento
 import { AREA_ICONS } from '@/lib/areaIcons'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
-export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId }) {
+export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId, canCreate = true }) {
   const { session } = useSession()
   const userId = session?.user?.id
   const queryClient = useQueryClient()
@@ -40,6 +40,10 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!areaToEdit && !canCreate) {
+      notify.error('Límite del plan alcanzado')
+      return
+    }
     setLoading(true)
     try {
       if (areaToEdit) {
@@ -127,7 +131,7 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || (!areaToEdit && !canCreate)}>
               {loading ? (areaToEdit ? 'Actualizando...' : 'Creando...') : (areaToEdit ? 'Guardar Cambios' : 'Crear Área')}
             </Button>
           </div>

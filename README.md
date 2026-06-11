@@ -1,7 +1,7 @@
 # NexGest ERP (Sistema de Gestión y Contabilidad)
 
 ## Descripción General
-NexGest ERP es una plataforma web integral basada en la nube, diseñada para centralizar y optimizar la administración de pequeñas y medianas empresas. El sistema unifica la gestión financiera, el control de inventarios, la administración de almacenes y la generación de reportes avanzados en una única interfaz moderna y escalable.
+GESTIA es una plataforma web integral basada en la nube, diseñada para centralizar y optimizar la administración de pequeñas y medianas empresas. El sistema unifica la gestión financiera, el control de inventarios, la administración de almacenes y la generación de reportes avanzados en una única interfaz moderna y escalable.
 
 Su arquitectura multi-inquilino (multi-business) permite gestionar distintas áreas de la empresa con un control estricto de roles y permisos (RBAC), adaptándose tanto a usuarios gratuitos (Freemium) como a clientes premium mediante un sistema de suscripciones dinámico.
 

@@ -8,7 +8,6 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { MovementModal } from './MovementModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useSubscription } from '@/context/SubscriptionContext'
 import { usePermissions } from '@/context/PermissionContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
@@ -33,16 +32,13 @@ export function MovementList({
   loadingMore
 }) {
   const [modalOpen, setModalOpen] = useState(false)
-  const { checkLimit, recordUsage } = useSubscription()
   const { hasPermission } = usePermissions()
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
 
   const handleOpenModal = () => {
-    if (checkLimit('monthly_transactions')) {
-      onRefresh()
-      setModalOpen(true)
-    }
+    onRefresh()
+    setModalOpen(true)
   }
 
   return (
@@ -253,7 +249,6 @@ export function MovementList({
         onOpenChange={setModalOpen}
         products={products}
         onSuccess={() => {
-          recordUsage('monthly_transactions')
           setModalOpen(false)
           onRefresh()
         }}

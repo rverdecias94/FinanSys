@@ -20,7 +20,7 @@ import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 export default function FinanzasMejorado() {
   const { session } = useSession()
   const { businessId, loading: businessLoading } = useBusiness()
-  const { checkLimit, recordUsage, getRemainingUsage, subscription } = useSubscription()
+  const { checkLimit, recordUsage, getRemainingUsage, subscription, PLAN_LIMITS } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { canView, canEdit, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
@@ -43,7 +43,7 @@ export default function FinanzasMejorado() {
   }
 
   const remainingTransactions = getRemainingUsage('monthly_transactions')
-  const transactionsLimit = subscription?.plan_id === 'premium' ? Infinity : 40
+  const transactionsLimit = (PLAN_LIMITS?.[subscription?.plan_id || 'free']?.monthly_transactions) ?? 40
   const remainingDisplay = transactionsLimit === Infinity ? 'Ilimitadas' : remainingTransactions
 
   // Queries

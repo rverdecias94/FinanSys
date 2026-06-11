@@ -13,6 +13,50 @@ const fmt = (num, currency) => {
   }).format(num);
 }
 
+const getCurrencies = (rows) => {
+  const currencies = [...new Set((rows || []).map(t => t.currency).filter(Boolean))]
+  return currencies.length ? currencies : ['USD']
+}
+
+const buildFinanceDataByCurrency = (transactions, currencies) => {
+  const dataByCurrency = {}
+  currencies.forEach(curr => {
+    const txs = (transactions || []).filter(t => t.currency === curr)
+    const income = txs.filter(t => t.type === 'income')
+    const expense = txs.filter(t => t.type === 'expense')
+
+    const incomeTotal = income.reduce((sum, t) => sum + Number(t.amount), 0)
+    const expenseTotal = expense.reduce((sum, t) => sum + Number(t.amount), 0)
+
+    dataByCurrency[curr] = {
+      incomeTotal,
+      expenseTotal,
+      net: incomeTotal - expenseTotal,
+      incomeCount: income.length,
+      expenseCount: expense.length,
+      incomeTxs: income,
+      expenseTxs: expense
+    }
+  })
+  return dataByCurrency
+}
+
+const sumByCategory = (txs) => {
+  const cats = {}
+  ;(txs || []).forEach(t => {
+    const key = t.category || 'Sin categoría'
+    cats[key] = (cats[key] || 0) + Number(t.amount)
+  })
+  return cats
+}
+
+const pct = (num, den) => {
+  const n = Number(num)
+  const d = Number(den)
+  if (!d) return null
+  return (n / d) * 100
+}
+
 /**
  * Analyzes transactions to generate a structured finance report
  */
@@ -20,31 +64,13 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   const reportDate = format(new Date(), 'dd/MM/yyyy');
   const periodLabel = dateFilter?.label || 'Periodo no especificado';
 
-  // 1. Data Processing
-  // Get all unique currencies from transactions
-  const currencies = [...new Set(transactions.map(t => t.currency).filter(Boolean))];
+  const comparison = arguments.length >= 3 ? arguments[2] : null
+  const comparisonTransactions = comparison?.comparisonTransactions || []
+  const comparisonLabel = comparison?.comparisonLabel || 'Periodo anterior'
 
-  if (currencies.length === 0) {
-    currencies.push('USD'); // Fallback if no transactions
-  }
-
-  const dataByCurrency = {};
-
-  currencies.forEach(curr => {
-    const txs = transactions.filter(t => t.currency === curr);
-    const income = txs.filter(t => t.type === 'income');
-    const expense = txs.filter(t => t.type === 'expense');
-
-    dataByCurrency[curr] = {
-      incomeTotal: income.reduce((sum, t) => sum + Number(t.amount), 0),
-      expenseTotal: expense.reduce((sum, t) => sum + Number(t.amount), 0),
-      incomeCount: income.length,
-      expenseCount: expense.length,
-      incomeTxs: income,
-      expenseTxs: expense
-    };
-    dataByCurrency[curr].net = dataByCurrency[curr].incomeTotal - dataByCurrency[curr].expenseTotal;
-  });
+  const currencies = getCurrencies(transactions)
+  const dataByCurrency = buildFinanceDataByCurrency(transactions, currencies)
+  const prevByCurrency = comparisonTransactions.length ? buildFinanceDataByCurrency(comparisonTransactions, currencies) : null
 
   // 2. Metadata
   const metadata = [
@@ -75,6 +101,29 @@ export const generateFinanceReport = (transactions, dateFilter) => {
     content: summaryText
   });
 
+  if (prevByCurrency) {
+    const items = currencies.map(curr => {
+      const cur = dataByCurrency[curr]
+      const prev = prevByCurrency[curr]
+      const deltaIncome = (cur?.incomeTotal || 0) - (prev?.incomeTotal || 0)
+      const deltaExpense = (cur?.expenseTotal || 0) - (prev?.expenseTotal || 0)
+      const deltaNet = (cur?.net || 0) - (prev?.net || 0)
+
+      const incomePct = pct(deltaIncome, prev?.incomeTotal || 0)
+      const expensePct = pct(deltaExpense, prev?.expenseTotal || 0)
+      const netPct = pct(deltaNet, Math.abs(prev?.net || 0))
+
+      const fmtPct = (v) => (v === null ? 'N/A' : `${(v >= 0 ? '+' : '')}${v.toFixed(0)}%`)
+      return `- **${curr} (${comparisonLabel}):** Ingresos ${fmt(deltaIncome, curr)} (${fmtPct(incomePct)}), Gastos ${fmt(deltaExpense, curr)} (${fmtPct(expensePct)}), Neto ${fmt(deltaNet, curr)} (${fmtPct(netPct)}).`
+    })
+
+    sections.push({
+      title: '2. Comparación con Periodo Anterior',
+      type: 'list',
+      items
+    })
+  }
+
   // 4. Section 2: Statement of Results (Table)
   const resultHeaders = ["Concepto", ...currencies.map(c => `Importe (${c})`)];
   const resultRows = [
@@ -84,7 +133,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   ];
 
   sections.push({
-    title: "2. Estado de Resultados Parcial",
+    title: prevByCurrency ? "3. Estado de Resultados Parcial" : "2. Estado de Resultados Parcial",
     type: "table",
     headers: resultHeaders,
     rows: resultRows,
@@ -108,7 +157,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   if (incomeAnalysis.length === 0) incomeAnalysis.push("No se registraron ingresos en el periodo.");
 
   sections.push({
-    title: "3. Análisis de Ingresos",
+    title: prevByCurrency ? "4. Análisis de Ingresos" : "3. Análisis de Ingresos",
     type: "list",
     items: incomeAnalysis,
     notes: ""
@@ -129,7 +178,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
 
   if (topExpenses.length > 0) {
     sections.push({
-      title: "4. Detalle de Gastos Principales",
+      title: prevByCurrency ? "5. Detalle de Gastos Principales" : "4. Detalle de Gastos Principales",
       type: "table",
       headers: ["Categoría", "Monto", "Método", "Observaciones"],
       rows: topExpenses
@@ -151,11 +200,61 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   });
 
   sections.push({
-    title: "5. Indicadores de Gestión Financiera",
+    title: prevByCurrency ? "6. Indicadores de Gestión Financiera" : "5. Indicadores de Gestión Financiera",
     type: "table",
     headers: ["Indicador", "Valor"],
     rows: kpis
   });
+
+  if (prevByCurrency) {
+    const anomalies = []
+    currencies.forEach(curr => {
+      const cur = dataByCurrency[curr]
+      const prev = prevByCurrency[curr]
+      if (!cur || !prev) return
+
+      const curCats = sumByCategory(cur.expenseTxs)
+      const prevCats = sumByCategory(prev.expenseTxs)
+
+      const changes = Object.keys({ ...curCats, ...prevCats })
+        .map((cat) => {
+          const c = curCats[cat] || 0
+          const p = prevCats[cat] || 0
+          const delta = c - p
+          const pPct = pct(delta, p)
+          return { cat, c, p, delta, pPct }
+        })
+        .filter(x => x.p > 0 && x.pPct !== null)
+        .sort((a, b) => (b.pPct || 0) - (a.pPct || 0))
+
+      const topGrowth = changes.find(x => (x.pPct || 0) >= 30)
+      if (topGrowth) {
+        anomalies.push(`- **${curr}:** La categoría **${topGrowth.cat}** aumentó ${topGrowth.pPct.toFixed(0)}% (${fmt(topGrowth.p, curr)} → ${fmt(topGrowth.c, curr)}).`)
+      }
+
+      const curTopExpense = (cur.expenseTxs || [])
+        .slice()
+        .sort((a, b) => Number(b.amount) - Number(a.amount))[0]
+      const prevTopExpense = (prev.expenseTxs || [])
+        .slice()
+        .sort((a, b) => Number(b.amount) - Number(a.amount))[0]
+
+      if (curTopExpense && prevTopExpense) {
+        const jump = pct(Number(curTopExpense.amount) - Number(prevTopExpense.amount), Number(prevTopExpense.amount))
+        if (jump !== null && jump >= 50) {
+          anomalies.push(`- **${curr}:** El mayor gasto subió ${jump.toFixed(0)}% (${fmt(Number(prevTopExpense.amount), curr)} → ${fmt(Number(curTopExpense.amount), curr)}).`)
+        }
+      }
+    })
+
+    if (anomalies.length) {
+      sections.push({
+        title: '7. Tendencias y Alertas',
+        type: 'list',
+        items: anomalies
+      })
+    }
+  }
 
   // 8. Conclusions
   const conclusions = [
@@ -165,7 +264,7 @@ export const generateFinanceReport = (transactions, dateFilter) => {
   ];
 
   sections.push({
-    title: "6. Conclusiones y Recomendaciones",
+    title: prevByCurrency ? "8. Conclusiones y Recomendaciones" : "6. Conclusiones y Recomendaciones",
     type: "list",
     items: conclusions
   });
@@ -284,7 +383,11 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
  * Generates a global combined report
  */
 export const generateGlobalReport = (data, dateFilter) => {
-  const fin = generateFinanceReport(data.transactions, dateFilter);
+  const fin = generateFinanceReport(
+    data.transactions,
+    dateFilter,
+    data?.prevTransactions?.length ? { comparisonTransactions: data.prevTransactions, comparisonLabel: data.prevLabel || 'Periodo anterior' } : undefined
+  );
   const alm = generateWarehouseReport(data.movements, dateFilter);
   const inv = generateInventoryReport(data.inventorySummary, dateFilter);
 

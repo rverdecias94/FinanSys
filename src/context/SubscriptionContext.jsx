@@ -16,7 +16,7 @@ export const SubscriptionProvider = ({ children }) => {
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
 
-  const PLAN_LIMITS = {
+  const FALLBACK_PLAN_LIMITS = {
     free: {
       monthly_transactions: 40,
       products: 40,
@@ -37,6 +37,32 @@ export const SubscriptionProvider = ({ children }) => {
     }
   }
 
+  const [PLAN_LIMITS, setPlanLimits] = useState(FALLBACK_PLAN_LIMITS)
+
+  const normalizePlanLimits = (raw) => {
+    const out = { ...FALLBACK_PLAN_LIMITS }
+    for (const p of raw || []) {
+      if (!p?.id) continue
+      const limits = p.limits || {}
+      const features = p.features || {}
+
+      const merged = { ...(out[p.id] || {}) }
+
+      for (const [k, v] of Object.entries(limits)) {
+        const n = Number(v)
+        if (!Number.isFinite(n)) continue
+        merged[k] = n < 0 ? Infinity : n
+      }
+
+      for (const [k, v] of Object.entries(features)) {
+        if (typeof v === 'boolean') merged[k] = v
+      }
+
+      out[p.id] = merged
+    }
+    return out
+  }
+
   const getRemainingUsage = (metricKey) => {
     if (!subscription) return 0
     const plan = PLAN_LIMITS[subscription.plan_id] || PLAN_LIMITS.free
@@ -52,11 +78,24 @@ export const SubscriptionProvider = ({ children }) => {
   useEffect(() => {
     if (session?.user && businessId && !businessLoading) {
       fetchSubscription()
+      fetchPlanLimits()
       fetchUsage()
     } else if (!session?.user) {
       setLoading(false)
     }
   }, [session, businessId, businessLoading])
+
+  const fetchPlanLimits = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('plans')
+        .select('id, features, limits')
+      if (error) return
+      setPlanLimits(normalizePlanLimits(data))
+    } catch {
+      return
+    }
+  }
 
   const fetchSubscription = async () => {
     if (!businessId) return

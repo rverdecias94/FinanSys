@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { usePermissions } from '@/context/PermissionContext'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { getInventoryAreas, deleteArea } from '@/services/dynamicInventory'
 import { AreaModal } from '@/components/inventario/AreaModal'
 import { FormRunner } from '@/components/inventario/FormRunner'
@@ -20,6 +21,7 @@ export default function InventarioMejorado() {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { isOwner } = usePermissions()
+  const { checkLimit, subscription, PLAN_LIMITS } = useSubscription()
   const queryClient = useQueryClient()
 
   const userId = session?.user?.id
@@ -37,6 +39,9 @@ export default function InventarioMejorado() {
     queryFn: () => getInventoryAreas(effectiveUserId),
     enabled: !!effectiveUserId && !!userId
   })
+
+  const planAreasLimit = (PLAN_LIMITS?.[subscription?.plan_id || 'free']?.areas) ?? 5
+  const canCreateArea = isOwner && (planAreasLimit === Infinity || areas.length < planAreasLimit)
 
   const selectedArea = useMemo(() => {
     if (!selectedAreaId) return null
@@ -59,6 +64,7 @@ export default function InventarioMejorado() {
   })
 
   const openCreateArea = () => {
+    if (!checkLimit('areas', areas.length)) return
     setAreaToEdit(null)
     setAreaModalOpen(true)
   }
@@ -91,7 +97,7 @@ export default function InventarioMejorado() {
         </h1>
 
         {isOwner && (
-          <Button onClick={openCreateArea} className="gap-2">
+          <Button onClick={openCreateArea} className="gap-2" disabled={!canCreateArea}>
             <Plus className="w-4 h-4" />
             Crear Nueva Área
           </Button>
@@ -111,6 +117,7 @@ export default function InventarioMejorado() {
           areas.map(area => {
             const Icon = getAreaIcon(area.icon)
             const active = selectedAreaId === area.id
+            const locked = area.plan_locked === true
             return (
               <div
                 key={area.id}
@@ -123,6 +130,7 @@ export default function InventarioMejorado() {
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{area.name}</div>
                     {active && <Badge className="mt-1" variant="default">Activo</Badge>}
+                    {locked && <Badge className="mt-1 ml-2" variant="secondary">Bloqueada</Badge>}
                   </div>
                 </div>
 
@@ -139,7 +147,7 @@ export default function InventarioMejorado() {
                   </Button>
                   {isOwner && (
                     <>
-                      <Button variant="outline" size="icon" onClick={() => openEditArea(area)} aria-label="Editar área">
+                      <Button variant="outline" size="icon" onClick={() => openEditArea(area)} aria-label="Editar área" disabled={locked}>
                         <Pencil className="w-4 h-4" />
                       </Button>
                       <Button variant="destructive" size="icon" onClick={() => requestDeleteArea(area.id)} aria-label="Eliminar área">
@@ -159,6 +167,7 @@ export default function InventarioMejorado() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="text-lg font-semibold">{selectedArea.name}</div>
+              {selectedArea.plan_locked === true && <Badge variant="secondary">Bloqueada</Badge>}
             </div>
 
             <div className="w-[240px]">
@@ -168,7 +177,7 @@ export default function InventarioMejorado() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="use">Usar Formulario</SelectItem>
-                  <SelectItem value="edit" disabled={!isOwner}>Editar Campos del Formulario</SelectItem>
+                  <SelectItem value="edit" disabled={!isOwner || selectedArea.plan_locked === true}>Editar Campos del Formulario</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -180,7 +189,18 @@ export default function InventarioMejorado() {
 
           {mode === 'edit' && (
             isOwner ? (
-              <FormBuilder areaId={selectedArea.id} userId={effectiveUserId} />
+              selectedArea.plan_locked === true ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Área bloqueada</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-muted-foreground">
+                    Esta área está en solo lectura por el plan actual.
+                  </CardContent>
+                </Card>
+              ) : (
+                <FormBuilder areaId={selectedArea.id} userId={effectiveUserId} />
+              )
             ) : (
               <Card>
                 <CardHeader>
@@ -204,6 +224,7 @@ export default function InventarioMejorado() {
         }}
         areaToEdit={areaToEdit}
         businessId={businessId}
+        canCreate={canCreateArea}
       />
 
       <ConfirmDialog

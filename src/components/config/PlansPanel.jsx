@@ -7,25 +7,35 @@ import { useBusiness } from '@/context/BusinessContext'
 import { Check, Crown, Shield } from 'lucide-react'
 
 export function PlansPanel() {
-  const { subscription, loading, updatePlan } = useSubscription()
+  const { subscription, loading, updatePlan, PLAN_LIMITS } = useSubscription()
   const { isOwner } = useBusiness()
 
   const currentPlan = subscription?.plan_id || 'free'
 
-  const plans = useMemo(
-    () => [
+  const plans = useMemo(() => {
+    const free = PLAN_LIMITS?.free || {}
+    const premium = PLAN_LIMITS?.premium || {}
+
+    const txFree = Number.isFinite(free.monthly_transactions) ? free.monthly_transactions : 40
+    const prodFree = Number.isFinite(free.products) ? free.products : 40
+    const areasFree = Number.isFinite(free.areas) ? free.areas : 5
+    const partnersFree = Number.isFinite(free.partners) ? free.partners : 0
+
+    const partnersPremium = premium.partners === Infinity ? 'Ilimitados' : (Number.isFinite(premium.partners) ? premium.partners : 5)
+
+    return [
       {
         id: 'free',
         title: 'Plan Gratuito',
         subtitle: 'Ideal para empezar',
         icon: <Shield className="h-5 w-5" />,
         highlights: [
-          '40 Transacciones / mes',
-          '40 Productos',
-          '5 Áreas de Inventario',
+          `${txFree} Transacciones / mes`,
+          `${prodFree} Productos`,
+          `${areasFree} Áreas de Inventario`,
           '1 Moneda Activa',
           'Reportes Básicos (Solo lectura)',
-          'Sin Socios'
+          partnersFree ? `Hasta ${partnersFree} Socios` : 'Sin Socios'
         ]
       },
       {
@@ -39,13 +49,12 @@ export function PlansPanel() {
           'Áreas Ilimitadas',
           'Múltiples Monedas',
           'Reportes Avanzados + Exportación',
-          'Hasta 5 Socios',
+          `Hasta ${partnersPremium} Socios`,
           'Logs de Auditoría'
         ]
       }
-    ],
-    []
-  )
+    ]
+  }, [PLAN_LIMITS])
 
   return (
     <div className="space-y-6">
@@ -104,4 +113,3 @@ export function PlansPanel() {
     </div>
   )
 }
-
