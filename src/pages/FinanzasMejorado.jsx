@@ -474,7 +474,7 @@ export default function FinanzasMejorado() {
         onSubmit={selectedTransaction?.id ? updateMutation.mutate : createMutation.mutate}
         categories={categories}
         paymentMethods={paymentMethods}
-        businessCurrencies={businessCurrencies}
+        currencies={businessCurrencies}
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />
     </div>
