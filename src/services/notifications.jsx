@@ -62,6 +62,8 @@ export const getSupabaseErrorMessage = (error) => {
         return "No tienes permisos para realizar esta acción."
       case '23514': // check_violation — única fuente actual: CHECK stock >= 0
         return "El stock no puede quedar en negativo. Revisa la cantidad disponible."
+      case '53400': // configuration_limit_exceeded — límite del plan server-side (P1.11)
+        return error.message || "Has alcanzado un límite de tu plan. Actualiza a Premium para ampliarlo."
       default:
         // Mensaje técnico en desarrollo, genérico en producción
         return import.meta.env.DEV

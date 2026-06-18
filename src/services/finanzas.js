@@ -461,8 +461,11 @@ export async function updateBalanceConfig(userId, businessId, balances) {
 
     if (!txError && transactions) {
       transactions.forEach(t => {
+        // P1.12: sumar como gasto SOLO 'expense' (antes el `else` contaba cualquier
+        // tipo no-income como gasto, distorsionando el balance). Coherente con
+        // computeTotals/getDashboardStats, que filtran por tipo explícito.
         if (t.type === 'income') totalIncome += Number(t.amount)
-        else totalExpense += Number(t.amount)
+        else if (t.type === 'expense') totalExpense += Number(t.amount)
       })
     }
 

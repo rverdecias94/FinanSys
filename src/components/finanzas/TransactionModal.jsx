@@ -60,9 +60,20 @@ const DEFAULT_PAYMENT_METHODS = [
 const formSchema = z.object({
   type: z.enum(['income', 'expense']),
   date: z.date({ required_error: "La fecha es obligatoria" }),
-  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "El monto debe ser un número positivo",
-  }),
+  amount: z.string()
+    .trim()
+    // P1.13: validación de monto endurecida. El `!isNaN(Number(val))` anterior aceptaba
+    // Infinity, hexadecimal (0x10), notación científica (1e3) y espacios. El regex solo
+    // admite dígitos con hasta 2 decimales (formato monetario), hasta 12 enteros.
+    .refine((val) => /^\d{1,12}(\.\d{1,2})?$/.test(val), {
+      message: "Ingresa un monto válido (ej: 1500.50), sin letras ni símbolos.",
+    })
+    .refine((val) => {
+      const n = Number(val)
+      return Number.isFinite(n) && n > 0
+    }, {
+      message: "El monto debe ser mayor que cero.",
+    }),
   currency: z.string().min(1, "La moneda es obligatoria"),
   category: z.string().min(1, "La categoría es obligatoria"),
   description: z.string().min(3, "La descripción debe tener al menos 3 caracteres"),
@@ -186,8 +197,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   }
 
   const calculateTotal = () => {
-    const amount = Number(watchedValues.amount || 0)
-    return amount
+    // P1.13: evita mostrar "NaN" en "Total Estimado" mientras el monto es inválido.
+    const amount = Number(watchedValues.amount)
+    return Number.isFinite(amount) && amount > 0 ? amount : 0
   }
 
   const isViewableUrl = (value) =>
@@ -249,7 +261,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                         <FormLabel>Tipo de Movimiento</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-11">
                               <SelectValue placeholder="Selecciona tipo" />
                             </SelectTrigger>
                           </FormControl>
@@ -274,6 +286,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                             value={field.value}
                             onChange={field.onChange}
                             placeholder="Selecciona una fecha"
+                            className="h-11"
                           />
                         </FormControl>
                         <FormMessage />
@@ -305,7 +318,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                         <FormLabel>Moneda</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-11">
                               <SelectValue />
                             </SelectTrigger>
                           </FormControl>
@@ -333,7 +346,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                         <FormLabel>Categoría</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-11">
                               <SelectValue placeholder="Selecciona una categoría" />
                             </SelectTrigger>
                           </FormControl>
@@ -356,7 +369,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                         <FormLabel>Método de Pago</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                           <FormControl>
-                            <SelectTrigger>
+                            <SelectTrigger className="h-11">
                               <SelectValue placeholder="Selecciona método" />
                             </SelectTrigger>
                           </FormControl>
