@@ -6,11 +6,11 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { createRole, updateRole } from '@/services/team'
-import { useSession } from '@/hooks/useSession'
+import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 
 export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) {
-  const { session } = useSession()
+  const { businessId } = useBusiness()
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -70,6 +70,10 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
       toast.error('El nombre del rol es obligatorio')
       return
     }
+    if (!role && !businessId) {
+      toast.error('No se pudo identificar el negocio. Recarga la página e inténtalo de nuevo.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -85,7 +89,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
           name,
           description,
           permissionIds: selectedPermissions,
-          owner_id: session.user.id
+          owner_id: businessId
         })
         toast.success('Rol creado correctamente')
       }

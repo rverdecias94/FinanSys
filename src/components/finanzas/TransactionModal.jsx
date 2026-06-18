@@ -72,7 +72,7 @@ const formSchema = z.object({
   files: z.any().optional(), // For mock attachment
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [] }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], readonly = false }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
@@ -168,6 +168,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   }
 
   const handleSubmit = (data) => {
+    if (readonly) return
     if (!isPreview) {
       setIsPreview(true)
       return
@@ -219,21 +220,24 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
               </>
             ) : (
               <>
-                {isEditing ? 'Editar Movimiento' : watchedValues.type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto'}
+                {readonly ? 'Ver Movimiento' : isEditing ? 'Editar Movimiento' : watchedValues.type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto'}
               </>
             )}
           </DialogTitle>
           <DialogDescription>
-            {isPreview
-              ? 'Revisa la información antes de guardar el movimiento.'
-              : isEditing
-                ? 'Actualiza los campos del movimiento financiero.'
-                : 'Completa los campos para registrar un nuevo movimiento financiero.'}
+            {readonly
+              ? 'Detalle del movimiento financiero (solo lectura).'
+              : isPreview
+                ? 'Revisa la información antes de guardar el movimiento.'
+                : isEditing
+                  ? 'Actualiza los campos del movimiento financiero.'
+                  : 'Completa los campos para registrar un nuevo movimiento financiero.'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <fieldset disabled={readonly} className="space-y-6 m-0 p-0 border-0 min-w-0 disabled:cursor-not-allowed disabled:opacity-95">
             {!isPreview ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -562,22 +566,31 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                 </div>
               </div>
             )}
+            </fieldset>
 
             <DialogFooter className="gap-2 sm:gap-0">
-              {isPreview && (
-                <Button type="button" variant="outline" onClick={() => setIsPreview(false)}>
-                  Volver a editar
+              {readonly ? (
+                <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
+                  Cerrar
                 </Button>
+              ) : (
+                <>
+                  {isPreview && (
+                    <Button type="button" variant="outline" onClick={() => setIsPreview(false)}>
+                      Volver a editar
+                    </Button>
+                  )}
+                  <Button type="submit" className={cn("w-full sm:w-auto", isPreview && "bg-green-600 hover:bg-green-700")}>
+                    {isPreview ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" /> {isEditing ? 'Confirmar y Actualizar' : 'Confirmar y Guardar'}
+                      </>
+                    ) : (
+                      "Revisar Datos"
+                    )}
+                  </Button>
+                </>
               )}
-              <Button type="submit" className={cn("w-full sm:w-auto", isPreview && "bg-green-600 hover:bg-green-700")}>
-                {isPreview ? (
-                  <>
-                    <Check className="w-4 h-4 mr-2" /> {isEditing ? 'Confirmar y Actualizar' : 'Confirmar y Guardar'}
-                  </>
-                ) : (
-                  "Revisar Datos"
-                )}
-              </Button>
             </DialogFooter>
           </form>
         </Form>
