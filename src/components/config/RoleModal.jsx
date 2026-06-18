@@ -9,7 +9,7 @@ import { createRole, updateRole } from '@/services/team'
 import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 
-export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) {
+export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, readOnly = false }) {
   const { businessId } = useBusiness()
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState('')
@@ -66,6 +66,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (readOnly) return
     if (!name.trim()) {
       toast.error('El nombre del rol es obligatorio')
       return
@@ -113,9 +114,11 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{role ? 'Editar Rol' : 'Crear Nuevo Rol'}</DialogTitle>
+          <DialogTitle>{role ? (readOnly ? 'Permisos del Rol' : 'Editar Rol') : 'Crear Nuevo Rol'}</DialogTitle>
           <DialogDescription>
-            Define los permisos específicos para este rol.
+            {readOnly
+              ? 'Permisos asignados a este rol (solo lectura).'
+              : 'Define los permisos específicos para este rol.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -127,7 +130,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Contador, Auxiliar de Almacén"
-              disabled={loading}
+              disabled={loading || readOnly}
             />
           </div>
 
@@ -138,7 +141,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Breve descripción de las responsabilidades"
-              disabled={loading}
+              disabled={loading || readOnly}
             />
           </div>
 
@@ -153,15 +156,17 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
                         <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex-1">
                           {module}
                         </h4>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 text-xs"
-                          onClick={() => handleToggleModule(module)}
-                        >
-                          {perms.every(p => selectedPermissions.includes(p.id)) ? 'Desmarcar todo' : 'Marcar todo'}
-                        </Button>
+                        {!readOnly && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs"
+                            onClick={() => handleToggleModule(module)}
+                          >
+                            {perms.every(p => selectedPermissions.includes(p.id)) ? 'Desmarcar todo' : 'Marcar todo'}
+                          </Button>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -174,6 +179,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
                               id={perm.id}
                               checked={selectedPermissions.includes(perm.id)}
                               onCheckedChange={() => handleTogglePermission(perm.id)}
+                              disabled={readOnly}
                             />
                             <div className="grid gap-1.5 leading-none">
                               <label
@@ -197,12 +203,20 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess }) 
         </form>
 
         <DialogFooter className="mt-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button type="submit" form="role-form" disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar Rol'}
-          </Button>
+          {readOnly ? (
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cerrar
+            </Button>
+          ) : (
+            <>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                Cancelar
+              </Button>
+              <Button type="submit" form="role-form" disabled={loading}>
+                {loading ? 'Guardando...' : 'Guardar Rol'}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

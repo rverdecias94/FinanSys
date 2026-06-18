@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Trash2, Shield, Lock } from 'lucide-react'
+import { Plus, Pencil, Trash2, Shield, Lock, Eye } from 'lucide-react'
 import { getRoles, getPermissions, deleteRole } from '@/services/team'
 import { useSession } from '@/hooks/useSession'
 import { RoleModal } from './RoleModal'
@@ -17,9 +17,17 @@ export function RoleManagement() {
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editingRole, setEditingRole] = useState(null)
+  const [viewOnly, setViewOnly] = useState(false)
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [roleToDelete, setRoleToDelete] = useState(null)
+
+  // Mapa código→descripción en español (la tabla `permissions` ya trae las descripciones).
+  const permLabel = useMemo(() => {
+    const map = {}
+    for (const p of permissions) map[p.code] = p.description
+    return (code) => map[code] || code
+  }, [permissions])
 
   const fetchData = async () => {
     try {
@@ -61,12 +69,20 @@ export function RoleManagement() {
 
   const handleCreate = () => {
     setEditingRole(null)
+    setViewOnly(false)
     setModalOpen(true)
   }
 
   const handleEdit = (role) => {
     if (role.is_system) return
     setEditingRole(role)
+    setViewOnly(false)
+    setModalOpen(true)
+  }
+
+  const handleView = (role) => {
+    setEditingRole(role)
+    setViewOnly(true)
     setModalOpen(true)
   }
 
@@ -129,37 +145,44 @@ export function RoleManagement() {
               </div>
               <div className="flex flex-wrap gap-1">
                 {role.permissions?.slice(0, 3).map(p => (
-                  <Badge key={p} variant="outline" className="text-[10px] px-1 py-0 h-5 font-normal">
-                    {p}
+                  <Badge key={p} variant="outline" title={permLabel(p)} className="text-[10px] px-1.5 py-0 h-5 font-normal max-w-[160px]">
+                    <span className="min-w-0 truncate">{permLabel(p)}</span>
                   </Badge>
                 ))}
                 {(role.permissions?.length || 0) > 3 && (
-                  <Badge variant="outline" className="text-[10px] px-1 py-0 h-5 font-normal">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 font-normal">
                     +{role.permissions.length - 3} más
                   </Badge>
                 )}
               </div>
             </CardContent>
-            {!role.is_system && (
-              <div className="p-4 pt-0 mt-auto flex justify-end gap-2 border-t pt-3">
-                <Button variant="ghost" size="sm" onClick={() => handleEdit(role)}>
-                  <Pencil className="w-3 h-3 mr-1" /> Editar
+            <div className="p-4 pt-3 mt-auto flex justify-end gap-2 border-t">
+              {role.is_system ? (
+                <Button variant="ghost" size="sm" onClick={() => handleView(role)}>
+                  <Eye className="w-3 h-3 mr-1" /> Ver permisos
                 </Button>
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(role)}>
-                  <Trash2 className="w-3 h-3 mr-1" /> Eliminar
-                </Button>
-              </div>
-            )}
+              ) : (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => handleEdit(role)}>
+                    <Pencil className="w-3 h-3 mr-1" /> Editar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteClick(role)}>
+                    <Trash2 className="w-3 h-3 mr-1" /> Eliminar
+                  </Button>
+                </>
+              )}
+            </div>
           </Card>
         ))}
       </div>
 
       <RoleModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={(o) => { setModalOpen(o); if (!o) setViewOnly(false) }}
         role={editingRole}
         permissions={permissions}
         onSuccess={fetchData}
+        readOnly={viewOnly}
       />
 
       <ConfirmDialog

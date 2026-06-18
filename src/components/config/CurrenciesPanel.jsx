@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useCurrency } from '@/context/CurrencyContext'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -66,19 +68,36 @@ export function CurrenciesPanel() {
                   </div>
 
                   <div className="flex items-center gap-3 justify-between sm:justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={!isOwner || !isActive || isDefault}
-                      onClick={() => setMainCurrency(curr.code)}
-                    >
-                      Hacer principal
-                    </Button>
-                    <Switch
-                      checked={isActive}
-                      disabled={!isOwner}
-                      onCheckedChange={(checked) => toggleCurrency(curr.code, checked)}
-                    />
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0} className="inline-flex">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!isOwner || !isActive || isDefault}
+                              onClick={() => setMainCurrency(curr.code)}
+                            >
+                              Hacer principal
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" align="end" className="max-w-[240px]">
+                          La moneda principal es la que se conserva si bajas de plan. También puedes definirla en «General».
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`activar-${curr.code}`} className="text-xs text-muted-foreground">
+                        Activar
+                      </Label>
+                      <Switch
+                        id={`activar-${curr.code}`}
+                        checked={isActive}
+                        disabled={!isOwner}
+                        onCheckedChange={(checked) => toggleCurrency(curr.code, checked)}
+                      />
+                    </div>
                   </div>
                 </div>
               )

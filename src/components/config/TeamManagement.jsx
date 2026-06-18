@@ -228,9 +228,13 @@ export function TeamManagement() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={m.status === 'active' ? 'default' : 'secondary'}>
-                        {m.status === 'active' ? 'Activo' : 'Pendiente'}
-                      </Badge>
+                      {m.status === 'active' ? (
+                        <Badge variant="default">Activo</Badge>
+                      ) : m.status === 'revoked' ? (
+                        <Badge variant="outline" className="border-destructive/30 text-destructive">Revocado</Badge>
+                      ) : (
+                        <Badge variant="secondary">Pendiente</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

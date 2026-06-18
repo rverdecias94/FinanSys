@@ -103,19 +103,9 @@ export function BalanceBaseSection({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">Balance Inicial (Manual)</Badge>
-            <span className="text-xs text-muted-foreground">CUP / USD / EUR / MXN</span>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onSaveBaseCurrency} disabled={!isOwner}>
-              Guardar Moneda Principal
-            </Button>
-            <Button onClick={onUpdateBalances} disabled={!isOwner || isRefreshing}>
-              Actualizar Balance Inicial
-            </Button>
-          </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">Balance Inicial (Manual)</Badge>
+          <span className="text-xs text-muted-foreground">CUP / USD / EUR / MXN</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,6 +137,15 @@ export function BalanceBaseSection({
           El balance actual se calcula automáticamente: Balance Inicial + Ingresos - Gastos.
         </p>
         {!isOwner && <p className="text-xs text-muted-foreground">Solo el propietario puede modificar el balance.</p>}
+
+        <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onSaveBaseCurrency} disabled={!isOwner}>
+            Guardar Moneda Principal
+          </Button>
+          <Button className="w-full sm:w-auto" onClick={onUpdateBalances} disabled={!isOwner || isRefreshing}>
+            Actualizar Balance Inicial
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

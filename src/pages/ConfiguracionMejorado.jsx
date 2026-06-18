@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { DashboardPermissions, PermissionSummary } from '@/components/dashboard/DashboardPermissions'
+import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
 import { TeamManagement } from '@/components/config/TeamManagement'
 import { RoleManagement } from '@/components/config/RoleManagement'
 import { PlansPanel } from '@/components/config/PlansPanel'
@@ -116,12 +116,6 @@ export default function ConfiguracionMejorado() {
               Roles
             </TabsTrigger>
           )}
-          {canManageTeam && (
-            <TabsTrigger value="permisos" className="flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Permisos
-            </TabsTrigger>
-          )}
         </TabsList>
 
         {isOwner && (
@@ -150,11 +144,6 @@ export default function ConfiguracionMejorado() {
           </TabsContent>
         )}
 
-        {canManageTeam && (
-          <TabsContent value="permisos" className="space-y-4">
-            <DashboardPermissions />
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   )
