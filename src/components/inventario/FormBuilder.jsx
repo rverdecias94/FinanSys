@@ -13,13 +13,13 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { arrayMove, optionsToCsv, parseOptionsCsv, toLabelFromName } from '@/utils/inventoryFormUtils'
 
 const TYPE_OPTIONS = [
-  { value: 'text', label: 'Texto' },
-  { value: 'number', label: 'Número' },
-  { value: 'select', label: 'Selección' },
-  { value: 'color', label: 'Color' },
-  { value: 'date', label: 'Fecha' },
-  { value: 'boolean', label: 'Sí/No (Booleano)' },
-  { value: 'textarea', label: 'Área de Texto' }
+  { value: 'text', label: 'Texto', hint: 'Texto corto en una línea (ej. nombre, marca).' },
+  { value: 'number', label: 'Número', hint: 'Solo números (ej. cantidad, precio).' },
+  { value: 'select', label: 'Lista de opciones', hint: 'El usuario elige de una lista que tú defines.' },
+  { value: 'color', label: 'Color', hint: 'Un color para identificar el artículo.' },
+  { value: 'date', label: 'Fecha', hint: 'Una fecha (ej. compra o vencimiento).' },
+  { value: 'boolean', label: 'Sí / No', hint: 'Una casilla para marcar Sí o No.' },
+  { value: 'textarea', label: 'Texto largo', hint: 'Texto de varias líneas (ej. descripción, notas).' }
 ]
 
 export function FormBuilder({ areaId, userId }) {
@@ -292,6 +292,9 @@ export function FormBuilder({ areaId, userId }) {
                 {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {TYPE_OPTIONS.find(t => t.value === newField.type)?.hint}
+            </p>
           </div>
           <div className="grid gap-1">
             <Label>Requerido</Label>

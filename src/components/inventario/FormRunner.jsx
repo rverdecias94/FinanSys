@@ -15,6 +15,15 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { usePermissions } from '@/context/PermissionContext'
 import { placeholderForType, toLabelFromName } from '@/utils/inventoryFormUtils'
 
+// Indicador de obligatoriedad consistente para TODOS los tipos de campo.
+// Antes solo lo mostraban los campos de texto, por lo que un campo requerido (p. ej. número)
+// se veía igual que uno opcional. Esto unifica el asterisco rojo (requerido) / "(Opcional)".
+function FieldRequiredMark({ required }) {
+  return required
+    ? <b className="text-red-500 ml-1">*</b>
+    : <span className="text-muted-foreground ml-1">(Opcional)</span>
+}
+
 export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false }) {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
@@ -162,9 +171,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                   if (f.type === 'text' || f.type === 'textarea') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}
-                          {f.required ? <b className="text-red-500 ml-1">*</b> : <span className="text-muted-foreground ml-1">(Opcional)</span>}
-                        </Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                         {f.type === 'textarea' ? (
                           <Textarea
                             id={commonProps.id}
@@ -183,7 +190,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                   if (f.type === 'number') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                         <Input
                           type="number"
                           min={1}
@@ -210,7 +217,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                   if (f.type === 'date') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                         <Input type="date" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
                       </div>
                     )
@@ -218,7 +225,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                   if (f.type === 'color') {
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                         <Input type="color" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
                       </div>
                     )
@@ -234,7 +241,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                             setValues({ ...values, [f.name]: Boolean(checked) })
                           }}
                         />
-                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                       </div>
                     )
                   }
@@ -242,7 +249,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                     const options = Array.isArray(f.options) ? f.options : []
                     return (
                       <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}</Label>
+                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
                         <Select
                           disabled={readOnly}
                           value={String(values[f.name] ?? '')}
