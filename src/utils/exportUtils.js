@@ -33,6 +33,29 @@ export const exportToPDF = (title, headers, data, filename) => {
   doc.save(`${filename}.pdf`)
 }
 
+// Caracteres con los que una celda podría interpretarse como fórmula al abrir
+// el archivo en Excel/Sheets (CSV/Excel formula injection): = + - @ tab CR.
+const FORMULA_PREFIX = /^[=+\-@\t\r]/
+
+/**
+ * Neutraliza la inyección de fórmulas en celdas de texto. Antepone una comilla
+ * simple a los valores de texto que empiezan con un carácter peligroso, salvo
+ * que el valor sea un número legítimo (p. ej. un importe negativo "-25.50"),
+ * que se deja intacto para no romper los montos.
+ */
+export const sanitizeCellValue = (value) => {
+  if (typeof value !== 'string' || value.length === 0) return value
+  if (value.trim() !== '' && !Number.isNaN(Number(value))) return value
+  return FORMULA_PREFIX.test(value) ? `'${value}` : value
+}
+
+const sanitizeRow = (row) => {
+  if (!row || typeof row !== 'object') return row
+  return Object.fromEntries(
+    Object.entries(row).map(([key, val]) => [key, sanitizeCellValue(val)])
+  )
+}
+
 /**
  * Export data to Excel
  * @param {string} sheetName - Name of the worksheet
@@ -40,7 +63,8 @@ export const exportToPDF = (title, headers, data, filename) => {
  * @param {string} filename - Output filename (without extension)
  */
 export const exportToExcel = (sheetName, data, filename) => {
-  const ws = XLSX.utils.json_to_sheet(data)
+  const safeData = Array.isArray(data) ? data.map(sanitizeRow) : data
+  const ws = XLSX.utils.json_to_sheet(safeData)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, sheetName)
   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
