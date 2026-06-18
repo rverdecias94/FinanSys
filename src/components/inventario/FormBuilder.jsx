@@ -1,14 +1,14 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { listFields, addField, updateField, deleteField } from '@/services/dynamicInventory'
+import { listFields, addField, updateField, deleteField, renameInventoryField } from '@/services/dynamicInventory'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
-import { notify } from '@/services/notifications'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { arrayMove, optionsToCsv, parseOptionsCsv, toLabelFromName } from '@/utils/inventoryFormUtils'
 
@@ -100,6 +100,19 @@ export function FormBuilder({ areaId, userId }) {
     queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
   }
 
+  // P1.9: renombrar pasa por la RPC para re-indexar los values de los ítems (evita huérfanos).
+  const handleRenameField = async (field, rawNewName) => {
+    const newName = String(rawNewName || '').trim()
+    if (!newName || newName === field.name) return
+    try {
+      await renameInventoryField(field.id, newName)
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+    } catch (e) {
+      notify.error(getSupabaseErrorMessage(e))
+    }
+  }
+
   const handleDeleteField = async (fieldId) => {
     setPendingDeleteId(fieldId)
     setConfirmOpen(true)
@@ -186,7 +199,7 @@ export function FormBuilder({ areaId, userId }) {
                     <Label>Nombre</Label>
                     <Input
                       defaultValue={f.name}
-                      onBlur={(e) => handleUpdateField(f.id, { name: e.target.value })}
+                      onBlur={(e) => handleRenameField(f, e.target.value)}
                       placeholder="Ej: nombre, cantidad, tipo"
                     />
                   </div>

@@ -10,6 +10,17 @@ const SubscriptionContext = createContext({})
 
 export const useSubscription = () => useContext(SubscriptionContext)
 
+// P1.10: una suscripción premium con periodo vencido se trata como 'free' a nivel de lectura, para que
+// TODA la app (canAccessFeature, checkLimit, getPlanType y los checks directos de plan_id) honre el
+// vencimiento de inmediato, sin esperar al job diario de pg_cron que persiste el cambio en la BD.
+export function normalizeExpiredPremium(sub) {
+  if (sub && sub.plan_id === 'premium' && sub.status === 'active' &&
+      sub.current_period_end && new Date(sub.current_period_end).getTime() <= Date.now()) {
+    return { ...sub, plan_id: 'free' }
+  }
+  return sub
+}
+
 export const SubscriptionProvider = ({ children }) => {
   const { session } = useSession()
   const { businessId, isOwner, loading: businessLoading } = useBusiness()
@@ -145,7 +156,7 @@ export const SubscriptionProvider = ({ children }) => {
           setSubscription({ plan_id: 'free', status: 'active' })
         }
       } else {
-        setSubscription(data)
+        setSubscription(normalizeExpiredPremium(data))
       }
     } catch {
       // Fallback a plan gratuito en caso de error
@@ -391,7 +402,15 @@ export const SubscriptionProvider = ({ children }) => {
   const isPremium = () => {
     if (!subscription) return false
     if (subscription.plan_id !== 'premium') return false
-    if (subscription.status === 'active') return true
+    if (subscription.status === 'active') {
+      // P1.10: un periodo vencido NO debe seguir considerándose premium aunque el status siga 'active'
+      // (la expiración del status en BD la hace pg_cron a diario; esto cierra la ventana intermedia).
+      if (subscription.current_period_end &&
+          new Date(subscription.current_period_end).getTime() <= Date.now()) {
+        return false
+      }
+      return true
+    }
     if (subscription.status === 'trial' && subscription.trial_end_at) {
       return new Date(subscription.trial_end_at).getTime() > Date.now()
     }

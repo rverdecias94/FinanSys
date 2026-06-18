@@ -183,6 +183,16 @@ export async function deleteField(fieldId, userUuid, businessId) {
   return true
 }
 
+// P1.9: renombrar un campo sin huérfanos. La RPC renombra name+label y re-indexa la clave en los
+// values de todos los ítems del área, en una transacción (valida inventory.edit + propiedad server-side).
+export async function renameInventoryField(fieldId, newName) {
+  if (!fieldId) throw new Error('Field ID is required')
+  const { data, error } = await supabase
+    .rpc('rename_inventory_field', { p_field_id: fieldId, p_new_name: newName })
+  if (error) throw error
+  return data
+}
+
 export async function listItems(areaId, { page = 1, pageSize = 10, startDate = null, endDate = null } = {}, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
   let q = supabase
