@@ -74,6 +74,12 @@ export function PlansPanel() {
     ]
   }, [PLAN_LIMITS])
 
+  // Mostrar siempre el plan activo del negocio como la primera tarjeta.
+  const orderedPlans = useMemo(
+    () => [...plans].sort((a, b) => (b.id === currentPlan ? 1 : 0) - (a.id === currentPlan ? 1 : 0)),
+    [plans, currentPlan]
+  )
+
   const handleRequestPremium = async () => {
     setSubmittingRequest(true)
     const result = await requestPremium({
@@ -124,7 +130,7 @@ export function PlansPanel() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {plans.map((plan) => {
+        {orderedPlans.map((plan) => {
           const isCurrent = currentPlan === plan.id
           const isPremium = plan.id === 'premium'
           const hasPendingPremium = isPremium && pendingPlanRequest

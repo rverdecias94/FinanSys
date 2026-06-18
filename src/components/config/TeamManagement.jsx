@@ -137,6 +137,12 @@ export function TeamManagement() {
     }
   }
 
+  const statusBadge = (status) => {
+    if (status === 'active') return <Badge variant="default">Activo</Badge>
+    if (status === 'revoked') return <Badge variant="outline" className="border-destructive/30 text-destructive">Revocado</Badge>
+    return <Badge variant="secondary">Pendiente</Badge>
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -179,7 +185,8 @@ export function TeamManagement() {
           </Button>
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        {/* Desktop: tabla */}
+        <div className="hidden md:block border rounded-md overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -227,15 +234,7 @@ export function TeamManagement() {
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell>
-                      {m.status === 'active' ? (
-                        <Badge variant="default">Activo</Badge>
-                      ) : m.status === 'revoked' ? (
-                        <Badge variant="outline" className="border-destructive/30 text-destructive">Revocado</Badge>
-                      ) : (
-                        <Badge variant="secondary">Pendiente</Badge>
-                      )}
-                    </TableCell>
+                    <TableCell>{statusBadge(m.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
@@ -252,6 +251,57 @@ export function TeamManagement() {
               )}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Móvil: cada miembro como tarjeta (sin scroll horizontal) */}
+        <div className="space-y-3 md:hidden">
+          {loading ? (
+            <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">Cargando equipo...</div>
+          ) : members.length === 0 ? (
+            <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">No hay socios en el equipo.</div>
+          ) : (
+            members.map((m) => (
+              <div key={m.id} className="rounded-md border p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 break-all text-sm font-medium">{m.member_email}</p>
+                  {statusBadge(m.status)}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Rol</Label>
+                  <Select
+                    value={m.role_id}
+                    onValueChange={(val) => handleRoleChange(m.id, val)}
+                    disabled={m.status === 'pending'}
+                  >
+                    <SelectTrigger className="h-9 w-full">
+                      <div className="flex items-center gap-2">
+                        {m.roles?.is_system && <Shield className="w-3 h-3 text-blue-500" />}
+                        <span className="truncate">{m.roles?.name || 'Sin rol'}</span>
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map(role => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDeleteMember(m)}
+                    aria-label={`Eliminar a ${m.member_email}`}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </CardContent>
 
