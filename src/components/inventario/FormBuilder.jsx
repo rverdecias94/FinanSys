@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
@@ -164,7 +165,10 @@ export function FormBuilder({ areaId, userId }) {
           {isLoading ? (
             <div className="text-muted-foreground">Cargando campos...</div>
           ) : localFields.length === 0 ? (
-            <div className="text-muted-foreground">No hay campos configurados aún</div>
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Aún no hay campos en esta área.<br />
+              Agrega tu primer campo abajo (por ejemplo <span className="font-medium text-foreground">Nombre</span> y <span className="font-medium text-foreground">Cantidad</span>) para empezar a registrar artículos.
+            </div>
           ) : (
             localFields.map((f, idx) => (
               <div
@@ -217,16 +221,15 @@ export function FormBuilder({ areaId, userId }) {
                   </div>
 
                   <div className="md:col-span-2 grid gap-1">
-                    <Label>Requerido</Label>
-                    <Select defaultValue={String(Boolean(f.required))} onValueChange={(v) => handleUpdateField(f.id, { required: v === 'true' })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="false">Opcional</SelectItem>
-                        <SelectItem value="true">Requerido</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor={`field-req-${f.id}`}>Obligatorio</Label>
+                    <label htmlFor={`field-req-${f.id}`} className="flex h-9 items-center gap-2 cursor-pointer select-none">
+                      <Checkbox
+                        id={`field-req-${f.id}`}
+                        checked={Boolean(f.required)}
+                        onCheckedChange={(checked) => handleUpdateField(f.id, { required: Boolean(checked) })}
+                      />
+                      <span className="text-sm text-muted-foreground">{f.required ? 'Sí' : 'No'}</span>
+                    </label>
                   </div>
 
                   <div className="md:col-span-2 flex items-center justify-end gap-2">
@@ -277,53 +280,54 @@ export function FormBuilder({ areaId, userId }) {
         <CardHeader>
           <CardTitle>Agregar Campo</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-          <div className="grid gap-1">
-            <Label>Nombre</Label>
-            <Input value={newField.name} onChange={e => setNewField({ ...newField, name: e.target.value })} placeholder="Ej: nombre, cantidad, tipo" />
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-field-name">Nombre del campo</Label>
+              <Input id="new-field-name" value={newField.name} onChange={e => setNewField({ ...newField, name: e.target.value })} placeholder="Ej: nombre, cantidad, color" />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-field-type">Tipo de dato</Label>
+              <Select value={newField.type} onValueChange={(v) => setNewField({ ...newField, type: v })}>
+                <SelectTrigger id="new-field-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {TYPE_OPTIONS.find(t => t.value === newField.type)?.hint}
+              </p>
+            </div>
           </div>
-          <div className="grid gap-1">
-            <Label>Tipo</Label>
-            <Select value={newField.type} onValueChange={(v) => setNewField({ ...newField, type: v })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {TYPE_OPTIONS.find(t => t.value === newField.type)?.hint}
-            </p>
-          </div>
-          <div className="grid gap-1">
-            <Label>Requerido</Label>
-            <Select value={String(newField.required)} onValueChange={(v) => setNewField({ ...newField, required: v === 'true' })}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="false">Opcional</SelectItem>
-                <SelectItem value="true">Requerido</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <Button className="gap-2" onClick={handleAddField}>
-              <Plus className="w-4 h-4" />
-              Agregar
-            </Button>
-          </div>
+
           {newField.type === 'select' && (
-            <div className="sm:col-span-6 grid gap-1">
-              <Label>Opciones (separadas por comas)</Label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="new-field-options">Opciones (separadas por comas)</Label>
               <Input
+                id="new-field-options"
                 value={newField.optionsText}
                 onChange={(e) => setNewField({ ...newField, optionsText: e.target.value })}
                 placeholder="Ej: Chico, Mediano, Grande"
               />
             </div>
           )}
+
+          <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <label htmlFor="new-field-required" className="flex items-center gap-2 cursor-pointer select-none">
+              <Checkbox
+                id="new-field-required"
+                checked={newField.required}
+                onCheckedChange={(checked) => setNewField({ ...newField, required: Boolean(checked) })}
+              />
+              <span className="text-sm">¿Obligatorio? <span className="text-muted-foreground">(el usuario deberá rellenarlo)</span></span>
+            </label>
+            <Button className="w-full gap-2 sm:w-auto" onClick={handleAddField}>
+              <Plus className="w-4 h-4" />
+              Agregar campo
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

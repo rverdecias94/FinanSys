@@ -77,6 +77,7 @@ npx vitest run    # tests una sola vez (NO usar --reporter=basic: vitest 4 no lo
 5. **UX para no técnicos** + **aspecto premium**: gráficas con animación, color con significado (gastos rojo / ingresos verde), respetar **modo claro/oscuro**.
 6. Cuentas: **Supabase, GitHub, Netlify** (ver `CONEXIONES.md`). Secretos en `.env` / `.env.tooling` (gitignored), nunca en código.
 7. Responder a Roberto en **español**.
+8. **UI MOBILE-FIRST y PIXEL-PERFECT (regla dura).** Diseñar primero para móvil (~360–414 px) y luego escalar a desktop. En **toda** vista/cambio de UI hay que garantizar: nada **solapado**, nada **fuera de los límites de su contenedor** (sin overflow horizontal), todo **alineado**, y los campos de un mismo grupo con la **misma altura** (no unos más altos que otros). Usar grids/flex responsivos (apilar en móvil), respetar modo claro/oscuro y tokens de color. **Verificar SIEMPRE en localhost a ancho móvil y desktop** (Preview MCP `preview_resize`) antes de marcar ✅: el comportamiento esperado es ser experto UX/UI a nivel pixel-perfect.
 
 ## 10. Archivos guía del repo
 - `CONEXIONES.md` — dónde poner las llaves de Supabase/GitHub/Netlify.
