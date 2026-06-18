@@ -4,6 +4,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileSpreadsheet,
   History,
   Loader2,
@@ -18,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
@@ -52,6 +54,93 @@ function getActionBadgeVariant(action) {
   return 'outline'
 }
 
+// Etiquetas amigables (español) para las claves de `details`, para no mostrar
+// JSON crudo ni identificadores técnicos en el modal de detalle.
+const DETAIL_LABELS = {
+  transaction_id: 'ID de transacción',
+  type: 'Tipo',
+  category: 'Categoría',
+  currency: 'Moneda',
+  currency_code: 'Moneda',
+  rol: 'Rol',
+  nuevo_rol: 'Nuevo rol',
+  correo: 'Correo',
+  permission_count: 'N.º de permisos'
+}
+const TYPE_LABELS = { income: 'Ingreso', expense: 'Gasto', transfer: 'Transferencia' }
+
+function prettyDetailKey(k) {
+  return DETAIL_LABELS[k] || String(k).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
+}
+function prettyDetailValue(k, v) {
+  if (v === null || v === undefined || v === '') return '—'
+  if (k === 'type' && TYPE_LABELS[v]) return TYPE_LABELS[v]
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+function LogDetailsDialog({ log, onClose }) {
+  const details = log?.details
+  const entries = details && typeof details === 'object'
+    ? (Array.isArray(details) ? details.map((v, i) => [`#${i + 1}`, v]) : Object.entries(details))
+    : []
+
+  const Field = ({ label, value }) => (
+    <div className="rounded-md border bg-muted/30 p-2.5">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium break-words">{value || '—'}</p>
+    </div>
+  )
+
+  return (
+    <Dialog open={!!log} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-[560px] max-h-[85vh] overflow-y-auto">
+        {log && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2 text-left">
+                <Badge variant={getActionBadgeVariant(log.action)} className="uppercase text-[10px]">{log.action}</Badge>
+                <span className="min-w-0 break-words">{log.resource}</span>
+              </DialogTitle>
+              <DialogDescription>Detalle completo del registro de auditoría.</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Fecha y hora" value={format(new Date(log.created_at), "dd 'de' MMMM yyyy, HH:mm:ss", { locale: es })} />
+                <Field label="Usuario" value={log.user_email} />
+                <Field label="Área" value={log.area} />
+                <Field label="Acción" value={log.action} />
+                <Field label="Dirección IP" value={log.ip_address} />
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-semibold">Detalles</p>
+                {entries.length > 0 ? (
+                  <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {entries.map(([k, v]) => (
+                      <div key={k} className="rounded-md border p-2.5">
+                        <dt className="text-xs text-muted-foreground">{prettyDetailKey(k)}</dt>
+                        <dd className="text-sm font-medium break-words">{prettyDetailValue(k, v)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin detalles adicionales para este registro.</p>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Cerrar</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function LogsMejorado() {
   const { session } = useSession()
   const { businessId } = useBusiness()
@@ -72,6 +161,7 @@ export default function LogsMejorado() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [exporting, setExporting] = useState(false)
+  const [selectedLog, setSelectedLog] = useState(null)
 
   const userId = session?.user?.id
   const effectiveBusinessId = businessId
@@ -431,14 +521,11 @@ export default function LogsMejorado() {
                               </div>
                             </div>
 
-                            {log.details && Object.keys(log.details).length > 0 && (
-                              <details className="text-xs text-muted-foreground">
-                                <summary className="cursor-pointer">Ver detalles</summary>
-                                <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-muted p-2 text-[11px] text-foreground">
-                                  {JSON.stringify(log.details, null, 2)}
-                                </pre>
-                              </details>
-                            )}
+                            <div className="flex justify-end pt-1">
+                              <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedLog(log)}>
+                                <Eye className="h-3.5 w-3.5 mr-1.5" /> Ver detalles
+                              </Button>
+                            </div>
                           </CardContent>
                         </Card>
                       ))}
@@ -466,6 +553,7 @@ export default function LogsMejorado() {
                               <TableHead>Área</TableHead>
                               <TableHead>Acción</TableHead>
                               <TableHead>Recurso</TableHead>
+                              <TableHead className="text-right">Detalles</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -484,6 +572,18 @@ export default function LogsMejorado() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="text-xs">{log.resource || '-'}</TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2"
+                                    onClick={() => setSelectedLog(log)}
+                                    aria-label={`Ver detalles de ${log.action}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    <span className="ml-1.5 hidden lg:inline">Ver</span>
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -546,6 +646,8 @@ export default function LogsMejorado() {
           )}
         </CardContent>
       </Card>
+
+      <LogDetailsDialog log={selectedLog} onClose={() => setSelectedLog(null)} />
     </div>
   )
 }

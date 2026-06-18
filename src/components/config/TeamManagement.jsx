@@ -81,7 +81,8 @@ export function TeamManagement() {
       await inviteMember({
         email: inviteEmail,
         role_id: selectedRole,
-        owner_id: businessId || session.user.id
+        owner_id: businessId || session.user.id,
+        role_name: roles.find(r => r.id === selectedRole)?.name
       })
 
       // Success message (No email sent)
@@ -113,7 +114,7 @@ export function TeamManagement() {
   const handleConfirmDelete = async () => {
     if (!memberToDelete) return
     try {
-      await removeMember(memberToDelete.id)
+      await removeMember(memberToDelete.id, memberToDelete.member_email)
       toast.success('Socio eliminado correctamente')
       setMembers(prev => prev.filter(m => m.id !== memberToDelete.id))
     } catch (err) {
@@ -124,9 +125,10 @@ export function TeamManagement() {
     }
   }
 
-  const handleRoleChange = async (memberId, newRoleId) => {
+  const handleRoleChange = async (memberId, newRoleId, memberEmail) => {
     try {
-      await updateMemberRole(memberId, newRoleId)
+      const newRoleName = roles.find(r => r.id === newRoleId)?.name
+      await updateMemberRole(memberId, newRoleId, { memberEmail, newRoleName })
       toast.success('Rol actualizado')
       // Update local state
       setMembers(prev => prev.map(m =>
@@ -216,7 +218,7 @@ export function TeamManagement() {
                     <TableCell>
                       <Select
                         value={m.role_id}
-                        onValueChange={(val) => handleRoleChange(m.id, val)}
+                        onValueChange={(val) => handleRoleChange(m.id, val, m.member_email)}
                         disabled={m.status === 'pending'}
                       >
                         <SelectTrigger className="h-8 w-[180px]">
@@ -270,7 +272,7 @@ export function TeamManagement() {
                   <Label className="text-xs text-muted-foreground">Rol</Label>
                   <Select
                     value={m.role_id}
-                    onValueChange={(val) => handleRoleChange(m.id, val)}
+                    onValueChange={(val) => handleRoleChange(m.id, val, m.member_email)}
                     disabled={m.status === 'pending'}
                   >
                     <SelectTrigger className="h-9 w-full">

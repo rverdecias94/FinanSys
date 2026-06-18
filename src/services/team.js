@@ -200,7 +200,7 @@ export async function updateRole(roleId, { name, description, permissionIds }) {
 /**
  * Delete a custom role
  */
-export async function deleteRole(roleId) {
+export async function deleteRole(roleId, roleName) {
   return await withCrud({ action: 'delete', table: 'roles' }, async () => {
     // Check if role is assigned to any member first? 
     // Foreign key constraints might handle this or fail safely.
@@ -216,7 +216,7 @@ export async function deleteRole(roleId) {
 
     await logAction({
       action: 'Eliminar Rol',
-      resource: `Rol ID: ${roleId}`,
+      resource: `Rol: ${roleName || roleId}`,
       details: null,
       area: 'Configuración'
     })
@@ -330,7 +330,7 @@ export async function getBusinessContext(userId) {
 /**
  * Invite a new member to the team
  */
-export async function inviteMember({ email, role_id, owner_id }) {
+export async function inviteMember({ email, role_id, owner_id, role_name }) {
   // 1. Validate Email Availability
   const isAvailable = await checkEmailAvailability(email)
   if (!isAvailable) {
@@ -364,8 +364,9 @@ export async function inviteMember({ email, role_id, owner_id }) {
 
     await logAction({
       action: 'Invitar Miembro',
-      resource: `Email: ${email}`,
-      details: { role_id },
+      resource: `Miembro: ${email}`,
+      // Guardar el nombre del rol, no el UUID, para que el log sea legible.
+      details: { rol: role_name || data?.roles?.name || null },
       area: 'Equipo'
     })
 
@@ -393,7 +394,8 @@ export async function getTeamMembers(owner_id) {
 /**
  * Update a member's role
  */
-export async function updateMemberRole(memberId, newRoleId) {
+export async function updateMemberRole(memberId, newRoleId, meta = {}) {
+  const { memberEmail, newRoleName } = meta
   return await withCrud({ action: 'update', table: 'team_members' }, async () => {
     const { data, error } = await supabase
       .from('team_members')
@@ -406,8 +408,9 @@ export async function updateMemberRole(memberId, newRoleId) {
 
     await logAction({
       action: 'Actualizar Rol Miembro',
-      resource: `Miembro ID: ${memberId}`,
-      details: { new_role_id: newRoleId },
+      // Log legible: correo del miembro y nombre del rol, no UUIDs.
+      resource: `Miembro: ${memberEmail || data?.member_email || memberId}`,
+      details: { nuevo_rol: newRoleName || null },
       area: 'Equipo'
     })
 
@@ -418,7 +421,7 @@ export async function updateMemberRole(memberId, newRoleId) {
 /**
  * Remove a member from the team
  */
-export async function removeMember(memberId) {
+export async function removeMember(memberId, memberEmail) {
   return await withCrud({ action: 'delete', table: 'team_members' }, async () => {
     const { error } = await supabase
       .from('team_members')
@@ -429,7 +432,8 @@ export async function removeMember(memberId) {
 
     await logAction({
       action: 'Eliminar Miembro',
-      resource: `Miembro ID: ${memberId}`,
+      // Mostrar el correo del miembro en el log, nunca su UUID.
+      resource: `Miembro: ${memberEmail || memberId}`,
       details: null,
       area: 'Equipo'
     })

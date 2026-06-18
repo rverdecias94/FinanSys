@@ -95,7 +95,7 @@ export function RoleManagement() {
   const handleConfirmDelete = async () => {
     if (!roleToDelete) return
     try {
-      await deleteRole(roleToDelete.id)
+      await deleteRole(roleToDelete.id, roleToDelete.name)
       toast.success('Rol eliminado')
       fetchData()
     } catch {
