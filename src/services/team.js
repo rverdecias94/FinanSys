@@ -275,10 +275,10 @@ export async function acceptPendingInvitations(email) {
       if (context) {
         await logAction({
           action: 'Aceptar Invitación Automática',
-          resource: `Email: ${email}`,
+          resource: `Miembro: ${email}`,
+          // Sin UUIDs: nombre del rol en lugar de business_id/role_id.
           details: {
-            business_id: context.businessId,
-            role_id: context.roleId,
+            rol: context.roleName || null,
             permissions: context.permissions
           },
           area: 'Sistema'

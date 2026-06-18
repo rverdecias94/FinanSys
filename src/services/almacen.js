@@ -105,7 +105,7 @@ export async function createProduct(payload, userId, businessId) {
     await logAction({
       action: 'Crear',
       resource: `Producto: ${data.name}`,
-      details: data,
+      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
       area: 'Almacén'
     })
     return data
@@ -135,7 +135,7 @@ export async function updateProduct(id, payload, userId, businessId) {
     await logAction({
       action: 'Actualizar',
       resource: `Producto: ${data.name}`,
-      details: data,
+      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
       area: 'Almacén'
     })
     return data

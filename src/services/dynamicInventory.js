@@ -50,7 +50,7 @@ export async function createArea({ name, icon, slug, prefix }, userUuid, busines
   await logAction({
     action: 'Crear',
     resource: `Área: ${area.name}`,
-    details: area,
+    details: { ...area, user_id: undefined }, // sin user_id (UUID) en auditoría
     area: 'Inventario'
   })
   return area
@@ -92,7 +92,7 @@ export async function updateArea(id, { name, icon, slug, prefix }, userUuid, bus
   await logAction({
     action: 'Actualizar',
     resource: `Área: ${data.name}`,
-    details: data,
+    details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
     area: 'Inventario'
   })
 
@@ -243,7 +243,7 @@ export async function createItem(areaId, values, userUuid) {
     await logAction({
       action: 'Crear',
       resource: `Item Inventario: ${data?.sku}`,
-      details: data,
+      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
       area: 'Inventario'
     })
     return data
@@ -264,7 +264,7 @@ export async function updateItem(itemId, values, userUuid) {
     await logAction({
       action: 'Actualizar',
       resource: `Item Inventario: ${data.sku}`,
-      details: data,
+      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
       area: 'Inventario'
     })
     return data
