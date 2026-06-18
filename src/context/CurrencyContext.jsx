@@ -159,11 +159,22 @@ export function CurrencyProvider({ children }) {
   }
 
   const formatCurrency = (amount, currencyCode) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: currencyCode || 'USD',
-      minimumFractionDigits: 2
-    }).format(amount)
+    const value = Number(amount)
+    const safe = Number.isFinite(value) ? value : 0
+    try {
+      return new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: currencyCode || 'USD',
+        minimumFractionDigits: 2
+      }).format(safe)
+    } catch {
+      // P2.5: código de moneda no-ISO (RangeError) → fallback decimal + código.
+      const decimal = new Intl.NumberFormat('es-ES', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(safe)
+      return currencyCode ? `${decimal} ${currencyCode}` : decimal
+    }
   }
 
   return (

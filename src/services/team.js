@@ -337,16 +337,21 @@ export async function inviteMember({ email, role_id, owner_id }) {
     throw new Error('El correo electrónico no está disponible para ser invitado. Puede que ya sea dueño de un negocio o miembro de otro equipo.')
   }
 
-  // 2. Create Invitation
+  // 2. Create/Reactivate Invitation
+  // P1.15: `upsert` sobre la UNIQUE(owner_id, member_email). Si existe una fila
+  // `revoked` (p.ej. tras un downgrade), la reactiva como `pending` en vez de
+  // chocar con la restricción única (un INSERT ciego fallaba al reinvitar).
   return await withCrud({ action: 'invite', table: 'team_members' }, async () => {
     const { data, error } = await supabase
       .from('team_members')
-      .insert({
+      .upsert({
         owner_id,
         member_email: email,
         role_id, // New RBAC column
-        status: 'pending'
-      })
+        member_id: null,
+        status: 'pending',
+        updated_at: new Date()
+      }, { onConflict: 'owner_id,member_email' })
       .select(`
         *,
         roles (name)

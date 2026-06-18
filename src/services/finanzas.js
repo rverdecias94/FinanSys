@@ -138,7 +138,10 @@ export async function createTransaction(payload, userId, businessId) {
     await logAction({
       action: 'Crear',
       resource: `Transacción: ${data.description || 'Sin descripción'}`,
-      details: data,
+      // P2.2: el log de auditoría guarda SOLO metadatos, no la fila completa.
+      // Evita exponer PII financiera (monto, cuenta, referencia, notas, adjuntos)
+      // a roles con `logs.view` pero sin `finanzas.view`, y en la exportación de Logs.
+      details: { transaction_id: data.id, type: data.type, category: data.category, currency: data.currency },
       area: 'Finanzas'
     })
     return data
@@ -193,7 +196,8 @@ export async function updateTransaction(transactionId, payload, userId, business
     await logAction({
       action: 'Actualizar',
       resource: `Transacción: ${data.description || 'Sin descripción'}`,
-      details: data,
+      // P2.2: solo metadatos (sin monto/cuenta/referencia/notas/adjuntos). Ver createTransaction.
+      details: { transaction_id: data.id, type: data.type, category: data.category, currency: data.currency },
       area: 'Finanzas'
     })
     return data

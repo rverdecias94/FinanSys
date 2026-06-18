@@ -5,12 +5,24 @@ import { format } from 'date-fns';
  * Helper to format currency numbers
  */
 const fmt = (num, currency) => {
-  return new Intl.NumberFormat('es-PE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    style: currency ? 'currency' : 'decimal',
-    currency: currency
-  }).format(num);
+  const value = Number(num)
+  const safe = Number.isFinite(value) ? value : 0
+  try {
+    return new Intl.NumberFormat('es-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      style: currency ? 'currency' : 'decimal',
+      currency: currency || undefined
+    }).format(safe);
+  } catch {
+    // P2.5: un código de moneda no-ISO lanza RangeError y rompía el reporte Word
+    // y la previsualización. Fallback: número decimal + código de moneda.
+    const decimal = new Intl.NumberFormat('es-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(safe)
+    return currency ? `${decimal} ${currency}` : decimal
+  }
 }
 
 const getCurrencies = (rows) => {

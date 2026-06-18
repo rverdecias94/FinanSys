@@ -49,11 +49,12 @@ describe('Team Service', () => {
       })).rejects.toThrow('El correo electrónico no está disponible')
     })
 
-    it('should create invitation if email is available', async () => {
+    it('should create/reactivate invitation via upsert if email is available', async () => {
       // Mock checkEmailAvailability to return true
       supabase.rpc.mockResolvedValueOnce({ data: true, error: null })
 
-      // Mock insert response
+      // Mock upsert response (P1.15: upsert reactivates a 'revoked' row instead of
+      // a blind insert that would crash on UNIQUE(owner_id, member_email)).
       const mockInvite = {
         id: 'invite-123',
         member_email: 'new@example.com',
@@ -64,10 +65,10 @@ describe('Team Service', () => {
         single: vi.fn().mockResolvedValue({ data: mockInvite, error: null })
       })
 
-      const insertMock = vi.fn().mockReturnValue({ select: selectMock })
+      const upsertMock = vi.fn().mockReturnValue({ select: selectMock })
 
       supabase.from.mockReturnValue({
-        insert: insertMock
+        upsert: upsertMock
       })
 
       const result = await inviteMember({
@@ -78,10 +79,14 @@ describe('Team Service', () => {
 
       expect(result).toEqual(mockInvite)
       expect(supabase.from).toHaveBeenCalledWith('team_members')
-      expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({
-        member_email: 'new@example.com',
-        status: 'pending'
-      }))
+      expect(upsertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner_id: 'owner-123',
+          member_email: 'new@example.com',
+          status: 'pending'
+        }),
+        expect.objectContaining({ onConflict: 'owner_id,member_email' })
+      )
     })
   })
 
