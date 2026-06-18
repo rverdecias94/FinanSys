@@ -224,18 +224,15 @@ export async function getItem(itemId, userUuid, businessId) {
 export async function createItem(areaId, values, userUuid) {
   if (!userUuid) throw new Error('User UUID is required')
   return await withCrud({ action: 'create', table: 'inventory_items' }, async () => {
-    const { data: sku, error: skuErr } = await supabase
-      .rpc('generate_inventory_sku', { p_user: userUuid, p_area: areaId })
-    if (skuErr) throw skuErr
+    // SKU + INSERT atómico en una sola transacción server-side (RPC create_inventory_item):
+    // si el INSERT falla, la secuencia del SKU hace rollback -> sin huecos de SKU (P1.8).
+    // La RPC valida el permiso inventory.create y que el item pertenece al negocio del llamante.
     const { data, error } = await supabase
-      .from('inventory_items')
-      .insert({ user_id: userUuid, area_id: areaId, values, sku })
-      .select()
-      .single()
+      .rpc('create_inventory_item', { p_user: userUuid, p_area: areaId, p_values: values })
     if (error) throw error
     await logAction({
       action: 'Crear',
-      resource: `Item Inventario: ${sku}`,
+      resource: `Item Inventario: ${data?.sku}`,
       details: data,
       area: 'Inventario'
     })

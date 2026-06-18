@@ -170,80 +170,36 @@ export async function deleteProduct(id, userId, businessId) {
   })
 }
 
-export async function registerMovement({ product_id, qty, type, userId, businessId }) {
+export async function registerMovement({ product_id, qty, type, userId }) {
   if (!userId) throw new Error('User ID is required')
 
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
-    const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+    // Movimiento atómico en servidor (RPC register_stock_movement): en UNA transacción actualiza
+    // el stock con un solo UPDATE (sin race condition read-modify-write), inserta el movimiento,
+    // valida el permiso warehouse.move y bloquea stock negativo (CHECK + guard). El negocio se
+    // resuelve server-side vía get_current_business_id() (no se confía en el businessId del cliente).
+    const { data, error } = await supabase.rpc('register_stock_movement', {
+      p_product_id: Number(product_id),
+      p_qty: Number(qty),
+      p_type: type
+    })
 
-    // Primero validar que el producto pertenece al contexto de negocio
-    const hasAccess = await validateResourceAccess('product', product_id, userId, businessId);
-    if (!hasAccess) {
-      await supabase.from('access_audit_logs').insert({
-        user_id: userId,
-        action: 'unauthorized_movement_attempt',
-        resource: `product_${product_id}`,
-        details: { product_id, qty, type, reason: 'product_not_in_business_context' }
-      });
-
-      throw new Error('Access Denied: Product does not belong to user\'s business context');
-    }
-
-    const { data: product, error: prodError } = await supabase
-      .from('products')
-      .select('id, stock, name')
-      .eq('id', product_id)
-      .eq('user_id', effectiveUserId) // Asegurar que es del owner efectivo
-      .single()
-
-    if (prodError || !product) {
-      await supabase.from('access_audit_logs').insert({
-        user_id: userId,
-        action: 'unauthorized_movement_attempt',
-        resource: `product_${product_id}`,
-        details: { product_id, qty, type, reason: 'product_not_found_in_context' }
-      });
-
-      throw new Error('Access Denied: Product does not belong to user\'s business context');
-    }
-
-    const newStock = type === 'in'
-      ? Number(product.stock) + Number(qty)
-      : Number(product.stock) - Number(qty)
-
-    const { error: updateError } = await supabase
-      .from('products')
-      .update({ stock: newStock })
-      .eq('id', product_id)
-      .eq('user_id', effectiveUserId) // Solo actualizar del owner efectivo
-
-    if (updateError) throw updateError
-
-    const { data: movement, error: movError } = await supabase
-      .from('movements')
-      .insert({ product_id, qty, type, user_id: effectiveUserId }) // Registrar con owner_id efectivo
-      .select(`
-        *,
-        products (name, category, stock)
-      `)
-      .single()
-
-    if (movError) throw movError
+    if (error) throw error
 
     await logAction({
       action: 'Movimiento',
-      resource: `Producto: ${product.name}`,
+      resource: `Producto: ${data?.name}`,
       details: {
         product_id,
-        product_name: product.name,
+        product_name: data?.name,
         qty,
         type,
-        new_stock: newStock
+        new_stock: data?.new_stock
       },
       area: 'Almacén'
     })
 
-    return { ...movement, resulting_stock: newStock }
+    return { product_id, qty, type, resulting_stock: data?.new_stock, name: data?.name }
   })
 }
 
