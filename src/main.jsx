@@ -6,6 +6,7 @@ import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
 import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@tanstack/react-query';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 // Configuración del cliente de React Query
 const queryClient = new QueryClient({
@@ -48,7 +49,9 @@ root.render(
     <BrowserRouter>
       <ThemeProvider defaultTheme="system" storageKey="app-theme">
         <QueryClientProvider client={queryClient}>
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </QueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
