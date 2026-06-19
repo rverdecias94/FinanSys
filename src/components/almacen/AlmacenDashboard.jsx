@@ -6,8 +6,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   BarChart, Bar
 } from 'recharts'
+import { useChartAnimation } from '@/hooks/useChartAnimation'
 
 export function AlmacenDashboard({ stats, loading }) {
+  // El hook va antes de los early-return para no romper las reglas de hooks.
+  const chartAnim = useChartAnimation()
   if (loading) return <div className="text-sm text-muted-foreground">Cargando dashboard...</div>
   if (!stats) return null
 
@@ -66,6 +69,7 @@ export function AlmacenDashboard({ stats, loading }) {
                 outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
+                {...chartAnim}
               >
                 {stats.distribution?.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={getCategoryColor(index)} />
@@ -123,8 +127,8 @@ export function AlmacenDashboard({ stats, loading }) {
                   return `${day}/${month}/${year}`
                 }} />
               <Legend />
-              <Line type="monotone" dataKey="entradas" stroke="hsl(var(--chart-1))" name="Entradas" strokeWidth={2} />
-              <Line type="monotone" dataKey="salidas" stroke="hsl(var(--chart-5))" name="Salidas" strokeWidth={2} />
+              <Line type="monotone" dataKey="entradas" stroke="hsl(var(--chart-1))" name="Entradas" strokeWidth={2} {...chartAnim} />
+              <Line type="monotone" dataKey="salidas" stroke="hsl(var(--chart-5))" name="Salidas" strokeWidth={2} {...chartAnim} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -149,7 +153,7 @@ export function AlmacenDashboard({ stats, loading }) {
                   boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
                 }} />
               <Legend />
-              <Bar dataKey="stock" fill="hsl(var(--chart-2))" name="Stock" radius={[0, 4, 4, 0]} barSize={20} />
+              <Bar dataKey="stock" fill="hsl(var(--chart-2))" name="Stock" radius={[0, 4, 4, 0]} barSize={20} {...chartAnim} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

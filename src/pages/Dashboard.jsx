@@ -36,6 +36,7 @@ import {
   Activity,
   ChartArea
 } from 'lucide-react'
+import { useChartAnimation } from '@/hooks/useChartAnimation'
 
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
@@ -46,6 +47,7 @@ const CHART_COLORS = [
 ]
 
 export default function Dashboard() {
+  const chartAnim = useChartAnimation()
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { businessCurrencies, formatCurrency } = useCurrency()
@@ -442,10 +444,10 @@ export default function Dashboard() {
                 />
                 <Legend />
                 {(barTypeFilter === 'all' || barTypeFilter === 'income') && (
-                  <Bar dataKey="ingresos" name="Ingresos" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="ingresos" name="Ingresos" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} {...chartAnim} />
                 )}
                 {(barTypeFilter === 'all' || barTypeFilter === 'expense') && (
-                  <Bar dataKey="gastos" name="Gastos" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="gastos" name="Gastos" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} {...chartAnim} />
                 )}
               </BarChart>
             </ResponsiveContainer>
@@ -506,6 +508,7 @@ export default function Dashboard() {
                     outerRadius={30}
                     dataKey="value"
                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    {...chartAnim}
                   >
                     {financialDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={getPieColor(entry, index)} />
