@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
 import { Button } from '@/components/ui/button'
-import { Wallet, Plus, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Pencil, Eye, Download } from 'lucide-react'
+import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye, Download } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -15,6 +15,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function FinanzasMejorado() {
@@ -26,8 +27,7 @@ export default function FinanzasMejorado() {
   const queryClient = useQueryClient()
 
   // Estado local
-  const [page, setPage] = useState(1)
-  const pageSize = 5;
+  const [txCount, setTxCount] = useState(0)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState(null)
   const [currencyFilter, setCurrencyFilter] = useState('all')
@@ -47,21 +47,6 @@ export default function FinanzasMejorado() {
   const remainingDisplay = transactionsLimit === Infinity ? 'Ilimitadas' : remainingTransactions
 
   // Queries
-  const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
-    queryKey: ['transactions', { userId, businessId, page, pageSize, currencyFilter, categoryFilter, dateKey }],
-    queryFn: () => listTransactions({
-      userId,
-      businessId,
-      page,
-      pageSize,
-      currency: currencyFilter !== 'all' ? currencyFilter : undefined,
-      category: categoryFilter !== 'all' ? categoryFilter : undefined,
-      from: dateFilter?.startDate || undefined,
-      to: dateFilter?.endDate || undefined,
-    }),
-    enabled: !!userId && !!businessId && !businessLoading && !permissionLoading && canView('finanzas'),
-  })
-
   const { data: categories } = useQuery({
     queryKey: ['financeCategories', businessId || userId],
     queryFn: () => getFinanceCategories(),
@@ -174,8 +159,6 @@ export default function FinanzasMejorado() {
     }
   }
 
-  const totalPages = Math.ceil(((transactionsData?.count || 0) / 5)) || 1
-  const rows = transactionsData?.data ?? []
   const summaryCurrencies = useMemo(() => {
     const incomeCurrencies = Object.keys(filteredTotals?.income || {})
     const expenseCurrencies = Object.keys(filteredTotals?.expense || {})
@@ -357,7 +340,7 @@ export default function FinanzasMejorado() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-600">
-              {transactionsData?.count || 0}
+              {txCount}
             </div>
           </CardContent>
         </Card>
@@ -369,104 +352,77 @@ export default function FinanzasMejorado() {
           <CardTitle>Transacciones</CardTitle>
         </CardHeader>
         <CardContent>
-          {(businessLoading || permissionLoading || isLoadingTransactions) ? (
-            <div className="text-center py-8">Cargando transacciones...</div>
-          ) : (
-            <div className="space-y-4">
-              {rows.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No hay transacciones registradas
+          <ResponsiveListing
+            queryKey={['transactions', { userId, businessId, currencyFilter, categoryFilter, dateKey }]}
+            queryFn={({ page, pageSize }) => listTransactions({
+              userId,
+              businessId,
+              page,
+              pageSize,
+              currency: currencyFilter !== 'all' ? currencyFilter : undefined,
+              category: categoryFilter !== 'all' ? categoryFilter : undefined,
+              from: dateFilter?.startDate || undefined,
+              to: dateFilter?.endDate || undefined,
+            })}
+            enabled={!!userId && !!businessId && !businessLoading && !permissionLoading && canView('finanzas')}
+            onMeta={({ count }) => setTxCount(count)}
+            getItemKey={(transaction) => transaction.id}
+            emptyMessage="No hay transacciones registradas"
+            loadingMessage="Cargando transacciones..."
+            renderItem={(transaction) => (
+              <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                {/* Icono + descripción + fecha (ancho completo en móvil) */}
+                <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                  <div className={`shrink-0 rounded-full p-2 ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
+                    }`}>
+                    {transaction.type === 'income' ?
+                      <TrendingUp className="h-4 w-4 text-success" /> :
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                    }
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium break-words">{transaction.description}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {format(new Date(transaction.date), 'PPP', { locale: es })}
+                    </div>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {rows.map(transaction => (
-                      <div key={transaction.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                        {/* Icono + descripción + fecha (ancho completo en móvil) */}
-                        <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                          <div className={`shrink-0 rounded-full p-2 ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
-                            }`}>
-                            {transaction.type === 'income' ?
-                              <TrendingUp className="h-4 w-4 text-success" /> :
-                              <TrendingDown className="h-4 w-4 text-destructive" />
-                            }
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-medium break-words">{transaction.description}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {format(new Date(transaction.date), 'PPP', { locale: es })}
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Importe + categoría (izq.) y acciones (der.); 2ª fila en móvil */}
-                        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-                          <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
-                            <div className={`whitespace-nowrap font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
-                              }`}>
-                              {transaction.type === 'income' ? '+' : '−'} {formatCurrency(transaction.amount, transaction.currency)}
-                            </div>
-                            <Badge variant="outline" className="max-w-full truncate">{transaction.category}</Badge>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-1">
-                            <ActionButtons module="finanzas">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                action="edit"
-                                onClick={() => handleEdit(transaction)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                action="view"
-                                onClick={() => handleView(transaction)}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </ActionButtons>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                {/* Importe + categoría (izq.) y acciones (der.); 2ª fila en móvil */}
+                <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                  <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
+                    <div className={`whitespace-nowrap font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
+                      }`}>
+                      {transaction.type === 'income' ? '+' : '−'} {formatCurrency(transaction.amount, transaction.currency)}
+                    </div>
+                    <Badge variant="outline" className="max-w-full truncate">{transaction.category}</Badge>
                   </div>
 
-                  {/* Paginación */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-between">
+                  <div className="flex shrink-0 items-center gap-1">
+                    <ActionButtons module="finanzas">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
+                        action="edit"
+                        onClick={() => handleEdit(transaction)}
                       >
-                        <ChevronLeft className="w-4 h-4" />
-                        Anterior
+                        <Pencil className="h-4 w-4" />
                       </Button>
 
-                      <span className="text-sm text-muted-foreground">
-                        Página {page} de {totalPages}
-                      </span>
-
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
+                        action="view"
+                        onClick={() => handleView(transaction)}
                       >
-                        Siguiente
-                        <ChevronRight className="w-4 h-4" />
+                        <Eye className="h-4 w-4" />
                       </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                    </ActionButtons>
+                  </div>
+                </div>
+              </div>
+            )}
+          />
         </CardContent>
       </Card>
 

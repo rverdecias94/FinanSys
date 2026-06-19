@@ -1,34 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   FileSpreadsheet,
   History,
   Loader2,
   Lock,
   Search,
-  Shield,
-  User
+  Shield
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
-import { useIsMobile } from '@/hooks/useIsMobile'
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { listAllAuditLogs, listAuditLogs } from '@/services/auditLogs'
 // `exportToExcel` se importa dinámicamente en handleExport para no cargar
 // las librerías de exportación al abrir la página de Auditoría (P3.5).
-import { format } from 'date-fns'
+import { format, startOfDay, endOfDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
 
@@ -146,7 +141,6 @@ export default function LogsMejorado() {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { canView, isOwner } = usePermissionCheck()
-  const isMobile = useIsMobile()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [areaFilter, setAreaFilter] = useState('all')
@@ -156,13 +150,12 @@ export default function LogsMejorado() {
   const [reportType, setReportType] = useState('mensual')
   const [month, setMonth] = useState(String(now.getMonth() + 1))
   const [year, setYear] = useState(String(now.getFullYear()))
-  const [rangeFrom, setRangeFrom] = useState('')
-  const [rangeTo, setRangeTo] = useState('')
+  const [rangeFrom, setRangeFrom] = useState(null)
+  const [rangeTo, setRangeTo] = useState(null)
 
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [exporting, setExporting] = useState(false)
   const [selectedLog, setSelectedLog] = useState(null)
+  const [logsCount, setLogsCount] = useState(0)
 
   const userId = session?.user?.id
   const effectiveBusinessId = businessId
@@ -183,8 +176,8 @@ export default function LogsMejorado() {
       return { startDate: start, endDate: end }
     }
 
-    const start = rangeFrom ? new Date(`${rangeFrom}T00:00:00`) : null
-    const end = rangeTo ? new Date(`${rangeTo}T23:59:59.999`) : null
+    const start = rangeFrom ? startOfDay(rangeFrom) : null
+    const end = rangeTo ? endOfDay(rangeTo) : null
     return { startDate: start, endDate: end }
   }, [month, reportType, rangeFrom, rangeTo, year])
 
@@ -201,65 +194,33 @@ export default function LogsMejorado() {
     }
   }, [actionFilter, areaFilter, month, rangeFrom, rangeTo, reportType, searchTerm, year])
 
-  useEffect(() => {
-    if (isMobile) return
-    setPage(1)
-  }, [filtersKey, isMobile])
+  const renderLog = (log) => (
+    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+        <div className="shrink-0 rounded-full bg-primary/10 p-2">
+          <History className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-medium break-words">{log.resource || log.action}</div>
+          <div className="text-sm text-muted-foreground break-words">
+            {log.user_email || '-'} · {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+          </div>
+        </div>
+      </div>
 
-  const desktopQuery = useQuery({
-    queryKey: ['auditLogs-page', effectiveBusinessId, filtersKey, page, pageSize],
-    queryFn: () => listAuditLogs({
-      businessId: effectiveBusinessId,
-      page,
-      pageSize,
-      searchTerm,
-      area: areaFilter,
-      action: actionFilter,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate
-    }),
-    enabled: !!userId && !!effectiveBusinessId && canView('logs') && !isMobile,
-    keepPreviousData: true
-  })
-
-  const PAGE_SIZE_MOBILE = 15
-  const mobileQuery = useInfiniteQuery({
-    queryKey: ['auditLogs-infinite', effectiveBusinessId, filtersKey, PAGE_SIZE_MOBILE],
-    queryFn: ({ pageParam = 1 }) => listAuditLogs({
-      businessId: effectiveBusinessId,
-      page: pageParam,
-      pageSize: PAGE_SIZE_MOBILE,
-      searchTerm,
-      area: areaFilter,
-      action: actionFilter,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate
-    }),
-    enabled: !!userId && !!effectiveBusinessId && canView('logs') && isMobile,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      const count = Number(allPages?.[0]?.count || lastPage?.count || 0)
-      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
-      if (!count || loaded >= count) return undefined
-      return allPages.length + 1
-    }
-  })
-
-  const logs = useMemo(() => {
-    if (!isMobile) return desktopQuery.data?.data || []
-    const pages = mobileQuery.data?.pages || []
-    return pages.flatMap(p => p?.data || [])
-  }, [desktopQuery.data, isMobile, mobileQuery.data])
-
-  const totalCount = isMobile
-    ? Number(mobileQuery.data?.pages?.[0]?.count || 0)
-    : Number(desktopQuery.data?.count || 0)
-
-  const isLoadingLogs = isMobile ? mobileQuery.isLoading : desktopQuery.isLoading
-  const isFetchingMore = isMobile ? mobileQuery.isFetchingNextPage : false
-  const hasMore = isMobile ? !!mobileQuery.hasNextPage : false
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+        <div className="flex flex-wrap items-center gap-2">
+          {log.area ? <Badge variant="secondary">{log.area}</Badge> : null}
+          <Badge variant={getActionBadgeVariant(log.action)} className="uppercase text-[10px]">
+            {log.action}
+          </Badge>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => setSelectedLog(log)} aria-label={`Ver detalles de ${log.action}`}>
+          <Eye className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
 
   const handleExport = async () => {
     try {
@@ -358,56 +319,74 @@ export default function LogsMejorado() {
       <Card>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Select value={reportType} onValueChange={setReportType}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Tipo de Reporte" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mensual">Mensual</SelectItem>
-                <SelectItem value="anual">Anual</SelectItem>
-                <SelectItem value="rango">Rango</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-1.5">
+              <Label>Tipo de Reporte</Label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Tipo de Reporte" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mensual">Mensual</SelectItem>
+                  <SelectItem value="anual">Anual</SelectItem>
+                  <SelectItem value="rango">Rango</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {reportType === 'mensual' ? (
-              <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Mes" />
-                </SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <Label>Mes</Label>
+                <Select value={month} onValueChange={setMonth}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((m) => (
+                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : reportType === 'rango' ? (
-              <Input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label>Desde</Label>
+                <Calendar value={rangeFrom} onChange={setRangeFrom} placeholder="Desde" />
+              </div>
             ) : (
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <Label>Año</Label>
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
             {reportType === 'rango' ? (
-              <Input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+              <div className="space-y-1.5">
+                <Label>Hasta</Label>
+                <Calendar value={rangeTo} onChange={setRangeTo} placeholder="Hasta" />
+              </div>
             ) : reportType === 'mensual' ? (
-              <Select value={year} onValueChange={setYear}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Año" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => (
-                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-1.5">
+                <Label>Año</Label>
+                <Select value={year} onValueChange={setYear}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Año" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 6 }, (_, i) => String(new Date().getFullYear() - i)).map((y) => (
+                      <SelectItem key={y} value={y}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : (
               <div className="hidden sm:block" />
             )}
@@ -473,179 +452,30 @@ export default function LogsMejorado() {
           <CardTitle className="flex items-center justify-between">
             <span>Historial de Actividades</span>
             <Badge variant="secondary">
-              {totalCount} registros
+              {logsCount} registros
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isLoadingLogs ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {logs.length} de {totalCount} registros.
-              </div>
-
-              {logs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No se encontraron actividades que coincidan con los filtros aplicados
-                </div>
-              ) : (
-                <>
-                  {isMobile ? (
-                    <div className="space-y-3">
-                      {logs.map((log) => (
-                        <Card key={log.id}>
-                          <CardContent className="p-4 space-y-2">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="font-medium text-sm truncate">{log.action}</div>
-                                <div className="text-xs text-muted-foreground truncate">{log.resource}</div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {log.area ? <Badge variant="secondary">{log.area}</Badge> : null}
-                                <Badge variant={getActionBadgeVariant(log.action)} className="uppercase text-[10px]">
-                                  {log.action}
-                                </Badge>
-                              </div>
-                            </div>
-
-                            <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <User className="w-3 h-3" />
-                                <span className="truncate">{log.user_email || '-'}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                <span>{format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}</span>
-                              </div>
-                            </div>
-
-                            <div className="flex justify-end pt-1">
-                              <Button variant="outline" size="sm" className="h-8" onClick={() => setSelectedLog(log)}>
-                                <Eye className="h-3.5 w-3.5 mr-1.5" /> Ver detalles
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-
-                      <InfiniteScrollTrigger
-                        onLoadMore={() => mobileQuery.fetchNextPage()}
-                        disabled={!hasMore || isFetchingMore}
-                        className="mt-2"
-                      />
-
-                      {isFetchingMore && (
-                        <div className="flex items-center justify-center py-4">
-                          <Loader2 className="h-6 w-6 animate-spin" />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="rounded-md border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Fecha</TableHead>
-                              <TableHead>Usuario</TableHead>
-                              <TableHead>Área</TableHead>
-                              <TableHead>Acción</TableHead>
-                              <TableHead>Recurso</TableHead>
-                              <TableHead className="text-right">Detalles</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {logs.map((log) => (
-                              <TableRow key={log.id}>
-                                <TableCell className="whitespace-nowrap font-medium text-xs">
-                                  {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
-                                </TableCell>
-                                <TableCell className="text-xs">{log.user_email || '-'}</TableCell>
-                                <TableCell className="text-xs">
-                                  {log.area ? <Badge variant="secondary">{log.area}</Badge> : '-'}
-                                </TableCell>
-                                <TableCell className="text-xs">
-                                  <Badge variant={getActionBadgeVariant(log.action)} className="uppercase text-[10px]">
-                                    {log.action}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-xs">{log.resource || '-'}</TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 px-2"
-                                    onClick={() => setSelectedLog(log)}
-                                    aria-label={`Ver detalles de ${log.action}`}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                    <span className="ml-1.5 hidden lg:inline">Ver</span>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <span>Filas por página:</span>
-                          <Select
-                            value={pageSize.toString()}
-                            onValueChange={(v) => {
-                              setPageSize(Number(v))
-                              setPage(1)
-                            }}
-                          >
-                            <SelectTrigger className="w-[80px] h-8">
-                              <SelectValue placeholder="10" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5</SelectItem>
-                              <SelectItem value="10">10</SelectItem>
-                              <SelectItem value="20">20</SelectItem>
-                              <SelectItem value="50">50</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <span>
-                            Página {page} de {totalPages}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setPage((p) => Math.max(1, p - 1))}
-                              disabled={page === 1 || isLoadingLogs}
-                            >
-                              <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                              disabled={page >= totalPages || isLoadingLogs}
-                            >
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+          <ResponsiveListing
+            queryKey={['auditLogs', effectiveBusinessId, filtersKey]}
+            queryFn={({ page, pageSize }) => listAuditLogs({
+              businessId: effectiveBusinessId,
+              page,
+              pageSize,
+              searchTerm,
+              area: areaFilter,
+              action: actionFilter,
+              startDate: dateRange.startDate,
+              endDate: dateRange.endDate
+            })}
+            enabled={!!userId && !!effectiveBusinessId && canView('logs')}
+            onMeta={({ count }) => setLogsCount(count)}
+            getItemKey={(log) => log.id}
+            renderItem={renderLog}
+            emptyMessage="No se encontraron actividades que coincidan con los filtros aplicados"
+            loadingMessage="Cargando actividades..."
+          />
         </CardContent>
       </Card>
 

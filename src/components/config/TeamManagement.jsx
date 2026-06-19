@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UserPlus, Trash2, Loader2, Shield, Mail } from 'lucide-react'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSession } from '@/hooks/useSession'
@@ -14,17 +14,17 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { getTeamMembers, inviteMember, removeMember, getRoles, updateMemberRole } from '@/services/team'
 import { getSupabaseErrorMessage } from '@/services/notifications'
 import { readLocalCache, writeLocalCache } from '@/offline/localCache'
-
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { useBusiness } from '@/context/BusinessContext'
 
 export function TeamManagement() {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { subscription, PLAN_LIMITS } = useSubscription()
+  const queryClient = useQueryClient()
 
-  const [members, setMembers] = useState([])
   const [roles, setRoles] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [memberCount, setMemberCount] = useState(0)
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
@@ -33,52 +33,63 @@ export function TeamManagement() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState(null)
 
+  const biz = businessId || session?.user?.id
+
   const allowedRole = (role) => String(role?.name || '').toLowerCase() !== 'visualizador'
 
-  const fetchData = async () => {
+  // Carga de roles (para el formulario de invitación y los selectores de rol).
+  // Resiliente offline: si falla, usa la caché local (Capa B).
+  useEffect(() => {
     if (!session?.user?.id) return
-    const biz = businessId || session.user.id
+    let active = true
     const applyDefaultRole = (rolesList) => {
       if (rolesList.length > 0 && !selectedRole) {
-        const defaultRole = rolesList.find(r => r.name === 'Consultor') || rolesList.find(r => r.name === 'Editor') || rolesList[0]
-        setSelectedRole(defaultRole.id)
+        const def = rolesList.find(r => r.name === 'Consultor') || rolesList.find(r => r.name === 'Editor') || rolesList[0]
+        setSelectedRole(def.id)
       }
     }
-    try {
-      setLoading(true)
-      const [membersData, rolesData] = await Promise.all([
-        getTeamMembers(biz),
-        getRoles()
-      ])
-      setMembers(membersData || [])
-      const nextRoles = (rolesData || []).filter(allowedRole)
-      setRoles(nextRoles)
-      applyDefaultRole(nextRoles)
-      // Cachear para modo offline (Capa B).
-      writeLocalCache(`team:members:${biz}`, membersData || [])
-      writeLocalCache(`team:roles:${biz}`, nextRoles)
-    } catch (error) {
-      // Offline/error: mostrar lo guardado; solo alarmar si hay conexión real y sin caché.
-      const cachedMembers = readLocalCache(`team:members:${biz}`)
-      const cachedRoles = readLocalCache(`team:roles:${biz}`)
-      if (cachedMembers) setMembers(cachedMembers)
-      if (cachedRoles) { setRoles(cachedRoles); applyDefaultRole(cachedRoles) }
-      if (navigator.onLine && !cachedMembers) {
-        toast.error('Error al cargar datos del equipo')
+    ;(async () => {
+      try {
+        const rolesData = await getRoles()
+        const nextRoles = (rolesData || []).filter(allowedRole)
+        if (!active) return
+        setRoles(nextRoles)
+        applyDefaultRole(nextRoles)
+        writeLocalCache(`team:roles:${biz}`, nextRoles)
+      } catch {
+        const cachedRoles = readLocalCache(`team:roles:${biz}`)
+        if (active && cachedRoles) {
+          setRoles(cachedRoles)
+          applyDefaultRole(cachedRoles)
+        }
       }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchData()
+    })()
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, businessId])
 
+  const membersQueryKey = useMemo(() => ['team', 'members', biz], [biz])
+
+  // Lista de miembros vía ResponsiveListing. getTeamMembers no pagina → paginamos
+  // en cliente (lista pequeña) y cacheamos para verla offline.
+  const fetchMembersPage = async ({ page, pageSize }) => {
+    let all
+    try {
+      all = await getTeamMembers(biz)
+      writeLocalCache(`team:members:${biz}`, all || [])
+    } catch {
+      all = readLocalCache(`team:members:${biz}`) || []
+    }
+    all = all || []
+    const from = (page - 1) * pageSize
+    return { data: all.slice(from, from + pageSize), count: all.length }
+  }
+
+  const refreshMembers = () => queryClient.invalidateQueries({ queryKey: ['team', 'members', biz] })
+
   const handleInvite = async () => {
-    // Check limit
     const limit = PLAN_LIMITS?.[subscription?.plan_id || 'free']?.partners ?? 0
-    if (members.length >= limit) {
+    if (memberCount >= limit) {
       toast.error('Has alcanzado el límite de socios para tu plan.')
       return
     }
@@ -90,23 +101,20 @@ export function TeamManagement() {
 
     setInviteLoading(true)
     try {
-      // 1. Create invite in DB
       await inviteMember({
         email: inviteEmail,
         role_id: selectedRole,
-        owner_id: businessId || session.user.id,
+        owner_id: biz,
         role_name: roles.find(r => r.id === selectedRole)?.name
       })
 
-      // Success message (No email sent)
       setInviteEmail('')
       toast.success(`Socio agregado: ${inviteEmail}`, {
         description: 'Cuando el usuario se registre con este correo, se unirá automáticamente a tu equipo.'
       })
-      fetchData() // Refresh list
+      refreshMembers()
     } catch (err) {
       const msg = getSupabaseErrorMessage(err)
-
       if (msg.includes('check_email_availability')) {
         toast.error('No se puede agregar a este usuario.', {
           description: 'El email ya está registrado como dueño de otro negocio o miembro de otro equipo.'
@@ -129,7 +137,7 @@ export function TeamManagement() {
     try {
       await removeMember(memberToDelete.id, memberToDelete.member_email)
       toast.success('Socio eliminado correctamente')
-      setMembers(prev => prev.filter(m => m.id !== memberToDelete.id))
+      refreshMembers()
     } catch (err) {
       toast.error('Error al eliminar socio')
     } finally {
@@ -143,10 +151,7 @@ export function TeamManagement() {
       const newRoleName = roles.find(r => r.id === newRoleId)?.name
       await updateMemberRole(memberId, newRoleId, { memberEmail, newRoleName })
       toast.success('Rol actualizado')
-      // Update local state
-      setMembers(prev => prev.map(m =>
-        m.id === memberId ? { ...m, role_id: newRoleId, roles: roles.find(r => r.id === newRoleId) } : m
-      ))
+      refreshMembers()
     } catch {
       toast.error('Error al cambiar rol')
     }
@@ -157,6 +162,50 @@ export function TeamManagement() {
     if (status === 'revoked') return <Badge variant="outline" className="border-destructive/30 text-destructive">Revocado</Badge>
     return <Badge variant="secondary">Pendiente</Badge>
   }
+
+  const renderMember = (m) => (
+    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+        <div className="shrink-0 rounded-full bg-primary/10 p-2">
+          <Mail className="h-4 w-4 text-primary" />
+        </div>
+        <div className="min-w-0">
+          <div className="break-all font-medium">{m.member_email}</div>
+          <div className="mt-1">{statusBadge(m.status)}</div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+        <Select
+          value={m.role_id}
+          onValueChange={(val) => handleRoleChange(m.id, val, m.member_email)}
+          disabled={m.status === 'pending'}
+        >
+          <SelectTrigger className="h-8 w-[160px]">
+            <div className="flex items-center gap-2">
+              {m.roles?.is_system && <Shield className="h-3 w-3 text-blue-500" />}
+              <span className="truncate">{m.roles?.name || 'Sin rol'}</span>
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            {roles.map((role) => (
+              <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => handleDeleteMember(m)}
+          aria-label={`Eliminar a ${m.member_email}`}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
 
   return (
     <Card>
@@ -200,124 +249,16 @@ export function TeamManagement() {
           </Button>
         </div>
 
-        {/* Desktop: tabla */}
-        <div className="hidden md:block border rounded-md overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Rol</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    Cargando equipo...
-                  </TableCell>
-                </TableRow>
-              ) : members.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    No hay socios en el equipo.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                members.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium">{m.member_email}</TableCell>
-                    <TableCell>
-                      <Select
-                        value={m.role_id}
-                        onValueChange={(val) => handleRoleChange(m.id, val, m.member_email)}
-                        disabled={m.status === 'pending'}
-                      >
-                        <SelectTrigger className="h-8 w-[180px]">
-                          <div className="flex items-center gap-2">
-                            {m.roles?.is_system && <Shield className="w-3 h-3 text-blue-500" />}
-                            <span className="truncate">{m.roles?.name || 'Sin rol'}</span>
-                          </div>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles.map(role => (
-                            <SelectItem key={role.id} value={role.id}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>{statusBadge(m.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDeleteMember(m)}
-                        aria-label={`Eliminar a ${m.member_email}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {/* Móvil: cada miembro como tarjeta (sin scroll horizontal) */}
-        <div className="space-y-3 md:hidden">
-          {loading ? (
-            <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">Cargando equipo...</div>
-          ) : members.length === 0 ? (
-            <div className="rounded-md border p-4 text-center text-sm text-muted-foreground">No hay socios en el equipo.</div>
-          ) : (
-            members.map((m) => (
-              <div key={m.id} className="rounded-md border p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 break-all text-sm font-medium">{m.member_email}</p>
-                  {statusBadge(m.status)}
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Rol</Label>
-                  <Select
-                    value={m.role_id}
-                    onValueChange={(val) => handleRoleChange(m.id, val, m.member_email)}
-                    disabled={m.status === 'pending'}
-                  >
-                    <SelectTrigger className="h-9 w-full">
-                      <div className="flex items-center gap-2">
-                        {m.roles?.is_system && <Shield className="w-3 h-3 text-blue-500" />}
-                        <span className="truncate">{m.roles?.name || 'Sin rol'}</span>
-                      </div>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map(role => (
-                        <SelectItem key={role.id} value={role.id}>
-                          {role.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDeleteMember(m)}
-                    aria-label={`Eliminar a ${m.member_email}`}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" /> Eliminar
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        <ResponsiveListing
+          queryKey={membersQueryKey}
+          queryFn={fetchMembersPage}
+          enabled={!!session?.user?.id}
+          onMeta={({ count }) => setMemberCount(count)}
+          getItemKey={(m) => m.id}
+          renderItem={renderMember}
+          emptyMessage="No hay socios en el equipo."
+          loadingMessage="Cargando equipo..."
+        />
       </CardContent>
 
       <ConfirmDialog

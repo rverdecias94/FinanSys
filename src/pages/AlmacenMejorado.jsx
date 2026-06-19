@@ -12,9 +12,7 @@ import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { notify } from '@/services/notifications'
 import {
-  listProducts,
   listProductsForSelection,
-  listMovements,
   exportProducts,
   getProductCategories,
   getAlmacenStats
@@ -28,16 +26,6 @@ export default function AlmacenMejorado() {
 
   // Estado local
   const [tab, setTab] = useState('products')
-
-  const [productsPage, setProductsPage] = useState(1)
-  const [productsPageSize, setProductsPageSize] = useState(10)
-  const [productsSearch, setProductsSearch] = useState('')
-  const [productsCategory, setProductsCategory] = useState('all')
-
-  const [movementsPage, setMovementsPage] = useState(1)
-  const [movementsPageSize, setMovementsPageSize] = useState(10)
-  const [movementsType, setMovementsType] = useState('all')
-  const [movementsProductId, setMovementsProductId] = useState('all')
 
   const userId = session?.user?.id
 
@@ -70,20 +58,6 @@ export default function AlmacenMejorado() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: productsData, isLoading: isLoadingProducts } = useQuery({
-    queryKey: ['warehouse', 'products', effectiveBusinessKey, { productsPage, productsPageSize, productsSearch, productsCategory }],
-    queryFn: () => listProducts({
-      page: productsPage,
-      pageSize: productsPageSize,
-      search: productsSearch,
-      category: productsCategory,
-      userId,
-      businessId,
-    }),
-    enabled: !!userId && canView('warehouse'),
-    keepPreviousData: true,
-  })
-
   const { data: productsSelectionData } = useQuery({
     queryKey: ['warehouse', 'productsSelection', effectiveBusinessKey],
     queryFn: () => listProductsForSelection({ userId, businessId, limit: 5000 }),
@@ -91,24 +65,6 @@ export default function AlmacenMejorado() {
     staleTime: 5 * 60 * 1000,
   })
 
-  const { data: movementsData, isLoading: isLoadingMovements } = useQuery({
-    queryKey: ['warehouse', 'movements', effectiveBusinessKey, { movementsPage, movementsPageSize, movementsType, movementsProductId }],
-    queryFn: () => listMovements({
-      page: movementsPage,
-      pageSize: movementsPageSize,
-      type: movementsType,
-      productId: movementsProductId,
-      userId,
-      businessId,
-    }),
-    enabled: !!userId && canView('warehouse'),
-    keepPreviousData: true,
-  })
-
-  const products = productsData?.data ?? []
-  const productsTotalCount = productsData?.count ?? 0
-  const movements = movementsData?.data ?? []
-  const movementsTotalCount = movementsData?.count ?? 0
   const categories = categoriesData ?? []
   const productsForSelection = productsSelectionData ?? []
 
@@ -160,37 +116,21 @@ export default function AlmacenMejorado() {
 
         <TabsContent value="products">
           <ProductList
-            products={products}
-            loading={isLoadingProducts}
+            userId={userId}
+            businessId={businessId}
+            enabled={canView('warehouse')}
             onRefresh={refreshWarehouse}
             categories={categories}
-            totalCount={productsTotalCount}
-            page={productsPage}
-            pageSize={productsPageSize}
-            onPageChange={setProductsPage}
-            onPageSizeChange={setProductsPageSize}
-            search={productsSearch}
-            onSearchChange={setProductsSearch}
-            category={productsCategory}
-            onCategoryChange={setProductsCategory}
           />
         </TabsContent>
 
         <TabsContent value="movements">
           <MovementList
-            movements={movements}
+            userId={userId}
+            businessId={businessId}
+            enabled={canView('warehouse')}
             products={productsForSelection}
-            loading={isLoadingMovements}
             onRefresh={refreshWarehouse}
-            totalCount={movementsTotalCount}
-            page={movementsPage}
-            pageSize={movementsPageSize}
-            onPageChange={setMovementsPage}
-            onPageSizeChange={setMovementsPageSize}
-            type={movementsType}
-            onTypeChange={setMovementsType}
-            productId={movementsProductId}
-            onProductChange={setMovementsProductId}
           />
         </TabsContent>
       </Tabs>

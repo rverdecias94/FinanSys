@@ -9,11 +9,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
-import { Trash2, Pencil, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Trash2, Pencil, Package } from 'lucide-react'
 import { notify } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { Calendar } from '@/components/ui/calendar'
 import { usePermissions } from '@/context/PermissionContext'
 import { placeholderForType, toLabelFromName } from '@/utils/inventoryFormUtils'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+
+// Convierte un valor de fecha guardado (string 'yyyy-MM-dd' o ISO) a Date local
+// (evita el desfase de un día al interpretar 'yyyy-MM-dd' como UTC).
+function parseDateValue(raw) {
+  if (!raw) return null
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+// Formatea el valor de un item según el tipo de campo dinámico (igual criterio
+// que usa el formulario), para que la fila del listado sea legible.
+function formatFieldValue(field, raw) {
+  if (raw === null || raw === undefined || raw === '') return '—'
+  if (field?.type === 'boolean') return raw ? 'Sí' : 'No'
+  if (field?.type === 'date') {
+    const d = parseDateValue(raw)
+    return d ? format(d, 'dd MMM yyyy', { locale: es }) : String(raw)
+  }
+  return String(raw)
+}
 
 // Indicador de obligatoriedad consistente para TODOS los tipos de campo.
 // Antes solo lo mostraban los campos de texto, por lo que un campo requerido (p. ej. número)
@@ -26,13 +50,10 @@ function FieldRequiredMark({ required }) {
 
 export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false }) {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
   const [values, setValues] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
-  const [searchTerm, setSearchTerm] = useState('')
   const { hasPermission } = usePermissions()
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
@@ -41,15 +62,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
     enabled: !!userId && !!areaId
   })
 
-  const { data: itemsData, isLoading: loadingItems } = useQuery({
-    queryKey: ['inventoryItems', areaId, { page, pageSize }],
-    queryFn: () => listItems(areaId, { page, pageSize }, userId),
-    enabled: !!userId && !!areaId,
-    placeholderData: prev => prev
-  })
-  const items = itemsData?.data || []
-  const count = itemsData?.count || 0
-  const totalPages = Math.ceil(count / pageSize) || 1
+  const itemsQueryKey = useMemo(() => ['inventoryItems', areaId], [areaId])
 
   useEffect(() => {
     if (!initialItem) return
@@ -136,15 +149,59 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
 
   const canShowForm = readOnly ? true : (editingId ? hasPermission('inventory.edit') : hasPermission('inventory.create'))
 
-  const visibleItems = useMemo(() => {
-    if (!searchTerm) return items
-    const t = searchTerm.toLowerCase()
-    return items.filter(it => {
-      const sku = String(it.sku || '').toLowerCase()
-      const v = JSON.stringify(it.values || {}).toLowerCase()
-      return sku.includes(t) || v.includes(t)
-    })
-  }, [items, searchTerm])
+  // Columnas DINÁMICAS: las cabeceras dependen de los campos del área.
+  // Construimos una fila legible a partir de la definición de campos (`fields`)
+  // y de los valores del item (`item.values`).
+  const textFields = useMemo(() => fields.filter(f => f.type === 'text' || f.type === 'textarea'), [fields])
+
+  const renderItem = (item) => {
+    const itemValues = item.values || {}
+    const labelFor = (f) => f.label || toLabelFromName(f.name)
+
+    // Título: primer campo de texto, o SKU, con fallback al id.
+    const firstText = textFields[0]
+    const title =
+      (firstText && itemValues[firstText.name] != null && String(itemValues[firstText.name]).trim()) ||
+      (item.sku && String(item.sku).trim()) ||
+      `Item ${item.id}`
+
+    // Subtítulo: siguientes 2-3 campos como "Etiqueta: valor" separados por " · ".
+    const subtitleFields = fields
+      .filter(f => f !== firstText)
+      .slice(0, 3)
+    const subtitle = subtitleFields
+      .map(f => `${labelFor(f)}: ${formatFieldValue(f, itemValues[f.name])}`)
+      .join(' · ')
+
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center">
+          <div className="shrink-0 rounded-full bg-primary/10 p-2">
+            <Package className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium break-words">{title}</div>
+            {subtitle && <div className="text-sm text-muted-foreground break-words">{subtitle}</div>}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+          <div className="flex shrink-0 items-center gap-2">
+            {hasPermission('inventory.edit') && (
+              <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+            )}
+            {hasPermission('inventory.delete') && (
+              <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -218,7 +275,14 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                     return (
                       <div key={f.id} className="grid gap-1">
                         <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        <Input type="date" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
+                        <Calendar
+                          value={parseDateValue(values[f.name])}
+                          disabled={readOnly}
+                          placeholder="Selecciona una fecha"
+                          // Permitir fechas futuras (p. ej. vencimientos), a diferencia del default.
+                          options={{ maxDate: null }}
+                          onChange={readOnly ? undefined : (d) => setValues({ ...values, [f.name]: d ? format(d, 'yyyy-MM-dd') : '' })}
+                        />
                       </div>
                     )
                   }
@@ -293,74 +357,16 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           <CardHeader>
             <CardTitle>Artículos Registrados</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar por SKU o contenido..."
-                className="pl-10"
-              />
-            </div>
-
-            {loadingItems ? (
-              <div className="text-muted-foreground">Cargando items...</div>
-            ) : visibleItems.length === 0 ? (
-              <div className="text-muted-foreground">No hay items registrados</div>
-            ) : (
-              visibleItems.map(item => (
-                <div key={item.id} className="border rounded-md p-3 flex items-start justify-between gap-3">
-                  <div className="text-sm">
-                    <div className="text-muted-foreground">SKU {item.sku || '—'}</div>
-                    {Object.entries(item.values || {}).map(([k, v]) => (
-                      <div key={k}><span className="font-medium">{k}:</span> {String(v)}</div>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {hasPermission('inventory.edit') && (
-                      <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                    )}
-                    {hasPermission('inventory.delete') && (
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Filas por página:</span>
-                <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
-                  <SelectTrigger className="w-[96px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="20">20</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center justify-between sm:justify-end gap-3">
-                <div className="text-sm text-muted-foreground">Página {page} de {totalPages}</div>
-                <div className="inline-flex gap-2">
-                  <Button variant="outline" size="icon" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} aria-label="Página anterior">
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} aria-label="Página siguiente">
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+          <CardContent>
+            <ResponsiveListing
+              queryKey={itemsQueryKey}
+              queryFn={({ page, pageSize }) => listItems(areaId, { page, pageSize }, userId)}
+              enabled={!!userId && !!areaId}
+              getItemKey={(item) => item.id}
+              renderItem={renderItem}
+              emptyMessage="No hay items registrados"
+              loadingMessage="Cargando items..."
+            />
           </CardContent>
         </Card>
       )}

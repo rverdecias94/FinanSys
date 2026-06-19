@@ -1,43 +1,34 @@
 /* eslint-disable react/prop-types */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Pencil, AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { Pencil, AlertTriangle, CheckCircle2, Search, Package } from 'lucide-react'
 import { ProductModal } from './ProductModal'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { usePermissions } from '@/context/PermissionContext'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { listProducts } from '@/services/almacen'
 
 export function ProductList({
-  products,
-  loading,
+  userId,
+  businessId,
+  enabled = true,
   onRefresh,
   onProductCreated,
-  categories,
-  totalCount,
-  page,
-  pageSize,
-  onPageChange,
-  onPageSizeChange,
-  search,
-  onSearchChange,
-  category,
-  onCategoryChange,
-  isInfinite,
-  onLoadMore,
-  hasMore,
-  loadingMore
+  categories = [],
 }) {
   const [editingProduct, setEditingProduct] = useState(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('all')
   const { checkLimit, recordUsage } = useSubscription()
   const { formatCurrency, businessCurrencies } = useCurrency()
   const { hasPermission } = usePermissions()
+  const queryClient = useQueryClient()
 
   const handleEdit = (product) => {
     setEditingProduct(product)
@@ -50,11 +41,60 @@ export function ProductList({
     setModalOpen(true)
   }
 
-  const totalPages = Math.ceil(totalCount / pageSize) || 1
+  const effectiveKey = businessId || userId
+  const queryKey = useMemo(
+    () => ['warehouse', 'products', effectiveKey, { search, category }],
+    [effectiveKey, search, category]
+  )
+
+  const renderProduct = (p) => {
+    const isLowStock = p.stock <= (p.min_stock || 5)
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center">
+          <div className="shrink-0 rounded-full bg-primary/10 p-2">
+            <Package className="h-4 w-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-medium break-words">{p.name}</div>
+            <div className="text-sm text-muted-foreground">{p.category}</div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+          <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
+            <div className="whitespace-nowrap font-semibold">
+              {formatCurrency(p.unit_price, p.currency)}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline">Stock: {p.stock}</Badge>
+              {isLowStock ? (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Bajo
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> OK
+                </Badge>
+              )}
+            </div>
+          </div>
+
+          {hasPermission('warehouse.edit') && (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={() => handleEdit(p)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
+      {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <div className="relative w-full sm:w-60">
@@ -62,20 +102,11 @@ export function ProductList({
             <Input
               placeholder="Buscar producto..."
               value={search}
-              onChange={(e) => {
-                onSearchChange(e.target.value)
-                onPageChange(1) // Reset to page 1 on search
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               className="pl-8"
             />
           </div>
-          <Select
-            value={category}
-            onValueChange={(v) => {
-              onCategoryChange(v)
-              onPageChange(1)
-            }}
-          >
+          <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Categoría" />
             </SelectTrigger>
@@ -92,176 +123,15 @@ export function ProductList({
         )}
       </div>
 
-      <div className="sm:hidden">
-        {loading ? (
-          <div className="text-center py-10 text-muted-foreground">Cargando...</div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-10 text-muted-foreground">No hay productos registrados</div>
-        ) : (
-          <div className="space-y-3">
-            {products.map((p) => {
-              const isLowStock = p.stock <= (p.min_stock || 5)
-              return (
-                <Card key={p.id}>
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div className="space-y-1 min-w-0">
-                      <CardTitle className="text-base truncate">{p.name}</CardTitle>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant="outline">{p.category}</Badge>
-                        {isLowStock ? (
-                          <Badge variant="destructive" className="gap-1">
-                            <AlertTriangle className="h-3 w-3" /> Bajo
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> OK
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                    {hasPermission('warehouse.edit') && (
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex items-center justify-between gap-4">
-                    <div className="text-sm text-muted-foreground">
-                      Stock: <span className="font-semibold text-foreground">{p.stock}</span>
-                    </div>
-                    <div className="text-sm font-semibold">
-                      {formatCurrency(p.unit_price, p.currency)}
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
- 
-            {isInfinite && hasMore && (
-              <InfiniteScrollTrigger
-                disabled={loadingMore}
-                onLoadMore={onLoadMore}
-              />
-            )}
- 
-            {isInfinite && loadingMore && (
-              <div className="text-center py-4 text-sm text-muted-foreground">Cargando más...</div>
-            )}
-          </div>
-        )}
-      </div>
- 
-      <div className="hidden sm:block border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Producto</TableHead>
-              <TableHead>Categoría</TableHead>
-              <TableHead className="text-right">Precio</TableHead>
-              <TableHead className="text-center">Stock</TableHead>
-              <TableHead className="text-center">Estado</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Cargando...
-                </TableCell>
-              </TableRow>
-            ) : products.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  No hay productos registrados
-                </TableCell>
-              </TableRow>
-            ) : (
-              products.map((p) => {
-                const isLowStock = p.stock <= (p.min_stock || 5)
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell><Badge variant="outline">{p.category}</Badge></TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(p.unit_price, p.currency)}
-                    </TableCell>
-                    <TableCell className="text-center font-bold">{p.stock}</TableCell>
-                    <TableCell className="text-center">
-                      {isLowStock ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <AlertTriangle className="h-3 w-3" /> Bajo
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary" className="gap-1 text-green-700 bg-green-50 hover:bg-green-100">
-                          <CheckCircle2 className="h-3 w-3" /> OK
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {hasPermission('warehouse.edit') && (
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination Controls */}
-      {!isInfinite && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span>Filas por página:</span>
-          <Select
-            value={pageSize.toString()}
-            onValueChange={(v) => {
-              onPageSizeChange(Number(v))
-              onPageChange(1)
-            }}
-          >
-            <SelectTrigger className="w-[70px] h-8">
-              <SelectValue placeholder="5" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5</SelectItem>
-              <SelectItem value="10">10</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <span>
-            Página {page} de {totalPages || 1}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onPageChange(Math.max(1, page - 1))}
-              disabled={page === 1 || loading}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-              disabled={page >= totalPages || loading}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-      )}
+      <ResponsiveListing
+        queryKey={queryKey}
+        queryFn={({ page, pageSize }) => listProducts({ page, pageSize, search, category, userId, businessId })}
+        enabled={enabled && !!userId}
+        getItemKey={(p) => p.id}
+        renderItem={renderProduct}
+        emptyMessage="No hay productos registrados"
+        loadingMessage="Cargando productos..."
+      />
 
       <ProductModal
         open={modalOpen}
@@ -273,7 +143,8 @@ export function ProductList({
             onProductCreated && onProductCreated()
           }
           setModalOpen(false)
-          onRefresh()
+          queryClient.invalidateQueries({ queryKey: ['warehouse'] })
+          onRefresh && onRefresh()
         }}
         categories={categories}
         currencies={businessCurrencies}

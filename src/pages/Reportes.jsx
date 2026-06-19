@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import React, { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ChevronLeft, ChevronRight, File, FileSpreadsheet, FileText, Loader2, Lock } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, File, FileSpreadsheet, FileText, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -10,11 +10,12 @@ import { notify } from '@/services/notifications'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PermissionGuard } from '@/components/common/PermissionGuard'
+import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { fetchTransactionsForExport, listTransactions } from '@/services/finanzas'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
@@ -128,226 +129,12 @@ const Reportes = () => {
   const [filename, setFilename] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
 
-  const [financePage, setFinancePage] = useState(1)
-  const [warehousePage, setWarehousePage] = useState(1)
-  const [inventoryPage, setInventoryPage] = useState(1)
+  // Contadores por tab (alimentados por ResponsiveListing.onMeta).
+  const [financeCount, setFinanceCount] = useState(0)
+  const [warehouseCount, setWarehouseCount] = useState(0)
+  const [inventoryCount, setInventoryCount] = useState(0)
 
-  const PAGE_SIZE_DESKTOP = 10
-  const PAGE_SIZE_MOBILE = 10
-  const INVENTORY_PAGE_SIZE_DESKTOP = 10
-  const INVENTORY_PAGE_SIZE_MOBILE = 5
-
-  useEffect(() => {
-    setFinancePage(1)
-    setWarehousePage(1)
-    setInventoryPage(1)
-    if (typeof window !== 'undefined') window.scrollTo({ top: 0, left: 0 })
-  }, [dateFilter, effectiveUserId])
-
-  const getTotalPages = (count, pageSize) => {
-    const c = Number(count || 0)
-    if (!c) return 1
-    return Math.max(1, Math.ceil(c / pageSize))
-  }
-
-  const getPaginationItems = (page, totalPages) => {
-    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1)
-    const items = []
-    const add = (v) => items.push(v)
-    add(1)
-    const left = Math.max(2, page - 1)
-    const right = Math.min(totalPages - 1, page + 1)
-    if (left > 2) add('…')
-    for (let p = left; p <= right; p++) add(p)
-    if (right < totalPages - 1) add('…')
-    add(totalPages)
-    return items
-  }
-
-  const financePageQuery = useQuery({
-    queryKey: ['reportes-finanzas-page', effectiveUserId, dateFilter, financePage, PAGE_SIZE_DESKTOP],
-    queryFn: () => listTransactions({
-      from: dateFilter?.startDate,
-      to: dateFilter?.endDate,
-      userId,
-      businessId,
-      page: financePage,
-      pageSize: PAGE_SIZE_DESKTOP
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile,
-  })
-
-  const financeInfiniteQuery = useInfiniteQuery({
-    queryKey: ['reportes-finanzas-infinite', effectiveUserId, dateFilter, PAGE_SIZE_MOBILE],
-    queryFn: ({ pageParam = 1 }) => listTransactions({
-      from: dateFilter?.startDate,
-      to: dateFilter?.endDate,
-      userId,
-      businessId,
-      page: pageParam,
-      pageSize: PAGE_SIZE_MOBILE
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      const count = Number(lastPage?.count || 0)
-      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
-      if (!count || loaded >= count) return undefined
-      return allPages.length + 1
-    }
-  })
-
-  const warehousePageQuery = useQuery({
-    queryKey: ['reportes-almacen-page', effectiveUserId, dateFilter, warehousePage, PAGE_SIZE_DESKTOP],
-    queryFn: () => listMovements({
-      startDate: dateFilter?.startDate,
-      endDate: dateFilter?.endDate,
-      userId,
-      businessId,
-      page: warehousePage,
-      pageSize: PAGE_SIZE_DESKTOP
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile
-  })
-
-  const warehouseInfiniteQuery = useInfiniteQuery({
-    queryKey: ['reportes-almacen-infinite', effectiveUserId, dateFilter, PAGE_SIZE_MOBILE],
-    queryFn: ({ pageParam = 1 }) => listMovements({
-      startDate: dateFilter?.startDate,
-      endDate: dateFilter?.endDate,
-      userId,
-      businessId,
-      page: pageParam,
-      pageSize: PAGE_SIZE_MOBILE
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      const count = Number(lastPage?.count || 0)
-      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
-      if (!count || loaded >= count) return undefined
-      return allPages.length + 1
-    }
-  })
-
-  const inventoryPageQuery = useQuery({
-    queryKey: ['reportes-inventario-page', effectiveUserId, dateFilter, inventoryPage, INVENTORY_PAGE_SIZE_DESKTOP],
-    queryFn: async () => {
-      const res = await listAreas(effectiveUserId, { page: inventoryPage, pageSize: INVENTORY_PAGE_SIZE_DESKTOP })
-      const areas = res?.data || []
-      const summary = await Promise.all(areas.map(async (area) => {
-        const { count } = await listItems(area.id, {
-          page: 1,
-          pageSize: 1,
-          startDate: dateFilter?.startDate,
-          endDate: dateFilter?.endDate
-        }, effectiveUserId)
-        return { ...area, itemsCount: count }
-      }))
-      return { data: summary, count: res?.count || 0 }
-    },
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && !isMobile
-  })
-
-  const inventoryInfiniteQuery = useInfiniteQuery({
-    queryKey: ['reportes-inventario-infinite', effectiveUserId, dateFilter, INVENTORY_PAGE_SIZE_MOBILE],
-    queryFn: async ({ pageParam = 1 }) => {
-      const res = await listAreas(effectiveUserId, { page: pageParam, pageSize: INVENTORY_PAGE_SIZE_MOBILE })
-      const areas = res?.data || []
-      const summary = await Promise.all(areas.map(async (area) => {
-        const { count } = await listItems(area.id, {
-          page: 1,
-          pageSize: 1,
-          startDate: dateFilter?.startDate,
-          endDate: dateFilter?.endDate
-        }, effectiveUserId)
-        return { ...area, itemsCount: count }
-      }))
-      return { data: summary, count: res?.count || 0 }
-    },
-    enabled: !!userId && !!effectiveUserId && !!dateFilter && isMobile,
-    initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      const count = Number(lastPage?.count || 0)
-      const loaded = allPages.reduce((acc, p) => acc + Number(p?.data?.length || 0), 0)
-      if (!count || loaded >= count) return undefined
-      return allPages.length + 1
-    }
-  })
-
-  const transactionsDesktop = financePageQuery.data?.data || []
-  const transactionsDesktopCount = financePageQuery.data?.count || 0
-  const transactionsMobile = useMemo(() => {
-    const pages = financeInfiniteQuery.data?.pages || []
-    return pages.flatMap(p => p?.data || [])
-  }, [financeInfiniteQuery.data])
-  const transactionsMobileCount = financeInfiniteQuery.data?.pages?.[0]?.count || 0
-
-  const movementsDesktop = warehousePageQuery.data?.data || []
-  const movementsDesktopCount = warehousePageQuery.data?.count || 0
-  const movementsMobile = useMemo(() => {
-    const pages = warehouseInfiniteQuery.data?.pages || []
-    return pages.flatMap(p => p?.data || [])
-  }, [warehouseInfiniteQuery.data])
-  const movementsMobileCount = warehouseInfiniteQuery.data?.pages?.[0]?.count || 0
-
-  const inventoryDesktop = inventoryPageQuery.data?.data || []
-  const inventoryDesktopCount = inventoryPageQuery.data?.count || 0
-  const inventoryMobile = useMemo(() => {
-    const pages = inventoryInfiniteQuery.data?.pages || []
-    return pages.flatMap(p => p?.data || [])
-  }, [inventoryInfiniteQuery.data])
-  const inventoryMobileCount = inventoryInfiniteQuery.data?.pages?.[0]?.count || 0
-
-  // Finanzas Query
-  const { data: transactions = [], isLoading: loadingFinanzas } = useQuery({
-    queryKey: ['reportes-finanzas', dateFilter, userId],
-    queryFn: () => listTransactions({
-      from: dateFilter?.startDate,
-      to: dateFilter?.endDate,
-      userId,
-      businessId,
-      limit: 1000 // Limit for report preview/export
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter
-  })
-
-  // Almacén Query
-  const { data: movementsData, isLoading: loadingAlmacen } = useQuery({
-    queryKey: ['reportes-almacen', dateFilter, userId],
-    queryFn: () => listMovements({
-      startDate: dateFilter?.startDate,
-      endDate: dateFilter?.endDate,
-      userId,
-      businessId,
-      pageSize: 1000,
-      page: 1
-    }),
-    enabled: !!userId && !!effectiveUserId && !!dateFilter
-  })
-  const movements = movementsData?.data || []
-
-  // Inventario Query (Areas + Item Counts)
-  const { data: inventorySummary = [], isLoading: loadingInventario } = useQuery({
-    queryKey: ['reportes-inventario', dateFilter, userId],
-    queryFn: async () => {
-      const areas = await listAreas(effectiveUserId)
-      const summaryPromises = areas.map(async (area) => {
-        const { count } = await listItems(area.id, {
-          page: 1,
-          pageSize: 1,
-          startDate: dateFilter?.startDate,
-          endDate: dateFilter?.endDate
-        }, effectiveUserId)
-        return {
-          ...area,
-          itemsCount: count
-        }
-      })
-      return Promise.all(summaryPromises)
-    },
-    enabled: !!userId && !!effectiveUserId && !!dateFilter
-  })
+  const listingsEnabled = !!userId && !!effectiveUserId && !!dateFilter
 
   const handleFilterChange = (filter) => {
     setDateFilter(filter)
@@ -511,52 +298,22 @@ const Reportes = () => {
     setPreviewOpen(false)
   }
 
-  const financeSentinelRef = useRef(null)
-  const warehouseSentinelRef = useRef(null)
-  const inventorySentinelRef = useRef(null)
-
-  const useInfiniteScroll = ({ enabled, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage }) => {
-    useEffect(() => {
-      if (!enabled) return
-      const el = sentinelRef.current
-      if (!el) return
-
-      const observer = new IntersectionObserver((entries) => {
-        const first = entries[0]
-        if (!first?.isIntersecting) return
-        if (!hasNextPage) return
-        if (isFetchingNextPage) return
-        fetchNextPage()
-      }, { rootMargin: '240px' })
-
-      observer.observe(el)
-      return () => observer.disconnect()
-    }, [enabled, sentinelRef, hasNextPage, isFetchingNextPage, fetchNextPage])
+  // Construye el resumen de inventario (áreas + nº de ítems en el periodo) para una
+  // página, conservando el shape {data,count} que espera ResponsiveListing.
+  const fetchInventorySummaryPage = async ({ page, pageSize }) => {
+    const res = await listAreas(effectiveUserId, { page, pageSize })
+    const areas = res?.data || []
+    const summary = await Promise.all(areas.map(async (area) => {
+      const { count } = await listItems(area.id, {
+        page: 1,
+        pageSize: 1,
+        startDate: dateFilter?.startDate,
+        endDate: dateFilter?.endDate
+      }, effectiveUserId)
+      return { ...area, itemsCount: count }
+    }))
+    return { data: summary, count: res?.count || 0 }
   }
-
-  useInfiniteScroll({
-    enabled: isMobile,
-    sentinelRef: financeSentinelRef,
-    hasNextPage: financeInfiniteQuery.hasNextPage,
-    isFetchingNextPage: financeInfiniteQuery.isFetchingNextPage,
-    fetchNextPage: financeInfiniteQuery.fetchNextPage
-  })
-
-  useInfiniteScroll({
-    enabled: isMobile,
-    sentinelRef: warehouseSentinelRef,
-    hasNextPage: warehouseInfiniteQuery.hasNextPage,
-    isFetchingNextPage: warehouseInfiniteQuery.isFetchingNextPage,
-    fetchNextPage: warehouseInfiniteQuery.fetchNextPage
-  })
-
-  useInfiniteScroll({
-    enabled: isMobile,
-    sentinelRef: inventorySentinelRef,
-    hasNextPage: inventoryInfiniteQuery.hasNextPage,
-    isFetchingNextPage: inventoryInfiniteQuery.isFetchingNextPage,
-    fetchNextPage: inventoryInfiniteQuery.fetchNextPage
-  })
 
   return (
     <div className="space-y-6 p-4 sm:p-6 pb-20">
@@ -591,7 +348,10 @@ const Reportes = () => {
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
                 <div className="space-y-1 min-w-0">
-                  <CardTitle>Resumen Financiero</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    Resumen Financiero
+                    <Badge variant="secondary" className="shrink-0">{financeCount}</Badge>
+                  </CardTitle>
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -618,110 +378,50 @@ const Reportes = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {isMobile ? (
-                  financeInfiniteQuery.isLoading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                  ) : transactionsMobile.length === 0 ? (
-                    <div className="text-center p-8 text-muted-foreground">No hay transacciones en este periodo.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {transactionsMobile.map((t) => (
-                        <div key={t.id} className="rounded-lg border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium">{t.category || '-'}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''} • {t.type === 'income' ? 'Ingreso' : 'Gasto'}
-                              </div>
-                            </div>
-                            <div className={`text-sm font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
-                              {t.type === 'income' ? '+' : '-'}{t.amount} {t.currency}
-                            </div>
+                <ResponsiveListing
+                  queryKey={['reportes-finanzas', effectiveUserId, dateFilter]}
+                  queryFn={({ page, pageSize }) => listTransactions({
+                    from: dateFilter?.startDate,
+                    to: dateFilter?.endDate,
+                    userId,
+                    businessId,
+                    page,
+                    pageSize
+                  })}
+                  enabled={listingsEnabled}
+                  onMeta={({ count }) => setFinanceCount(count)}
+                  getItemKey={(t) => t.id}
+                  emptyMessage="No hay transacciones en este periodo."
+                  loadingMessage="Cargando transacciones..."
+                  renderItem={(t) => (
+                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                        <div className={`shrink-0 rounded-full p-2 ${t.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                          {t.type === 'income'
+                            ? <TrendingUp className="h-4 w-4 text-success" />
+                            : <TrendingDown className="h-4 w-4 text-destructive" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium break-words">{t.description || (t.type === 'income' ? 'Ingreso' : 'Gasto')}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''}
                           </div>
-                          {t.description ? (
-                            <div className="mt-2 text-xs text-muted-foreground break-words">
-                              {t.description}
-                            </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                        <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
+                          <div className={`whitespace-nowrap font-semibold ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                            {t.type === 'income' ? '+' : '−'} {t.amount} {t.currency}
+                          </div>
+                          {t.category ? (
+                            <Badge variant="outline" className="max-w-full truncate">{t.category}</Badge>
                           ) : null}
                         </div>
-                      ))}
-                      <div ref={financeSentinelRef} />
-                      {financeInfiniteQuery.isFetchingNextPage ? (
-                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
-                      ) : null}
-                      {!financeInfiniteQuery.hasNextPage && transactionsMobile.length > 0 ? (
-                        <div className="text-center text-xs text-muted-foreground py-2">
-                          Mostrando {transactionsMobile.length} de {transactionsMobileCount}
-                        </div>
-                      ) : null}
-                    </div>
-                  )
-                ) : financePageQuery.isLoading ? (
-                  <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : transactionsDesktop.length === 0 ? (
-                  <div className="text-center p-8 text-muted-foreground">No hay transacciones en este periodo.</div>
-                ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Categoría</TableHead>
-                          <TableHead className="text-right">Monto</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {transactionsDesktop.map((t) => (
-                          <TableRow key={t.id}>
-                            <TableCell>{format(new Date(t.date), 'dd/MM/yyyy')}</TableCell>
-                            <TableCell className="capitalize">{t.type === 'income' ? 'Ingreso' : 'Gasto'}</TableCell>
-                            <TableCell>{t.category}</TableCell>
-                            <TableCell className={`text-right font-medium ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
-                              {t.type === 'income' ? '+' : '-'}{t.amount} {t.currency}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
-                      <div className="text-xs text-muted-foreground">
-                        Mostrando {transactionsDesktop.length} de {transactionsDesktopCount}
-                      </div>
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setFinancePage(p => Math.max(1, p - 1))}
-                          disabled={financePage <= 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Anterior</span>
-                        </Button>
-                        {getPaginationItems(financePage, getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP)).map((it, idx) => (
-                          <Button
-                            key={`${it}-${idx}`}
-                            variant={it === financePage ? 'default' : 'outline'}
-                            size="sm"
-                            disabled={it === '…'}
-                            onClick={() => typeof it === 'number' && setFinancePage(it)}
-                          >
-                            {it}
-                          </Button>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setFinancePage(p => Math.min(getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP), p + 1))}
-                          disabled={financePage >= getTotalPages(transactionsDesktopCount, PAGE_SIZE_DESKTOP)}
-                        >
-                          <span className="mr-1 hidden sm:inline">Siguiente</span>
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -731,7 +431,10 @@ const Reportes = () => {
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
                 <div className="space-y-1 min-w-0">
-                  <CardTitle>Movimientos de Almacén</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    Movimientos de Almacén
+                    <Badge variant="secondary" className="shrink-0">{warehouseCount}</Badge>
+                  </CardTitle>
                   <CardDescription>{dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -758,112 +461,51 @@ const Reportes = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {isMobile ? (
-                  warehouseInfiniteQuery.isLoading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                  ) : movementsMobile.length === 0 ? (
-                    <div className="text-center p-8 text-muted-foreground">No hay movimientos en este periodo.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {movementsMobile.map((m) => (
-                        <div key={m.id} className="rounded-lg border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium">{m.products?.name || 'Desconocido'}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : ''} • {m.type === 'in' ? 'Entrada' : 'Salida'}
-                              </div>
-                            </div>
-                            <div className="text-sm font-semibold whitespace-nowrap">
-                              {m.qty}
-                            </div>
-                          </div>
-                          <div className="mt-2">
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}>
-                              {m.type === 'in' ? 'Entrada' : 'Salida'}
-                            </span>
+                <ResponsiveListing
+                  queryKey={['reportes-almacen', effectiveUserId, dateFilter]}
+                  queryFn={({ page, pageSize }) => listMovements({
+                    startDate: dateFilter?.startDate,
+                    endDate: dateFilter?.endDate,
+                    userId,
+                    businessId,
+                    page,
+                    pageSize
+                  })}
+                  enabled={listingsEnabled}
+                  onMeta={({ count }) => setWarehouseCount(count)}
+                  getItemKey={(m) => m.id}
+                  emptyMessage="No hay movimientos en este periodo."
+                  loadingMessage="Cargando movimientos..."
+                  renderItem={(m) => (
+                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                        <div className={`shrink-0 rounded-full p-2 ${m.type === 'in' ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                          {m.type === 'in'
+                            ? <ArrowDownCircle className="h-4 w-4 text-success" />
+                            : <ArrowUpCircle className="h-4 w-4 text-destructive" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium break-words">{m.products?.name || 'Producto Eliminado'}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
                           </div>
                         </div>
-                      ))}
-                      <div ref={warehouseSentinelRef} />
-                      {warehouseInfiniteQuery.isFetchingNextPage ? (
-                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
-                      ) : null}
-                      {!warehouseInfiniteQuery.hasNextPage && movementsMobile.length > 0 ? (
-                        <div className="text-center text-xs text-muted-foreground py-2">
-                          Mostrando {movementsMobile.length} de {movementsMobileCount}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                        <Badge
+                          variant="outline"
+                          className={m.type === 'in' ? 'border-success/40 text-success' : 'border-destructive/40 text-destructive'}
+                        >
+                          {m.type === 'in' ? 'Entrada' : 'Salida'}
+                        </Badge>
+                        <div className={`whitespace-nowrap font-semibold ${m.type === 'in' ? 'text-success' : 'text-destructive'}`}>
+                          {m.type === 'in' ? '+' : '−'}{m.qty}
                         </div>
-                      ) : null}
-                    </div>
-                  )
-                ) : warehousePageQuery.isLoading ? (
-                  <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : movementsDesktop.length === 0 ? (
-                  <div className="text-center p-8 text-muted-foreground">No hay movimientos en este periodo.</div>
-                ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead>Producto</TableHead>
-                          <TableHead>Tipo</TableHead>
-                          <TableHead className="text-right">Cantidad</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {movementsDesktop.map((m) => (
-                          <TableRow key={m.id}>
-                            <TableCell>{format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-                            <TableCell>{m.products?.name || 'Desconocido'}</TableCell>
-                            <TableCell>
-                              <span className={`px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}>
-                                {m.type === 'in' ? 'Entrada' : 'Salida'}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right">{m.qty}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
-                      <div className="text-xs text-muted-foreground">
-                        Mostrando {movementsDesktop.length} de {movementsDesktopCount}
-                      </div>
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setWarehousePage(p => Math.max(1, p - 1))}
-                          disabled={warehousePage <= 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Anterior</span>
-                        </Button>
-                        {getPaginationItems(warehousePage, getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP)).map((it, idx) => (
-                          <Button
-                            key={`${it}-${idx}`}
-                            variant={it === warehousePage ? 'default' : 'outline'}
-                            size="sm"
-                            disabled={it === '…'}
-                            onClick={() => typeof it === 'number' && setWarehousePage(it)}
-                          >
-                            {it}
-                          </Button>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setWarehousePage(p => Math.min(getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP), p + 1))}
-                          disabled={warehousePage >= getTotalPages(movementsDesktopCount, PAGE_SIZE_DESKTOP)}
-                        >
-                          <span className="mr-1 hidden sm:inline">Siguiente</span>
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -873,7 +515,10 @@ const Reportes = () => {
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
                 <div className="space-y-1 min-w-0">
-                  <CardTitle>Resumen de Inventario (Activos)</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    Resumen de Inventario (Activos)
+                    <Badge variant="secondary" className="shrink-0">{inventoryCount}</Badge>
+                  </CardTitle>
                   <CardDescription>Ítems registrados durante: {dateFilter.label}</CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
@@ -900,97 +545,32 @@ const Reportes = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {isMobile ? (
-                  inventoryInfiniteQuery.isLoading ? (
-                    <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                  ) : inventoryMobile.length === 0 ? (
-                    <div className="text-center p-8 text-muted-foreground">No hay áreas configuradas.</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {inventoryMobile.map((area) => (
-                        <div key={area.id} className="rounded-lg border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium">{area.name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                Ítems en período: {area.itemsCount}
-                              </div>
-                            </div>
-                            <div className="text-sm font-semibold whitespace-nowrap">{area.itemsCount}</div>
-                          </div>
+                <ResponsiveListing
+                  queryKey={['reportes-inventario', effectiveUserId, dateFilter]}
+                  queryFn={fetchInventorySummaryPage}
+                  enabled={listingsEnabled}
+                  onMeta={({ count }) => setInventoryCount(count)}
+                  getItemKey={(area) => area.id}
+                  emptyMessage="No hay áreas configuradas."
+                  loadingMessage="Cargando inventario..."
+                  renderItem={(area) => (
+                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                        <div className="shrink-0 rounded-full bg-primary/10 p-2">
+                          <Package className="h-4 w-4 text-primary" />
                         </div>
-                      ))}
-                      <div ref={inventorySentinelRef} />
-                      {inventoryInfiniteQuery.isFetchingNextPage ? (
-                        <div className="flex justify-center py-4"><Loader2 className="h-6 w-6 animate-spin" /></div>
-                      ) : null}
-                      {!inventoryInfiniteQuery.hasNextPage && inventoryMobile.length > 0 ? (
-                        <div className="text-center text-xs text-muted-foreground py-2">
-                          Mostrando {inventoryMobile.length} de {inventoryMobileCount}
+                        <div className="min-w-0">
+                          <div className="font-medium break-words">{area.name}</div>
+                          <div className="text-sm text-muted-foreground">Ítems registrados en el periodo</div>
                         </div>
-                      ) : null}
-                    </div>
-                  )
-                ) : inventoryPageQuery.isLoading ? (
-                  <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-                ) : inventoryDesktop.length === 0 ? (
-                  <div className="text-center p-8 text-muted-foreground">No hay áreas configuradas.</div>
-                ) : (
-                  <div className="rounded-md border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Área</TableHead>
-                          <TableHead>Ítems Registrados (Periodo)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {inventoryDesktop.map((area) => (
-                          <TableRow key={area.id}>
-                            <TableCell className="font-medium">{area.name}</TableCell>
-                            <TableCell>{area.itemsCount}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-3 border-t bg-muted/30">
-                      <div className="text-xs text-muted-foreground">
-                        Mostrando {inventoryDesktop.length} de {inventoryDesktopCount}
                       </div>
-                      <div className="flex items-center gap-1 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInventoryPage(p => Math.max(1, p - 1))}
-                          disabled={inventoryPage <= 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          <span className="ml-1 hidden sm:inline">Anterior</span>
-                        </Button>
-                        {getPaginationItems(inventoryPage, getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP)).map((it, idx) => (
-                          <Button
-                            key={`${it}-${idx}`}
-                            variant={it === inventoryPage ? 'default' : 'outline'}
-                            size="sm"
-                            disabled={it === '…'}
-                            onClick={() => typeof it === 'number' && setInventoryPage(it)}
-                          >
-                            {it}
-                          </Button>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setInventoryPage(p => Math.min(getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP), p + 1))}
-                          disabled={inventoryPage >= getTotalPages(inventoryDesktopCount, INVENTORY_PAGE_SIZE_DESKTOP)}
-                        >
-                          <span className="mr-1 hidden sm:inline">Siguiente</span>
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
+
+                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                        <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount} ítems</Badge>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                />
               </CardContent>
             </Card>
           </TabsContent>
