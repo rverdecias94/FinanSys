@@ -162,6 +162,28 @@ Lo único que necesito de ti: **nombre/short_name**, **color de tema**, y **apro
 **Meta:** lo que el usuario ya cargó (finanzas, almacén, dashboard) **sigue visible offline** tras
 recargar. No cambia la lógica de las queries, solo persiste la caché de React Query.
 
+> **Estado: B1 + B2 IMPLEMENTADAS (2026-06-19).** Falta la verificación end-to-end con sesión
+> iniciada (cargar datos → offline → recargar → datos visibles), que requiere credenciales.
+>
+> **Lo hecho:**
+> - `src/offline/queryPersister.js`: persister sobre IndexedDB (`@tanstack/query-async-storage-persister`
+>   + `idb-keyval`), `CACHE_BUSTER='gestia-rq-v1'`, `CACHE_MAX_AGE=7 días`.
+> - `src/main.jsx`: `QueryClientProvider` → `PersistQueryClientProvider`; `gcTime=7 días`;
+>   `shouldDehydrateQuery` solo persiste queries con éxito.
+> - **Seguridad (dispositivo compartido):** 2º listener `onAuthStateChange` que limpia caché
+>   (memoria + IndexedDB) al cerrar sesión y al entrar un usuario distinto. Cubre claves sin
+>   user_id como `['isSystemAdmin']` (evita filtrar la UI de admin entre cuentas).
+> - **B2:** `src/hooks/useOnlineStatus.js` (`useSyncExternalStore` sobre eventos online/offline) +
+>   `src/components/common/OfflineBanner.jsx` (tokens `--warning`, modo oscuro, mobile-first),
+>   montado en `SidebarLayout`.
+>
+> **Verificado:** build OK (PWA intacto), `npm run lint` limpio, login sin errores de consola
+> (sin regresión por el cambio de provider), IndexedDB `keyval-store` creado por el persister,
+> test unitario `OfflineBanner.test.jsx` (2/2). Suite completa: 36/38 (los 2 fallos son los
+> pre-existentes de `PlansPanel.test.jsx`, ajenos a esta capa).
+>
+> **Pendiente:** prueba con sesión real (credenciales) — ver checklist de criterios de aceptación.
+
 ### Sesión B1 — Persistencia de la caché de React Query
 1. Instalar `@tanstack/react-query-persist-client`, `@tanstack/query-async-storage-persister`, `idb-keyval`.
 2. En [`src/main.jsx`](../src/main.jsx): envolver con `PersistQueryClientProvider` usando

@@ -12,7 +12,10 @@ import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
-import { QueryClient, QueryClientProvider, MutationCache, QueryCache } from '@tanstack/react-query';
+import { QueryClient, MutationCache, QueryCache } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { queryPersister, CACHE_BUSTER, CACHE_MAX_AGE } from '@/offline/queryPersister';
+import { supabase } from '@/config/supabase';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
@@ -47,8 +50,37 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1, // Reintentar una vez antes de fallar
       refetchOnWindowFocus: false,
+      // Capa B: las queries deben sobrevivir en memoria lo suficiente para
+      // persistirse/rehidratarse desde IndexedDB (si no, se recolectan a los 5 min).
+      gcTime: CACHE_MAX_AGE,
     },
   },
+});
+
+// Seguridad de la caché offline (Capa B): la caché persistida en IndexedDB podría
+// dejar ver datos de un usuario a otro en un dispositivo compartido. Por eso:
+// - al cerrar sesión → se limpia la caché (memoria + IndexedDB).
+// - al iniciar sesión un usuario DISTINTO al de la caché guardada → se limpia.
+// (Importante para claves de query sin user_id, p. ej. ['isSystemAdmin'].)
+const LAST_USER_KEY = 'gestia:lastUserId';
+let lastUserId = localStorage.getItem(LAST_USER_KEY);
+const clearOfflineCache = () => {
+  queryClient.clear();
+  queryPersister.removeClient();
+};
+supabase.auth.onAuthStateChange((event, session) => {
+  const uid = session?.user?.id ?? null;
+  if (event === 'SIGNED_OUT') {
+    localStorage.removeItem(LAST_USER_KEY);
+    lastUserId = null;
+    clearOfflineCache();
+  } else if (uid) {
+    if (lastUserId && uid !== lastUserId) {
+      clearOfflineCache();
+    }
+    lastUserId = uid;
+    localStorage.setItem(LAST_USER_KEY, uid);
+  }
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -56,11 +88,22 @@ root.render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider defaultTheme="system" storageKey="app-theme">
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: queryPersister,
+            maxAge: CACHE_MAX_AGE,
+            buster: CACHE_BUSTER,
+            dehydrateOptions: {
+              // Solo persistir queries con datos correctos (no errores/pendientes).
+              shouldDehydrateQuery: (query) => query.state.status === 'success',
+            },
+          }}
+        >
           <ErrorBoundary>
             <App />
           </ErrorBoundary>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>
