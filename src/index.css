@@ -134,6 +134,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans);
     letter-spacing: var(--tracking-normal);
     font-variant-numeric: tabular-nums;
     min-height: 100dvh;
@@ -146,7 +147,7 @@
   h4,
   h5,
   h6 {
-    font-family: Geist, system-ui, sans-serif;
+    font-family: var(--font-sans);
   }
 
   #root {

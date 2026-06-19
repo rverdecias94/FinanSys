@@ -10,7 +10,7 @@ module.exports = {
 		extend: {
 			fontFamily: {
 				sans: [
-					'Geist',
+					'Outfit',
 					'system-ui',
 					'sans-serif',
 				],
@@ -19,7 +19,7 @@ module.exports = {
 					'monospace',
 				],
 				heading: [
-					'Geist',
+					'Outfit',
 					'system-ui',
 					'sans-serif',
 				],
