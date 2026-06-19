@@ -302,12 +302,12 @@ export default function FinanzasMejorado() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Ingresos</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-green-600 ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                <div key={item.code} className={`font-bold text-success ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
                   {formatCurrency(item.income, item.code)}
                 </div>
               ))}
@@ -318,12 +318,12 @@ export default function FinanzasMejorado() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Gastos</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
+            <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-red-600 ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                <div key={item.code} className={`font-bold text-destructive ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
                   {formatCurrency(item.expense, item.code)}
                 </div>
               ))}
@@ -341,7 +341,7 @@ export default function FinanzasMejorado() {
               {financeSummary.map(item => (
                 <div
                   key={item.code}
-                  className={`font-bold ${item.net >= 0 ? 'text-green-600' : 'text-red-600'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
+                  className={`font-bold ${item.net >= 0 ? 'text-success' : 'text-destructive'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
                 >
                   {formatCurrency(item.net, item.code)}
                 </div>
@@ -383,11 +383,11 @@ export default function FinanzasMejorado() {
                     {rows.map(transaction => (
                       <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
-                          <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100'
+                          <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
                             }`}>
                             {transaction.type === 'income' ?
-                              <TrendingUp className="w-4 h-4 text-green-600" /> :
-                              <TrendingDown className="w-4 h-4 text-red-600" />
+                              <TrendingUp className="w-4 h-4 text-success" /> :
+                              <TrendingDown className="w-4 h-4 text-destructive" />
                             }
                           </div>
                           <div>
@@ -400,7 +400,7 @@ export default function FinanzasMejorado() {
 
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <div className={`font-semibold ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                            <div className={`font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
                               }`}>
                               {formatCurrency(transaction.amount, transaction.currency)}
                             </div>

@@ -180,7 +180,7 @@ export function MovementList({
                         {isEntry ? 'Entrada' : 'Salida'}
                       </Badge>
                     </TableCell>
-                    <TableCell className={`text-right font-bold ${isEntry ? 'text-green-600' : 'text-red-600'}`}>
+                    <TableCell className={`text-right font-bold ${isEntry ? 'text-success' : 'text-destructive'}`}>
                       {isEntry ? '+' : '-'}{m.qty}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">

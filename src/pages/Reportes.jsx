@@ -603,7 +603,7 @@ const Reportes = () => {
                                 {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''} • {t.type === 'income' ? 'Ingreso' : 'Gasto'}
                               </div>
                             </div>
-                            <div className={`text-sm font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                            <div className={`text-sm font-semibold whitespace-nowrap ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                               {t.type === 'income' ? '+' : '-'}{t.amount} {t.currency}
                             </div>
                           </div>
@@ -646,7 +646,7 @@ const Reportes = () => {
                             <TableCell>{format(new Date(t.date), 'dd/MM/yyyy')}</TableCell>
                             <TableCell className="capitalize">{t.type === 'income' ? 'Ingreso' : 'Gasto'}</TableCell>
                             <TableCell>{t.category}</TableCell>
-                            <TableCell className={`text-right font-medium ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                            <TableCell className={`text-right font-medium ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
                               {t.type === 'income' ? '+' : '-'}{t.amount} {t.currency}
                             </TableCell>
                           </TableRow>
@@ -746,7 +746,7 @@ const Reportes = () => {
                             </div>
                           </div>
                           <div className="mt-2">
-                            <span className={`inline-flex px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                            <span className={`inline-flex px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}>
                               {m.type === 'in' ? 'Entrada' : 'Salida'}
                             </span>
                           </div>
@@ -784,7 +784,7 @@ const Reportes = () => {
                             <TableCell>{format(new Date(m.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
                             <TableCell>{m.products?.name || 'Desconocido'}</TableCell>
                             <TableCell>
-                              <span className={`px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              <span className={`px-2 py-1 rounded-full text-xs ${m.type === 'in' ? 'bg-success/15 text-success' : 'bg-destructive/15 text-destructive'}`}>
                                 {m.type === 'in' ? 'Entrada' : 'Salida'}
                               </span>
                             </TableCell>
