@@ -308,7 +308,7 @@ export default function FinanzasMejorado() {
             <div className="space-y-1">
               {financeSummary.map(item => (
                 <div key={item.code} className={`font-bold text-success ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
-                  {formatCurrency(item.income, item.code)}
+                  + {formatCurrency(item.income, item.code)}
                 </div>
               ))}
             </div>
@@ -324,7 +324,7 @@ export default function FinanzasMejorado() {
             <div className="space-y-1">
               {financeSummary.map(item => (
                 <div key={item.code} className={`font-bold text-destructive ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
-                  {formatCurrency(item.expense, item.code)}
+                  − {formatCurrency(item.expense, item.code)}
                 </div>
               ))}
             </div>
@@ -402,7 +402,7 @@ export default function FinanzasMejorado() {
                           <div className="text-right">
                             <div className={`font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
                               }`}>
-                              {formatCurrency(transaction.amount, transaction.currency)}
+                              {transaction.type === 'income' ? '+' : '−'} {formatCurrency(transaction.amount, transaction.currency)}
                             </div>
                             <Badge variant="outline">{transaction.category}</Badge>
                           </div>

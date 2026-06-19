@@ -23,7 +23,7 @@
     --border: 0 0% 87%;
     --input: 0 0% 96%;
     --ring: 151 67% 67%;
-    --success: 160 84% 39%;
+    --success: 160 90% 26%; /* P3.6: verde más oscuro para contraste WCAG AA (4.98:1) sobre fondo claro */
     --warning: 38 92% 50%;
     --chart-1: 151 67% 67%;
     --chart-2: 217 91% 60%;
