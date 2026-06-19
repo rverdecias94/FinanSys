@@ -107,13 +107,19 @@ export async function createTransaction(payload, userId, businessId) {
 
   const {
     date, amount, currency, category, description, type,
-    payment_method, bank_account_id, reference_number, notes, attachments
+    payment_method, bank_account_id, reference_number, notes, attachments,
+    contact_id, status, due_date, paid_amount
   } = payload
 
   let finalAttachments = [];
   if (attachments && attachments.length > 0) {
     finalAttachments = await uploadAttachments(attachments, effectiveUserId);
   }
+
+  // CxC/CxP (Fase 1): por defecto 'paid' (efectivo, realidad cubana). Si queda
+  // pendiente, paid_amount arranca en 0 (o el abono parcial recibido).
+  const finalStatus = status || 'paid'
+  const finalPaid = finalStatus === 'paid' ? Number(amount) : Number(paid_amount || 0)
 
   const dbPayload = {
     date,
@@ -123,6 +129,10 @@ export async function createTransaction(payload, userId, businessId) {
     description,
     type,
     user_id: effectiveUserId, // Usar ID efectivo
+    contact_id: contact_id || null,
+    status: finalStatus,
+    due_date: finalStatus === 'paid' ? null : (due_date || null),
+    paid_amount: finalPaid,
     image_url: finalAttachments.length > 0 ? finalAttachments[0] : null,
     details: {
       payment_method: payment_method || null,
@@ -154,7 +164,8 @@ export async function updateTransaction(transactionId, payload, userId, business
 
   const {
     date, amount, currency, category, description, type,
-    payment_method, bank_account_id, reference_number, notes, attachments, deleted_attachments
+    payment_method, bank_account_id, reference_number, notes, attachments, deleted_attachments,
+    contact_id, status, due_date, paid_amount
   } = payload
 
   if (deleted_attachments && deleted_attachments.length > 0) {
@@ -172,6 +183,18 @@ export async function updateTransaction(transactionId, payload, userId, business
     finalAttachments = await uploadAttachments(attachments, effectiveUserId);
   }
 
+  // Si se marca pagada -> total; si queda pendiente, conserva lo ya abonado
+  // (no pierde pagos parciales) y recalcula a 'partial' cuando corresponda.
+  const reqStatus = status || 'paid'
+  let finalStatus, finalPaid
+  if (reqStatus === 'paid') {
+    finalStatus = 'paid'
+    finalPaid = Number(amount)
+  } else {
+    finalPaid = Number(paid_amount || 0)
+    finalStatus = finalPaid > 0 && finalPaid < Number(amount) ? 'partial' : 'pending'
+  }
+
   const dbPayload = {
     date,
     amount,
@@ -179,6 +202,10 @@ export async function updateTransaction(transactionId, payload, userId, business
     category,
     description,
     type,
+    contact_id: contact_id || null,
+    status: finalStatus,
+    due_date: finalStatus === 'paid' ? null : (due_date || null),
+    paid_amount: finalPaid,
     image_url: finalAttachments.length > 0 ? finalAttachments[0] : null,
     details: {
       payment_method: payment_method || null,
@@ -234,6 +261,71 @@ export async function listTransactions({ from, to, category, type, currency, use
   if (page && pageSize) {
     return { data, count }
   }
+  return data
+}
+
+// Cuentas por cobrar/pagar (Fase 1): transacciones con saldo pendiente.
+// direction 'receivable' = ingresos pendientes (te deben); 'payable' = gastos pendientes (debes).
+export async function listOpenAccounts({ direction = 'receivable', page = 1, pageSize = 5, userId, businessId } = {}) {
+  if (!userId) throw new Error('User ID is required')
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+  const type = direction === 'payable' ? 'expense' : 'income'
+
+  let q = supabase
+    .from('transactions')
+    .select('*, contact:contacts(name)', { count: 'exact' })
+    .eq('user_id', effectiveUserId)
+    .eq('type', type)
+    .in('status', ['pending', 'partial'])
+    .order('due_date', { ascending: true, nullsFirst: false })
+
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+  q = q.range(from, to)
+
+  const { data, count, error } = await q
+  if (error) throw error
+  return { data: data || [], count: count || 0 }
+}
+
+// Registrar un abono (parcial o total) sobre una cuenta pendiente.
+export async function registerPayment(transactionId, abono, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+
+  // Volumen bajo: leer-calcular-actualizar (sin RPC).
+  const { data: row, error: readErr } = await supabase
+    .from('transactions')
+    .select('amount, paid_amount, type, description')
+    .eq('id', transactionId)
+    .eq('user_id', effectiveUserId)
+    .single()
+  if (readErr) throw readErr
+
+  const total = Number(row.amount)
+  const current = Number(row.paid_amount || 0)
+  const add = Number(abono)
+  if (!Number.isFinite(add) || add <= 0) throw new Error('El monto del pago debe ser mayor que cero.')
+
+  const newPaid = Math.min(total, current + add)
+  const newStatus = newPaid >= total ? 'paid' : 'partial'
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({ paid_amount: newPaid, status: newStatus })
+    .eq('id', transactionId)
+    .eq('user_id', effectiveUserId)
+    .select()
+    .single()
+  if (error) throw error
+
+  await logAction({
+    action: row.type === 'income' ? 'Cobro' : 'Pago',
+    resource: `Transacción: ${row.description || 'Sin descripción'}`,
+    details: { transaction_id: transactionId, abono: add, paid_amount: newPaid, status: newStatus },
+    area: 'Finanzas'
+  })
+
   return data
 }
 

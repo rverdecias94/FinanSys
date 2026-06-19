@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, ShieldCheck, Loader2 } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, ShieldCheck, Loader2, Users, HandCoins } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
@@ -76,6 +76,20 @@ export default function SidebarLayout() {
             <NavLink to="/finanzas" className={linkClass}>
               <Wallet className="w-4 h-4" />
               <span>Finanzas</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <PermissionGuard requiredPermission="finanzas.view">
+            <NavLink to="/contactos" className={linkClass}>
+              <Users className="w-4 h-4" />
+              <span>Contactos</span>
+            </NavLink>
+          </PermissionGuard>
+
+          <PermissionGuard requiredPermission="finanzas.view">
+            <NavLink to="/cuentas" className={linkClass}>
+              <HandCoins className="w-4 h-4" />
+              <span>Por cobrar / pagar</span>
             </NavLink>
           </PermissionGuard>
 

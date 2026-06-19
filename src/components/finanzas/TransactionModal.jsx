@@ -80,10 +80,14 @@ const formSchema = z.object({
   payment_method: z.string().optional(),
   bank_account_id: z.string().optional(),
   notes: z.string().optional(),
+  // CxC/CxP (Fase 1): contacto + estado de cobro/pago + vencimiento (opcionales).
+  contact_id: z.string().optional(),
+  status: z.enum(['paid', 'pending']).optional(),
+  due_date: z.date().nullable().optional(),
   files: z.any().optional(), // For mock attachment
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], readonly = false }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], readonly = false }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
@@ -103,6 +107,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       payment_method: '',
       bank_account_id: '',
       notes: '',
+      contact_id: '',
+      status: 'paid',
+      due_date: null,
     },
   })
 
@@ -123,6 +130,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           payment_method: details.payment_method || '',
           bank_account_id: details.bank_account_id ? String(details.bank_account_id) : '',
           notes: details.notes || '',
+          contact_id: transaction?.contact_id != null ? String(transaction.contact_id) : '',
+          status: transaction?.status === 'paid' ? 'paid' : 'pending',
+          due_date: transaction?.due_date ? new Date(transaction.due_date) : null,
         })
 
         const attachments = Array.isArray(details.attachments) ? details.attachments.filter(a => typeof a === 'string' && a.trim() !== '') : []
@@ -139,6 +149,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           payment_method: '',
           bank_account_id: '',
           notes: '',
+          contact_id: '',
+          status: 'paid',
+          due_date: null,
         })
         setExistingAttachments([])
         setDeletedAttachments([])
@@ -190,6 +203,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       ...data,
       id: transaction?.id,
       amount: Number(data.amount),
+      contact_id: data.contact_id ? Number(data.contact_id) : null,
+      // Conservar abonos previos al editar (el servicio recalcula 'partial'/'paid').
+      paid_amount: transaction?.paid_amount,
       attachments: mergedAttachments,
       deleted_attachments: deletedAttachments
     }
@@ -385,6 +401,79 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                   />
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="contact_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contacto (opcional)</FormLabel>
+                        <Select
+                          value={field.value || 'none'}
+                          onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="h-11">
+                              <SelectValue placeholder="Sin contacto" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-[200px]">
+                            <SelectItem value="none">Sin contacto</SelectItem>
+                            {contacts.map((c) => (
+                              <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Estado</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="h-11">
+                              <SelectValue />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="paid">Pagado</SelectItem>
+                            <SelectItem value="pending">{watchedValues.type === 'income' ? 'Por cobrar' : 'Por pagar'}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {watchedValues.status === 'pending' && (
+                  <FormField
+                    control={form.control}
+                    name="due_date"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Fecha de vencimiento</FormLabel>
+                        <FormControl>
+                          <Calendar
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Selecciona el vencimiento"
+                            className="h-11"
+                            options={{ maxDate: null }}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
                 <FormField
                   control={form.control}
                   name="description"
@@ -534,6 +623,23 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
                     <span className="font-medium">Monto:</span>
                     <span>{Number(watchedValues.amount).toFixed(2)} {watchedValues.currency}</span>
+
+                    <span className="font-medium">Estado:</span>
+                    <span>{watchedValues.status === 'paid' ? 'Pagado' : (watchedValues.type === 'income' ? 'Por cobrar' : 'Por pagar')}</span>
+
+                    {watchedValues.contact_id && (
+                      <>
+                        <span className="font-medium">Contacto:</span>
+                        <span>{contacts.find(c => String(c.id) === String(watchedValues.contact_id))?.name || '-'}</span>
+                      </>
+                    )}
+
+                    {watchedValues.status === 'pending' && watchedValues.due_date && (
+                      <>
+                        <span className="font-medium">Vence:</span>
+                        <span>{format(watchedValues.due_date, 'PPP', { locale: es })}</span>
+                      </>
+                    )}
 
                     <span className="font-medium text-lg text-primary">Total:</span>
                     <span className="font-bold text-lg text-primary">{calculateTotal().toFixed(2)} {watchedValues.currency}</span>

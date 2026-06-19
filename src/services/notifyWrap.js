@@ -5,7 +5,8 @@ const LABELS = {
   movements: 'Movimiento',
   transactions: 'Transacción',
   inventory_items: 'Producto',
-  configuracion_balance: 'Configuración'
+  configuracion_balance: 'Configuración',
+  contacts: 'Contacto'
 }
 
 const SUCCESS_BY_ACTION = {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
+import { listContacts } from '@/services/contacts'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye, Download } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
@@ -56,6 +57,13 @@ export default function FinanzasMejorado() {
   const { data: paymentMethods } = useQuery({
     queryKey: ['paymentMethods', businessId || userId],
     queryFn: () => getPaymentMethods(),
+    enabled: !!userId && !!businessId && !businessLoading,
+  })
+
+  // Contactos para el selector del modal (clientes/proveedores).
+  const { data: contactsData } = useQuery({
+    queryKey: ['contacts', 'select', businessId || userId],
+    queryFn: () => listContacts({ userId, businessId, pageSize: 1000 }),
     enabled: !!userId && !!businessId && !businessLoading,
   })
 
@@ -435,6 +443,7 @@ export default function FinanzasMejorado() {
         categories={categories}
         paymentMethods={paymentMethods}
         currencies={businessCurrencies}
+        contacts={contactsData?.data || []}
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />
     </div>

@@ -18,6 +18,8 @@ const Signup = lazy(() => import('@/pages/Signup'))
 const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
 const FinanzasMejorado = lazy(() => import('@/pages/FinanzasMejorado'))
+const Contactos = lazy(() => import('@/pages/Contactos'))
+const CuentasMejorado = lazy(() => import('@/pages/CuentasMejorado'))
 const AlmacenMejorado = lazy(() => import('@/pages/AlmacenMejorado'))
 const InventarioMejorado = lazy(() => import('@/pages/InventarioMejorado'))
 const InventarioNuevo = lazy(() => import('@/pages/InventarioNuevo'))
@@ -47,6 +49,12 @@ export default function App() {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/finanzas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
                     <Route index element={<FinanzasMejorado />} />
+                  </Route>
+                  <Route path="/contactos" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                    <Route index element={<Contactos />} />
+                  </Route>
+                  <Route path="/cuentas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                    <Route index element={<CuentasMejorado />} />
                   </Route>
                   <Route path="/almacen" element={<ProtectedRoute requiredPermission="warehouse.view" />}>
                     <Route index element={<AlmacenMejorado />} />
