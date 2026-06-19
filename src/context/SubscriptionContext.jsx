@@ -265,6 +265,17 @@ export const SubscriptionProvider = ({ children }) => {
       return
     }
 
+    // El downgrade a Gratuito DEBE pasar por el asistente (DowngradeToFreeDialog →
+    // RPC apply_downgrade_to_free), que conserva 1 moneda, bloquea las áreas
+    // excedentes y revoca el equipo de forma controlada. Un UPDATE directo a 'free'
+    // saltaría esa lógica y dejaría el negocio en estado inconsistente (P4.5).
+    if (planId === 'free') {
+      toast.error('Para bajar al plan Gratuito usa el asistente de cambio de plan.', {
+        description: 'Así eliges qué moneda y áreas conservar antes de aplicar el cambio.'
+      })
+      return
+    }
+
     try {
       setLoading(true)
 

@@ -11,6 +11,7 @@
 | `disable_rls.sql` | `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` en `profiles, settings, products, transactions, movements` y quita `NOT NULL` de `user_id`. | **CRÍTICO**: desactiva por completo el aislamiento de datos. Cualquier usuario podría leer/escribir datos de cualquier negocio. |
 | `20240202_allow_anon_transactions.sql` | Crea políticas que permiten al rol `anon` **insertar** transacciones (`with check (true)`) y **leer** filas con `user_id IS NULL`. | **ALTO**: expone escritura/lectura financiera a usuarios no autenticados. |
 | `20260301_grant_all_public.sql` | `GRANT ALL ON ALL TABLES/SEQUENCES/ROUTINES IN SCHEMA public TO authenticated`. | **ALTO**: privilegios excesivos. Aunque RLS filtre filas, concede permisos de tabla muy por encima de lo mínimo necesario. |
+| `schema.sql` *(movido en Sesión 10, P4.3, 2026-06-18)* | Esquema huérfano de un prototipo antiguo: define `products` **sin `user_id`** (RLS "leer todo"), `transactions` con `currency` solo `USD/CUP` (prod usa CUP/EUR/MXN/USD), un modelo `profiles` con rol `admin/employee` que **no** es el RBAC real, y un **trigger `trg_movements_update_stock`** que suma/resta stock en cada INSERT de movimiento. | **ALTO**: el trigger **duplicaría el stock** — el sistema real ya actualiza el stock dentro de la RPC atómica `register_stock_movement` (P1.6/P1.7); aplicar este `schema.sql` provocaría doble descuento/incremento e introduciría tablas con RLS incorrecta. NO refleja el estado de producción. |
 
 ## Estado canónico de RLS
 
