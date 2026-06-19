@@ -608,21 +608,23 @@ export async function getRecentActivity(userId, businessId) {
   return data
 }
 
-export async function getFinancialDistribution(userId, businessId, type = 'all', currency = 'all') {
+export async function getFinancialDistribution(userId, businessId, type = 'all', currency = 'all', period = 'ALL') {
   const effectiveUserId = getEffectiveUserId(userId, businessId);
 
-  // La distribución "Por categoría" del dashboard SIEMPRE refleja el MES ACTUAL
-  // (a diferencia de la gráfica de barras, que tiene su propio selector de periodo).
+  // La distribución "Por categoría" usa el MISMO periodo que la gráfica de barras
+  // (Año completo / trimestres del año actual), seleccionable desde su propio filtro.
   const now = new Date()
-  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
+  const year = now.getFullYear()
+  const [fromMonth, toMonth] = { Q1: [0, 3], Q2: [3, 6], Q3: [6, 9], Q4: [9, 12] }[period] || [0, 12]
+  const startDate = new Date(year, fromMonth, 1).toISOString()
+  const endDate = new Date(year, toMonth, 1).toISOString()
 
   let query = supabase
     .from('transactions')
     .select('category, amount, currency, type')
     .eq('user_id', effectiveUserId) // Usar ID efectivo
-    .gte('date', startMonth)
-    .lt('date', endMonth)
+    .gte('date', startDate)
+    .lt('date', endDate)
 
   if (type !== 'all') {
     query = query.eq('type', type)

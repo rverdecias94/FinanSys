@@ -44,24 +44,25 @@ import {
 import { useChartAnimation } from '@/hooks/useChartAnimation'
 
 // Paleta del donut "Por categoría": ingresos en VERDES y gastos en ROJOS/NARANJAS,
-// con un tono distinto por categoría dentro de cada familia. Así el TIPO se
-// distingue por familia de color (no solo por tono) y, dentro de un mismo tipo,
-// cada categoría tiene su matiz. Colores saturados que leen bien en claro y oscuro.
+// con un tono distinto por categoría dentro de cada familia. El PRIMER tono de cada
+// familia usa la variable del tema (`--chart-1` ingresos / `--destructive` gastos)
+// para que coincida EXACTO con la leyenda de la gráfica de barras y se adapte a
+// claro/oscuro. El resto son tonos PASTEL suaves (saturación y brillo moderados).
 const INCOME_COLORS = [
-  'hsl(160 84% 32%)',
-  'hsl(142 71% 38%)',
-  'hsl(173 80% 33%)',
-  'hsl(122 52% 42%)',
-  'hsl(188 72% 36%)',
-  'hsl(100 48% 40%)'
+  'hsl(var(--chart-1))',
+  'hsl(140 52% 58%)',
+  'hsl(168 42% 55%)',
+  'hsl(122 40% 62%)',
+  'hsl(186 44% 54%)',
+  'hsl(104 38% 60%)'
 ]
 const EXPENSE_COLORS = [
-  'hsl(0 72% 51%)',
-  'hsl(14 88% 52%)',
-  'hsl(25 95% 50%)',
-  'hsl(36 92% 48%)',
-  'hsl(348 74% 47%)',
-  'hsl(20 68% 42%)'
+  'hsl(var(--destructive))',
+  'hsl(18 62% 62%)',
+  'hsl(30 64% 62%)',
+  'hsl(42 58% 60%)',
+  'hsl(352 50% 66%)',
+  'hsl(8 50% 58%)'
 ]
 
 export default function Dashboard() {
@@ -74,6 +75,7 @@ export default function Dashboard() {
   const [summaryFilter, setSummaryFilter] = useState('ALL')
   const [barTypeFilter, setBarTypeFilter] = useState('all')
   const [distTypeFilter, setDistTypeFilter] = useState('all')
+  const [distPeriodFilter, setDistPeriodFilter] = useState('ALL')
   // Moneda única del panel (P3.8): gobierna balance, tarjetas y gráficas.
   // Antes cada tarjeta apilaba N monedas y cada gráfica tenía su propio selector.
   const [panelCurrency, setPanelCurrency] = useState('')
@@ -109,8 +111,8 @@ export default function Dashboard() {
   })
 
   const financialDistributionQuery = useQuery({
-    queryKey: ['dashboard', 'distribution', { userId, businessId, distTypeFilter, panelCurrency }],
-    queryFn: () => getFinancialDistribution(userId, businessId, distTypeFilter, panelCurrency),
+    queryKey: ['dashboard', 'distribution', { userId, businessId, distTypeFilter, panelCurrency, distPeriodFilter }],
+    queryFn: () => getFinancialDistribution(userId, businessId, distTypeFilter, panelCurrency, distPeriodFilter),
     enabled: !!userId && !!businessId && !!panelCurrency,
     ...dashboardQueryOptions
   })
@@ -455,8 +457,10 @@ export default function Dashboard() {
                         backgroundColor: 'hsl(var(--card))',
                         color: 'hsl(var(--card-foreground))',
                         border: '1px solid hsl(var(--border))',
-                        boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
+                        boxShadow: '0 8px 30px rgba(0,0,0,0.18)'
                       }}
+                      itemStyle={{ color: 'hsl(var(--card-foreground))' }}
+                      labelStyle={{ color: 'hsl(var(--card-foreground))' }}
                       formatter={(value) => formatCurrency(value, panelCurrency)}
                     />
                     <Legend />
@@ -476,18 +480,32 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Por categoría</CardTitle>
-                    <CardDescription>Este mes · {panelCurrency || '—'}</CardDescription>
+                    <CardDescription>Ingresos y gastos · {panelCurrency || '—'}</CardDescription>
                   </div>
-                  <Select value={distTypeFilter} onValueChange={setDistTypeFilter}>
-                    <SelectTrigger className="h-9 w-full sm:w-[120px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="income">Ingresos</SelectItem>
-                      <SelectItem value="expense">Gastos</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Select value={distTypeFilter} onValueChange={setDistTypeFilter}>
+                      <SelectTrigger className="h-9 w-full sm:w-[120px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="income">Ingresos</SelectItem>
+                        <SelectItem value="expense">Gastos</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={distPeriodFilter} onValueChange={setDistPeriodFilter}>
+                      <SelectTrigger className="h-9 w-full sm:w-[150px] text-xs">
+                        <SelectValue placeholder="Periodo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Año completo</SelectItem>
+                        <SelectItem value="Q1">Primer trimestre</SelectItem>
+                        <SelectItem value="Q2">Segundo trimestre</SelectItem>
+                        <SelectItem value="Q3">Tercer trimestre</SelectItem>
+                        <SelectItem value="Q4">Cuarto trimestre</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -514,8 +532,10 @@ export default function Dashboard() {
                           backgroundColor: 'hsl(var(--card))',
                           color: 'hsl(var(--card-foreground))',
                           border: '1px solid hsl(var(--border))',
-                          boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
+                          boxShadow: '0 8px 30px rgba(0,0,0,0.18)'
                         }}
+                        itemStyle={{ color: 'hsl(var(--card-foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--card-foreground))' }}
                         formatter={(value, name, item) => [formatCurrency(value, panelCurrency), item?.payload?.name]}
                       />
                       <Legend
