@@ -43,12 +43,25 @@ import {
 } from 'lucide-react'
 import { useChartAnimation } from '@/hooks/useChartAnimation'
 
-const CHART_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))'
+// Paleta del donut "Por categoría": ingresos en VERDES y gastos en ROJOS/NARANJAS,
+// con un tono distinto por categoría dentro de cada familia. Así el TIPO se
+// distingue por familia de color (no solo por tono) y, dentro de un mismo tipo,
+// cada categoría tiene su matiz. Colores saturados que leen bien en claro y oscuro.
+const INCOME_COLORS = [
+  'hsl(160 84% 32%)',
+  'hsl(142 71% 38%)',
+  'hsl(173 80% 33%)',
+  'hsl(122 52% 42%)',
+  'hsl(188 72% 36%)',
+  'hsl(100 48% 40%)'
+]
+const EXPENSE_COLORS = [
+  'hsl(0 72% 51%)',
+  'hsl(14 88% 52%)',
+  'hsl(25 95% 50%)',
+  'hsl(36 92% 48%)',
+  'hsl(348 74% 47%)',
+  'hsl(20 68% 42%)'
 ]
 
 export default function Dashboard() {
@@ -150,10 +163,21 @@ export default function Dashboard() {
     return `${sign}${val.toFixed(1)}%`
   }
 
-  const getPieColor = (entry, index) => {
-    const baseIndex = entry.type === 'income' ? 0 : 4
-    return CHART_COLORS[(baseIndex + index) % CHART_COLORS.length]
-  }
+  // Agrupa ingresos primero y luego gastos, y asigna un tono por categoría:
+  // verdes a los ingresos, rojos/naranjas a los gastos. Resultado: el donut
+  // muestra un arco verde (ingresos) y un arco cálido (gastos) bien diferenciados.
+  const coloredDistribution = useMemo(() => {
+    let inc = 0
+    let exp = 0
+    return [...financialDistribution]
+      .sort((a, b) => (a.type === b.type ? b.value - a.value : a.type === 'income' ? -1 : 1))
+      .map(d => {
+        const isIncome = d.type === 'income'
+        const ramp = isIncome ? INCOME_COLORS : EXPENSE_COLORS
+        const i = isIncome ? inc++ : exp++
+        return { ...d, fill: ramp[i % ramp.length] }
+      })
+  }, [financialDistribution])
 
   // --- Datos derivados de la moneda del panel ---
   const currentBalance = stats.balance[panelCurrency] || 0
@@ -452,7 +476,7 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>Por categoría</CardTitle>
-                    <CardDescription>Distribución ({panelCurrency || '—'})</CardDescription>
+                    <CardDescription>Este mes · {panelCurrency || '—'}</CardDescription>
                   </div>
                   <Select value={distTypeFilter} onValueChange={setDistTypeFilter}>
                     <SelectTrigger className="h-9 w-full sm:w-[120px] text-xs">
@@ -467,11 +491,11 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                {financialDistribution.length > 0 ? (
+                {coloredDistribution.length > 0 ? (
                   <ResponsiveContainer width="100%" height={320}>
                     <PieChart>
                       <Pie
-                        data={financialDistribution}
+                        data={coloredDistribution}
                         cx="50%"
                         cy="50%"
                         innerRadius={55}
@@ -480,8 +504,8 @@ export default function Dashboard() {
                         dataKey="value"
                         {...chartAnim}
                       >
-                        {financialDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={getPieColor(entry, index)} />
+                        {coloredDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Pie>
                       <Tooltip
@@ -502,7 +526,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                     <PlusCircle className="h-8 w-8 opacity-50" />
-                    <p className="text-sm">Aún no hay movimientos<br />para esta selección</p>
+                    <p className="text-sm">Sin movimientos este mes<br />para esta selección</p>
                   </div>
                 )}
               </CardContent>

@@ -611,8 +611,11 @@ export async function getRecentActivity(userId, businessId) {
 export async function getFinancialDistribution(userId, businessId, type = 'all', currency = 'all') {
   const effectiveUserId = getEffectiveUserId(userId, businessId);
 
-  const endMonth = new Date().toISOString()
-  const startMonth = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+  // La distribución "Por categoría" del dashboard SIEMPRE refleja el MES ACTUAL
+  // (a diferencia de la gráfica de barras, que tiene su propio selector de periodo).
+  const now = new Date()
+  const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
 
   let query = supabase
     .from('transactions')
@@ -629,24 +632,9 @@ export async function getFinancialDistribution(userId, businessId, type = 'all',
     query = query.eq('currency', currency)
   }
 
-  let { data, error } = await query
+  const { data, error } = await query
 
   if (error) throw error
-
-  if (!data || data.length === 0) {
-    const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString()
-    const yearEnd = new Date(new Date().getFullYear() + 1, 0, 1).toISOString()
-    let yearQuery = supabase
-      .from('transactions')
-      .select('category, amount, currency, type')
-      .eq('user_id', effectiveUserId)
-      .gte('date', yearStart)
-      .lt('date', yearEnd)
-    if (type !== 'all') yearQuery = yearQuery.eq('type', type)
-    if (currency !== 'all') yearQuery = yearQuery.eq('currency', currency)
-    const yearRes = await yearQuery
-    if (!yearRes.error) data = yearRes.data || []
-  }
 
   const distribution = {}
   data.forEach(t => {
