@@ -1,28 +1,38 @@
 import { Routes, Route } from 'react-router-dom'
+import { lazy, Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
 import { CurrencyProvider } from '@/context/CurrencyContext'
 import { PermissionProvider } from '@/context/PermissionContext'
 import { BusinessProvider } from '@/context/BusinessContext'
 import ProtectedRoute from '@/routes/ProtectedRoute'
 import SidebarLayout from '@/layouts/SidebarLayout'
-import {
-  Dashboard,
-  Login,
-  Signup,
-  ForgotPassword,
-  ResetPassword,
-  FinanzasMejorado,
-  AlmacenMejorado,
-  InventarioMejorado,
-  InventarioNuevo,
-  InventarioItem,
-  InventarioConfigFormulario,
-  Reportes,
-  ConfiguracionMejorado,
-  LogsMejorado,
-  AdminPlans
-} from '@/pages'
 import { Toaster } from '@/components/ui/sonner'
+
+// Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
+// descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
+// y las libs pesadas (recharts, jspdf/xlsx/docx) se difieren hasta usarse.
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Login = lazy(() => import('@/pages/Login'))
+const Signup = lazy(() => import('@/pages/Signup'))
+const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
+const FinanzasMejorado = lazy(() => import('@/pages/FinanzasMejorado'))
+const AlmacenMejorado = lazy(() => import('@/pages/AlmacenMejorado'))
+const InventarioMejorado = lazy(() => import('@/pages/InventarioMejorado'))
+const InventarioNuevo = lazy(() => import('@/pages/InventarioNuevo'))
+const InventarioItem = lazy(() => import('@/pages/InventarioItem'))
+const InventarioConfigFormulario = lazy(() => import('@/pages/InventarioConfigFormulario'))
+const Reportes = lazy(() => import('@/pages/Reportes'))
+const ConfiguracionMejorado = lazy(() => import('@/pages/ConfiguracionMejorado'))
+const LogsMejorado = lazy(() => import('@/pages/LogsMejorado'))
+const AdminPlans = lazy(() => import('@/pages/AdminPlans'))
+
+const PageLoader = () => (
+  <div className="flex min-h-screen w-full items-center justify-center bg-background">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  </div>
+)
 
 export default function App() {
   return (
@@ -30,6 +40,7 @@ export default function App() {
       <SubscriptionProvider>
         <CurrencyProvider>
           <PermissionProvider>
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<ProtectedRoute />}>
                 <Route element={<SidebarLayout />}>
@@ -68,6 +79,7 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
             </Routes>
+            </Suspense>
             <Toaster position="top-right" richColors />
           </PermissionProvider>
         </CurrencyProvider>

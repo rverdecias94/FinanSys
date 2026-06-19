@@ -2,7 +2,8 @@ import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId } from '@/services/team'
-import { exportToExcel, exportToPDF } from '@/utils/exportUtils'
+// `exportUtils` (jspdf/xlsx) se importa dinámicamente dentro de exportTransactions
+// para no arrastrar las librerías pesadas de exportación en la carga de Finanzas (P3.5).
 
 export async function uploadAttachments(files, userId) {
   const urls = [];
@@ -257,6 +258,7 @@ export async function fetchTransactionsForExport({ from, to, category, type, cur
 }
 
 export async function exportTransactions({ from, to, category, type, currency, userId, businessId, format = 'xlsx' }) {
+  const { exportToExcel, exportToPDF } = await import('@/utils/exportUtils')
   const rows = await fetchTransactionsForExport({ from, to, category, type, currency, userId, businessId })
 
   const filename = `finanzas_${new Date().toISOString().slice(0, 10)}`

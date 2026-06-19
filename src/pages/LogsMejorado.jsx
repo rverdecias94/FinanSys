@@ -26,7 +26,8 @@ import { usePermissionCheck } from '@/components/common/PermissionGuard'
 import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { listAllAuditLogs, listAuditLogs } from '@/services/auditLogs'
-import { exportToExcel } from '@/utils/exportUtils'
+// `exportToExcel` se importa dinámicamente en handleExport para no cargar
+// las librerías de exportación al abrir la página de Auditoría (P3.5).
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -263,6 +264,7 @@ export default function LogsMejorado() {
   const handleExport = async () => {
     try {
       setExporting(true)
+      const { exportToExcel } = await import('@/utils/exportUtils')
       const { data } = await listAllAuditLogs({
         businessId: effectiveBusinessId,
         searchTerm,

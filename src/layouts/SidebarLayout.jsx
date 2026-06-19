@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
-import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, ShieldCheck } from 'lucide-react'
+import { Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText, ShieldAlert, Shield, ShieldCheck, Loader2 } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
@@ -181,7 +181,15 @@ export default function SidebarLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          {/* Suspense aquí (no a nivel App) para que el sidebar persista mientras
+              carga el chunk lazy de la página */}
+          <Suspense fallback={
+            <div className="flex min-h-[60vh] w-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          }>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
