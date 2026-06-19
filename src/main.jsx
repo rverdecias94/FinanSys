@@ -15,6 +15,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { QueryClient, MutationCache, QueryCache } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryPersister, CACHE_BUSTER, CACHE_MAX_AGE } from '@/offline/queryPersister';
+import { clearLocalCache } from '@/offline/localCache';
 import { supabase } from '@/config/supabase';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -23,6 +24,9 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
+      // Offline (Capa B): no alarmar con "Error de carga"; se está sirviendo de la
+      // caché persistida. Solo notificar errores reales cuando SÍ hay conexión.
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return
       // Solo notificar errores de queries si son críticos o inesperados
       // Evitar notificar 404s que a veces son esperados
       const msg = getSupabaseErrorMessage(error)
@@ -67,6 +71,7 @@ let lastUserId = localStorage.getItem(LAST_USER_KEY);
 const clearOfflineCache = () => {
   queryClient.clear();
   queryPersister.removeClient();
+  clearLocalCache();
 };
 supabase.auth.onAuthStateChange((event, session) => {
   const uid = session?.user?.id ?? null;

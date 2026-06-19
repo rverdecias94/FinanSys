@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/hooks/useSession'
 import { getBusinessContext } from '@/services/team'
+import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const BusinessContext = createContext({})
 
@@ -43,15 +44,36 @@ export function BusinessProvider({ children }) {
       return
     }
 
+    const userId = session.user.id
     setLoading(true)
     setError(null)
 
     try {
-      const context = await getBusinessContext(session.user.id)
-      setBusinessContext(normalizeContext(context, session.user.id))
+      const context = await getBusinessContext(userId)
+
+      // Offline y sin respuesta del servidor: restaurar el contexto REAL guardado.
+      // Clave para miembros de equipo: si no, caerían a "owner por defecto" (escalada
+      // de privilegios + businessId equivocado). Para el owner sin caché, el
+      // owner-default es el comportamiento correcto.
+      if (context === null && typeof navigator !== 'undefined' && !navigator.onLine) {
+        const cached = readLocalCache(`business:${userId}`)
+        setBusinessContext(cached || normalizeContext(null, userId))
+        return
+      }
+
+      const normalized = normalizeContext(context, userId)
+      setBusinessContext(normalized)
+      // Cachear solo contextos REALES del servidor (no el owner-default derivado de null).
+      if (context !== null) writeLocalCache(`business:${userId}`, normalized)
     } catch (err) {
-      setError(err)
-      setBusinessContext(null)
+      // Error inesperado: preferir el contexto guardado antes que bloquear la app.
+      const cached = readLocalCache(`business:${userId}`)
+      if (cached) {
+        setBusinessContext(cached)
+      } else {
+        setError(err)
+        setBusinessContext(null)
+      }
     } finally {
       setLoading(false)
     }

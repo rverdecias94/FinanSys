@@ -177,12 +177,21 @@ recargar. No cambia la lógica de las queries, solo persiste la caché de React 
 >   `src/components/common/OfflineBanner.jsx` (tokens `--warning`, modo oscuro, mobile-first),
 >   montado en `SidebarLayout`.
 >
-> **Verificado:** build OK (PWA intacto), `npm run lint` limpio, login sin errores de consola
-> (sin regresión por el cambio de provider), IndexedDB `keyval-store` creado por el persister,
-> test unitario `OfflineBanner.test.jsx` (2/2). Suite completa: 36/38 (los 2 fallos son los
-> pre-existentes de `PlansPanel.test.jsx`, ajenos a esta capa).
+> **B3 — Endurecimiento offline de contextos que NO usan React Query (2026-06-19).**
+> Bug encontrado al probar offline: `CurrencyContext`, `SubscriptionContext`, `BusinessContext`,
+> `TeamManagement` y `RoleManagement` hacen fetch directo (no React Query) → offline fallaban
+> (toast de error, plan mostrado como 'free', y **`BusinessContext` caía a "owner por defecto"**
+> = escalada de privilegios para miembros de equipo + businessId equivocado).
+> Solución: caché local `src/offline/localCache.js` (localStorage, prefijo `gestia:cache:`,
+> limpiada en logout/cambio de usuario). Cada contexto guarda su último resultado bueno y offline
+> lo restaura en vez de fallar; los toasts se silencian sin conexión. Además, el `onError` global
+> de `QueryCache` no notifica offline.
 >
-> **Pendiente:** prueba con sesión real (credenciales) — ver checklist de criterios de aceptación.
+> **Verificado:** build OK (PWA intacto), `npm run lint` limpio, login sin regresión, eyeball
+> logueado offline (monedas sin error, plan Premium correcto, Equipo/Roles con datos guardados).
+> Tests nuevos: `OfflineBanner` (2/2), `queryPersister↔IndexedDB` con fake-indexeddb (2/2),
+> `localCache` (3/3), `SubscriptionContext` offline (2/2), `BusinessContext` offline (2/2).
+> **Suite completa: 47/47.** (Los 2 tests de `PlansPanel` son flaky pre-existentes, ajenos.)
 
 ### Sesión B1 — Persistencia de la caché de React Query
 1. Instalar `@tanstack/react-query-persist-client`, `@tanstack/query-async-storage-persister`, `idb-keyval`.

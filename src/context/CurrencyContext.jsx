@@ -5,6 +5,7 @@ import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { toast } from 'sonner'
 import { logAction } from '@/services/auditLogger'
+import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const CurrencyContext = createContext()
 
@@ -26,6 +27,7 @@ export function CurrencyProvider({ children }) {
 
       if (allError) throw allError
       setAvailableCurrencies(allCurrencies || [])
+      writeLocalCache('currencies:available', allCurrencies || [])
 
       if (businessId) {
         // Fetch business specific currencies
@@ -44,16 +46,27 @@ export function CurrencyProvider({ children }) {
           // or maybe initialize with USD/CUP if migration didn't run for new users?
           // For now, assume migration handled existing users. New users might need logic.
           setBusinessCurrencies([])
+          writeLocalCache(`currencies:business:${businessId}`, [])
         } else {
-          setBusinessCurrencies(myCurrencies.map(c => ({
+          const mapped = myCurrencies.map(c => ({
             ...c.currency,
             is_default: c.is_default,
             business_currency_id: c.id
-          })))
+          }))
+          setBusinessCurrencies(mapped)
+          writeLocalCache(`currencies:business:${businessId}`, mapped)
         }
       }
     } catch (error) {
-      toast.error('Error al cargar configuración de monedas')
+      // Offline/error: mostrar las monedas guardadas en vez de fallar. Solo
+      // alarmar si SÍ hay conexión y no hay nada cacheado (problema real, no falta de red).
+      const cachedAvailable = readLocalCache('currencies:available')
+      const cachedBusiness = businessId ? readLocalCache(`currencies:business:${businessId}`) : null
+      if (cachedAvailable) setAvailableCurrencies(cachedAvailable)
+      if (cachedBusiness) setBusinessCurrencies(cachedBusiness)
+      if (navigator.onLine && !cachedAvailable) {
+        toast.error('Error al cargar configuración de monedas')
+      }
     } finally {
       setLoading(false)
     }

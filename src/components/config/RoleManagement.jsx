@@ -8,6 +8,7 @@ import { useSession } from '@/hooks/useSession'
 import { RoleModal } from './RoleModal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
+import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 export function RoleManagement() {
   const { session } = useSession()
@@ -30,6 +31,7 @@ export function RoleManagement() {
   }, [permissions])
 
   const fetchData = async () => {
+    const uid = session?.user?.id
     try {
       setLoading(true)
       const [rolesData, permsData] = await Promise.all([
@@ -38,8 +40,18 @@ export function RoleManagement() {
       ])
       setRoles(rolesData)
       setPermissions(permsData)
+      // Cachear para modo offline (Capa B).
+      writeLocalCache(`roles:list:${uid}`, rolesData)
+      writeLocalCache('roles:permissions', permsData)
     } catch (error) {
-      toast.error('Error al cargar roles')
+      // Offline/error: mostrar lo guardado; solo alarmar si hay conexión real y sin caché.
+      const cachedRoles = readLocalCache(`roles:list:${uid}`)
+      const cachedPerms = readLocalCache('roles:permissions')
+      if (cachedRoles) setRoles(cachedRoles)
+      if (cachedPerms) setPermissions(cachedPerms)
+      if (navigator.onLine && !cachedRoles) {
+        toast.error('Error al cargar roles')
+      }
     } finally {
       setLoading(false)
     }

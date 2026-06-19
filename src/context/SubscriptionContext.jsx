@@ -5,6 +5,7 @@ import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 import { logAction } from '@/services/auditLogger'
 import { cancelMyPendingPlanChangeRequest, getPendingPlanRequest, requestPlanChange } from '@/services/planRequests'
+import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const SubscriptionContext = createContext({})
 
@@ -122,7 +123,10 @@ export const SubscriptionProvider = ({ children }) => {
         .single()
 
       if (error && error.code !== 'PGRST116') {
-        setSubscription({ plan_id: 'free', status: 'active' })
+        // Offline/error: usar la suscripción guardada (p. ej. Premium) en vez de
+        // caer a 'free'. Solo cae a 'free' si nunca se cargó online.
+        const cached = readLocalCache(`subscription:${businessId}`)
+        setSubscription(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
         return
       }
 
@@ -157,10 +161,12 @@ export const SubscriptionProvider = ({ children }) => {
         }
       } else {
         setSubscription(normalizeExpiredPremium(data))
+        writeLocalCache(`subscription:${businessId}`, data) // cachear para modo offline
       }
     } catch {
-      // Fallback a plan gratuito en caso de error
-      setSubscription({ plan_id: 'free', status: 'active' })
+      // Offline/error: preferir la suscripción guardada antes que 'free'.
+      const cached = readLocalCache(`subscription:${businessId}`)
+      setSubscription(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
     } finally {
       setLoading(false)
     }

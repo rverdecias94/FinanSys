@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { getTeamMembers, inviteMember, removeMember, getRoles, updateMemberRole } from '@/services/team'
 import { getSupabaseErrorMessage } from '@/services/notifications'
+import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 import { useBusiness } from '@/context/BusinessContext'
 
@@ -36,23 +37,35 @@ export function TeamManagement() {
 
   const fetchData = async () => {
     if (!session?.user?.id) return
+    const biz = businessId || session.user.id
+    const applyDefaultRole = (rolesList) => {
+      if (rolesList.length > 0 && !selectedRole) {
+        const defaultRole = rolesList.find(r => r.name === 'Consultor') || rolesList.find(r => r.name === 'Editor') || rolesList[0]
+        setSelectedRole(defaultRole.id)
+      }
+    }
     try {
       setLoading(true)
       const [membersData, rolesData] = await Promise.all([
-        getTeamMembers(businessId || session.user.id),
+        getTeamMembers(biz),
         getRoles()
       ])
       setMembers(membersData || [])
       const nextRoles = (rolesData || []).filter(allowedRole)
       setRoles(nextRoles)
-
-      // Set default role if available
-      if (nextRoles.length > 0 && !selectedRole) {
-        const defaultRole = nextRoles.find(r => r.name === 'Consultor') || nextRoles.find(r => r.name === 'Editor') || nextRoles[0]
-        setSelectedRole(defaultRole.id)
-      }
+      applyDefaultRole(nextRoles)
+      // Cachear para modo offline (Capa B).
+      writeLocalCache(`team:members:${biz}`, membersData || [])
+      writeLocalCache(`team:roles:${biz}`, nextRoles)
     } catch (error) {
-      toast.error('Error al cargar datos del equipo')
+      // Offline/error: mostrar lo guardado; solo alarmar si hay conexión real y sin caché.
+      const cachedMembers = readLocalCache(`team:members:${biz}`)
+      const cachedRoles = readLocalCache(`team:roles:${biz}`)
+      if (cachedMembers) setMembers(cachedMembers)
+      if (cachedRoles) { setRoles(cachedRoles); applyDefaultRole(cachedRoles) }
+      if (navigator.onLine && !cachedMembers) {
+        toast.error('Error al cargar datos del equipo')
+      }
     } finally {
       setLoading(false)
     }
