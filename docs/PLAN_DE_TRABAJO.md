@@ -12,7 +12,25 @@ Estado de cada ítem: ⬜ pendiente · 🔄 en curso · ✅ hecho y probado · �
 
 ---
 
-## 🔁 Trabajo por sesiones (relay)
+## 🏁 PLAN CERRADO (2026-06-19, tras Sesión 10)
+
+> **El plan priorizado está cerrado.** Todo lo **crítico, alto y medio** (seguridad RLS, RBAC, exactitud contable, integridad de auditoría, imagen premium y calidad/tests) está **hecho, probado en localhost y en GitHub `main`**. No quedan hallazgos que pongan en riesgo los datos, la corrección contable ni la percepción premium.
+>
+> **Se termina el modo "relay" (sesiones en cadena).** De aquí en adelante, Roberto pedirá **piezas sueltas** según las vaya viendo, no sesiones numeradas.
+>
+> ### Backlog opcional (NO relay — solo si/cuando haga falta)
+> | Pieza | Qué es | Cuándo tendría sentido hacerla |
+> |---|---|---|
+> | **P4.1 / P4.2** | Renombrar/ordenar los ~63 archivos viejos de `supabase/migrations/` y archivar la genealogía no aplicada. | Solo si entra otro desarrollador o si se quiere **reconstruir la BD desde cero con el CLI**. La BD de prod ya está verificada sana (advisor 0 ERROR); hoy no rompe nada. |
+> | **P0.7** | Activar "Prevent use of leaked passwords" (HaveIBeenPwned). | Cuando el proyecto suba a **Supabase Pro**. Es **un clic** de Roberto en Authentication → Providers → Email; no es una sesión de trabajo. |
+> | **Flag UUID en logs de Planes** | Quitar el `request_id` (UUID) de los logs server-side de "Solicitar/Aprobar Plan" (RPC), por coherencia con P2.2. | Puramente estético; cuando moleste verlo en la auditoría. 🔑 BD. |
+> | Mantenimiento | `npx update-browserslist-db@latest`; revisar `npm audit` (vulns en devDeps tras quitar react-scripts). | Higiene opcional; sin impacto en el usuario final. |
+
+---
+
+## 🔁 Trabajo por sesiones (relay) — ⏹️ CONCLUIDO en la Sesión 10
+> El modo relay cumplió su función (vaciar 1 crítico + 29 altos + 35 medios). **Ya no se generan prompts de sesión siguiente.** Las peticiones futuras son piezas sueltas. El registro de sesiones de abajo queda como historial.
+
 Trabajamos en cadena: cada sesión toma la siguiente prioridad del plan, la ejecuta, **prueba en localhost**, actualiza este documento y la memoria, y al final **genera el prompt de la siguiente sesión**. Así el contexto se mantiene fresco y el MCP de Supabase (que se carga al iniciar la sesión) queda disponible.
 
 **Protocolo de cada sesión:**
