@@ -2,22 +2,20 @@
 <html lang="en">
 
       <head>
+            <meta charset="UTF-8" />
             <meta name="viewport"
                   content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-            <link rel="icon"
-                  type="image/svg+xml"
-                  href="/logo_ico.png" />
+            <!-- PWA: fuentes (Outfit / JetBrains Mono) e iconos van auto-alojados
+                 (ver src/main.jsx con @fontsource), sin CDNs externos, para que la
+                 app funcione 100% offline. Ver docs/PLAN_OFFLINE_PWA.md. -->
+            <link rel="icon" href="/favicon.ico" sizes="48x48" />
+            <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+            <meta name="theme-color" content="#1aa06a" />
+            <meta name="apple-mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+            <meta name="apple-mobile-web-app-title" content="Gestia" />
             <title>Gestia</title>
-            <link rel="preconnect" href="https://fonts.googleapis.com" />
-            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-            <link
-                  rel="stylesheet"
-                  href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
-            <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
-
-            <link rel="stylesheet"
-                  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
       </head>
 
       <body>

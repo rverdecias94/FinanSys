@@ -1,6 +1,14 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+// Fuentes auto-alojadas (PWA/offline): sustituyen al CDN de Google Fonts.
+// Outfit = --font-sans/heading; JetBrains Mono = font-mono (vistas de admin).
+import '@fontsource/outfit/300.css';
+import '@fontsource/outfit/400.css';
+import '@fontsource/outfit/500.css';
+import '@fontsource/outfit/600.css';
+import '@fontsource/outfit/700.css';
+import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
