@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import { format } from 'date-fns'
+import { loadLogoAsPng, buildCompanyLines } from './reportBranding'
 
 /**
  * Export data to PDF
@@ -10,25 +11,68 @@ import { format } from 'date-fns'
  * @param {Array<string>} headers - Table headers
  * @param {Array<Array>} data - Table rows
  * @param {string} filename - Output filename (without extension)
+ * @param {Object} [options]
+ * @param {Object} [options.company] - Perfil del negocio (tradeName, legalName, taxId, phone, email, logoUrl)
+ * @param {boolean} [options.branding] - Si true, dibuja el membrete con logo + datos del negocio (premium)
+ * @param {boolean} [options.watermark] - Si true, dibuja la marca de agua del plan free
  */
-export const exportToPDF = (title, headers, data, filename) => {
+export const exportToPDF = async (title, headers, data, filename, options = {}) => {
+  const { company = null, branding = false, watermark = false } = options
   const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  let cursorY = 22
 
-  // Title
-  doc.setFontSize(18)
-  doc.text(title, 14, 22)
-  doc.setFontSize(11)
-  doc.text(`Generado el: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 30)
+  // Membrete del negocio (premium / custom_branding): logo + identificación
+  if (branding && company) {
+    const { name, lines } = buildCompanyLines(company)
+    let textX = 14
+    if (company.logoUrl) {
+      const logo = await loadLogoAsPng(company.logoUrl)
+      if (logo) {
+        const logoH = 18
+        const logoW = Math.min(42, (logo.width / logo.height) * logoH)
+        try { doc.addImage(logo.dataUrl, 'PNG', 14, 12, logoW, logoH) } catch { /* logo no embebible: se omite */ }
+        textX = 14 + logoW + 6
+      }
+    }
+    doc.setFontSize(15); doc.setFont(undefined, 'bold')
+    if (name) doc.text(name, textX, 19)
+    doc.setFont(undefined, 'normal'); doc.setFontSize(9); doc.setTextColor(110)
+    lines.forEach((ln, i) => doc.text(ln, textX, 25 + i * 5))
+    doc.setTextColor(0)
+    cursorY = Math.max(34, 25 + lines.length * 5) + 6
+    doc.setDrawColor(210); doc.line(14, cursorY - 5, pageWidth - 14, cursorY - 5)
+  }
+
+  // Título + fecha de emisión
+  doc.setFontSize(16); doc.setFont(undefined, 'bold')
+  doc.text(title, 14, cursorY)
+  doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(110)
+  doc.text(`Generado el: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, cursorY + 6)
+  doc.setTextColor(0)
 
   // Table
   autoTable(doc, {
     head: [headers],
     body: data,
-    startY: 35,
+    startY: cursorY + 12,
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [41, 128, 185], textColor: 255 }
   })
+
+  // Marca de agua (plan free / watermark): texto diagonal gris claro sobre cada página
+  if (watermark) {
+    const pageCount = doc.internal.getNumberOfPages()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p)
+      doc.setTextColor(224)
+      doc.setFontSize(38)
+      doc.text('GESTIA · PLAN GRATUITO', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 })
+    }
+    doc.setTextColor(0)
+  }
 
   doc.save(`${filename}.pdf`)
 }

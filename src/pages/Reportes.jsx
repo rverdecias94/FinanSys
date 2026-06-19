@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ChevronLeft, ChevronRight, File, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, File, FileSpreadsheet, FileText, Loader2, Lock } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { useSubscription } from '@/context/SubscriptionContext'
+import { getBusinessSettings } from '@/services/businessSettings'
+import { notify } from '@/services/notifications'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
@@ -91,9 +94,34 @@ const ReportPreview = ({ report }) => {
 const Reportes = () => {
   const { session } = useSession()
   const { businessId } = useBusiness()
+  const { canAccessFeature } = useSubscription()
   const isMobile = useIsMobile()
   const userId = session?.user?.id
   const effectiveUserId = businessId || userId
+
+  // Perfil del negocio (logo + identificación) para el membrete de los documentos.
+  const businessSettingsQuery = useQuery({
+    queryKey: ['businessSettings', userId, businessId],
+    queryFn: () => getBusinessSettings(userId, businessId),
+    enabled: !!userId && !!businessId,
+    staleTime: 1000 * 60 * 5
+  })
+  const company = businessSettingsQuery.data?.company || null
+
+  // Diferenciación de plan (Fase 1): el free ve la previsualización y puede descargar
+  // el PDF con marca de agua (sin logo); el Word/Excel y el documento branded sin marca
+  // son Premium. Flags definidos en la tabla `plans` (reports_export/custom_branding/watermark).
+  const canExportDocs = canAccessFeature('reports_export')
+  const useBranding = canAccessFeature('custom_branding')
+  const useWatermark = canAccessFeature('watermark')
+
+  const pdfOptions = () => ({ company, branding: useBranding, watermark: useWatermark })
+  const notifyPremiumExport = (what) => {
+    notify.info(`Exportar a ${what} es una función Premium`, {
+      description: 'Puedes ver el informe en pantalla y descargar el PDF. Pasa a Premium para el documento con tu marca y sin marca de agua.'
+    })
+  }
+
   const [dateFilter, setDateFilter] = useState(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewReport, setPreviewReport] = useState(null)
@@ -370,7 +398,7 @@ const Reportes = () => {
     if (type === 'pdf') {
       const headers = ['Fecha', 'Tipo', 'Categoría', 'Monto', 'Descripción', 'Método']
       const body = data.map(Object.values)
-      exportToPDF(`Reporte de Finanzas - ${dateFilter?.label}`, headers, body, `finanzas_${dateFilter?.type}`)
+      await exportToPDF(`Reporte de Finanzas - ${dateFilter?.label}`, headers, body, `finanzas_${dateFilter?.type}`, pdfOptions())
       return
     }
 
@@ -396,7 +424,7 @@ const Reportes = () => {
     if (type === 'pdf') {
       const headers = ['Fecha', 'Producto', 'Tipo', 'Cantidad', 'Categoría']
       const body = data.map(Object.values)
-      exportToPDF(`Reporte de Almacén - ${dateFilter?.label}`, headers, body, `almacen_${dateFilter?.type}`)
+      await exportToPDF(`Reporte de Almacén - ${dateFilter?.label}`, headers, body, `almacen_${dateFilter?.type}`, pdfOptions())
       return
     }
 
@@ -414,7 +442,7 @@ const Reportes = () => {
     if (type === 'pdf') {
       const headers = ['Área', 'Ítems Registrados', 'Icono']
       const body = data.map(Object.values)
-      exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, body, `inventario_${dateFilter?.type}`)
+      await exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, body, `inventario_${dateFilter?.type}`, pdfOptions())
       return
     }
 
@@ -477,8 +505,9 @@ const Reportes = () => {
     }
   }
 
-  const handleDownloadDOCX = () => {
-    generateDOCX(previewReport, filename)
+  const handleDownloadDOCX = async () => {
+    if (!canExportDocs) { notifyPremiumExport('Word'); return }
+    await generateDOCX(previewReport, filename, { company })
     setPreviewOpen(false)
   }
 
@@ -573,8 +602,10 @@ const Reportes = () => {
                     </Button>
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportFinanzas('excel')}>
-                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')}>
+                      {canExportDocs
+                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
                       {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
                     </Button>
                   </PermissionGuard>
@@ -711,8 +742,10 @@ const Reportes = () => {
                     </Button>
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportAlmacen('excel')}>
-                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')}>
+                      {canExportDocs
+                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
                       {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
                     </Button>
                   </PermissionGuard>
@@ -851,8 +884,10 @@ const Reportes = () => {
                     </Button>
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportInventario('excel')}>
-                      <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')}>
+                      {canExportDocs
+                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
+                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
                       {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
                     </Button>
                   </PermissionGuard>
@@ -977,13 +1012,26 @@ const Reportes = () => {
                 <ReportPreview report={previewReport} />
               </div>
 
-              <DialogFooter className="mt-6">
-                <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cancelar</Button>
+              <DialogFooter className="mt-6 flex-col gap-2 sm:flex-row sm:items-center">
+                {!canExportDocs && (
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground sm:mr-auto">
+                    <Lock className="h-3 w-3" />
+                    La descarga del informe en Word con tu marca es Premium.
+                  </p>
+                )}
+                <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cerrar</Button>
                 <PermissionGuard permission="reports.export" mode="disable">
-                  <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
-                    <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-                    {isMobile ? <span className="sr-only">Descargar DOCX</span> : 'Descargar DOCX'}
-                  </Button>
+                  {canExportDocs ? (
+                    <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
+                      <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                      {isMobile ? <span className="sr-only">Descargar Word</span> : 'Descargar Word'}
+                    </Button>
+                  ) : (
+                    <Button onClick={() => notifyPremiumExport('Word')} variant="secondary">
+                      <Lock className="mr-2 h-4 w-4" />
+                      Word (Premium)
+                    </Button>
+                  )}
                 </PermissionGuard>
               </DialogFooter>
             </>

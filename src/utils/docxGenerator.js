@@ -1,25 +1,64 @@
 
-import { 
-  Document, 
-  Packer, 
-  Paragraph, 
-  TextRun, 
-  HeadingLevel, 
-  AlignmentType, 
-  Table, 
-  TableRow, 
-  TableCell, 
-  WidthType
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  ImageRun
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { loadLogoAsPng, buildCompanyLines } from './reportBranding';
 
 /**
  * Generates and saves a structured DOCX document.
  * @param {Object} reportData - structured report object
  * @param {string} filename - output filename
+ * @param {Object} [options]
+ * @param {Object} [options.company] - Perfil del negocio para el membrete (premium / custom_branding)
  */
-export const generateDOCX = async (reportData, filename) => {
+export const generateDOCX = async (reportData, filename, options = {}) => {
+  const { company = null } = options;
   const children = [];
+
+  // 0. Membrete del negocio (premium / custom_branding): logo + identificación
+  if (company) {
+    const { name, lines } = buildCompanyLines(company);
+    const logo = company.logoUrl ? await loadLogoAsPng(company.logoUrl) : null;
+    if (logo) {
+      const h = 56;
+      const w = Math.round((logo.width / logo.height) * h);
+      children.push(new Paragraph({
+        children: [new ImageRun({ data: logo.uint8, type: 'png', transformation: { width: w, height: h } })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 80 }
+      }));
+    }
+    if (name) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: name, bold: true, size: 28 })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 40 }
+      }));
+    }
+    if (lines.length) {
+      children.push(new Paragraph({
+        children: [new TextRun({ text: lines.join('   ·   '), size: 18, color: '666666' })],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 }
+      }));
+    }
+    children.push(new Paragraph({
+      text: '',
+      border: { bottom: { color: 'CCCCCC', size: 6, space: 1, style: 'single' } },
+      spacing: { after: 240 }
+    }));
+  }
 
   // 1. Title
   children.push(
@@ -155,11 +194,12 @@ export const generateDOCX = async (reportData, filename) => {
   });
 
   // Footer
+  const footerName = company ? (company.tradeName || company.legalName || '') : '';
   children.push(
     new Paragraph({
       children: [
         new TextRun({
-          text: `Generado automáticamente el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}`,
+          text: `${footerName ? `${footerName} — ` : ''}Generado automáticamente el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}`,
           italics: true,
           size: 16, // 8pt
           color: "888888"
