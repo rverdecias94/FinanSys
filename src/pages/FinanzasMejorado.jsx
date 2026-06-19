@@ -381,51 +381,55 @@ export default function FinanzasMejorado() {
                 <>
                   <div className="space-y-2">
                     {rows.map(transaction => (
-                      <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-2 rounded-full ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
+                      <div key={transaction.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                        {/* Icono + descripción + fecha (ancho completo en móvil) */}
+                        <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                          <div className={`shrink-0 rounded-full p-2 ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
                             }`}>
                             {transaction.type === 'income' ?
-                              <TrendingUp className="w-4 h-4 text-success" /> :
-                              <TrendingDown className="w-4 h-4 text-destructive" />
+                              <TrendingUp className="h-4 w-4 text-success" /> :
+                              <TrendingDown className="h-4 w-4 text-destructive" />
                             }
                           </div>
-                          <div>
-                            <div className="font-medium">{transaction.description}</div>
+                          <div className="min-w-0">
+                            <div className="font-medium break-words">{transaction.description}</div>
                             <div className="text-sm text-muted-foreground">
                               {format(new Date(transaction.date), 'PPP', { locale: es })}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <div className={`font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
+                        {/* Importe + categoría (izq.) y acciones (der.); 2ª fila en móvil */}
+                        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                          <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
+                            <div className={`whitespace-nowrap font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'
                               }`}>
                               {transaction.type === 'income' ? '+' : '−'} {formatCurrency(transaction.amount, transaction.currency)}
                             </div>
-                            <Badge variant="outline">{transaction.category}</Badge>
+                            <Badge variant="outline" className="max-w-full truncate">{transaction.category}</Badge>
                           </div>
 
-                          <ActionButtons module="finanzas">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              action="edit"
-                              onClick={() => handleEdit(transaction)}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <ActionButtons module="finanzas">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                action="edit"
+                                onClick={() => handleEdit(transaction)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
 
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              action="view"
-                              onClick={() => handleView(transaction)}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </ActionButtons>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                action="view"
+                                onClick={() => handleView(transaction)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </ActionButtons>
+                          </div>
                         </div>
                       </div>
                     ))}
