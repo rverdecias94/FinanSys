@@ -21,7 +21,7 @@ export default function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   // Validation States
-  const [strength, setStrength] = useState({ score: 0, label: 'Débil', color: 'bg-gray-200' })
+  const [strength, setStrength] = useState({ score: 0, label: 'Débil', color: 'bg-muted' })
   const [passMatch, setPassMatch] = useState(false)
   const [isTouched, setIsTouched] = useState(false)
 
@@ -34,7 +34,7 @@ export default function ResetPassword() {
   // Calculate Password Strength
   useEffect(() => {
     if (!password) {
-      setStrength({ score: 0, label: 'Débil', color: 'bg-gray-200' })
+      setStrength({ score: 0, label: 'Débil', color: 'bg-muted' })
       return
     }
 
@@ -45,14 +45,14 @@ export default function ResetPassword() {
     if (password.length >= 12) score += 1
 
     let label = 'Débil'
-    let color = 'bg-red-500'
+    let color = 'bg-destructive'
 
     if (score >= 4) {
       label = 'Fuerte'
-      color = 'bg-green-500'
+      color = 'bg-success'
     } else if (score >= 2) {
       label = 'Normal'
-      color = 'bg-yellow-500'
+      color = 'bg-warning'
     }
 
     setStrength({ score, label, color })
@@ -134,19 +134,19 @@ export default function ResetPassword() {
 
   if (!tokenValid) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8 bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border">
 
           {/* Header Section */}
           <div className="flex flex-col items-center space-y-4">
-            <div className="h-16 w-16 rounded-full bg-red-100 flex items-center justify-center mb-2">
-              <ShieldAlert className="h-8 w-8 text-red-600" />
+            <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mb-2">
+              <ShieldAlert className="h-8 w-8 text-destructive" />
             </div>
             <div className="text-center space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 Enlace inválido
               </h1>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 {error || 'El enlace de recuperación no es válido o ha expirado.'}
               </p>
             </div>
@@ -176,8 +176,8 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border">
 
         {/* Header Section */}
         <div className="flex flex-col items-center space-y-4">
@@ -185,10 +185,10 @@ export default function ResetPassword() {
             <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Nueva contraseña
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Ingresa tu nueva contraseña segura
             </p>
           </div>
@@ -197,7 +197,7 @@ export default function ResetPassword() {
         {/* Form Section */}
         <form className="space-y-6" onSubmit={handleResetPassword}>
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm flex items-center animate-in fade-in slide-in-from-top-1">
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center animate-in fade-in slide-in-from-top-1">
               <span className="font-medium">{error}</span>
             </div>
           )}
@@ -205,7 +205,7 @@ export default function ResetPassword() {
           <div className="space-y-4">
             {/* Nueva Contraseña */}
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
                 Nueva Contraseña
               </label>
               <div className="relative">
@@ -215,13 +215,13 @@ export default function ResetPassword() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onFocus={() => setIsTouched(true)}
-                  className="h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10"
+                  className="h-11 bg-background border-input focus:bg-background transition-all duration-200 pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -235,16 +235,16 @@ export default function ResetPassword() {
               {isTouched && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Fortaleza:</span>
+                    <span className="text-muted-foreground">Fortaleza:</span>
                     <span className={cn(
                       'font-medium',
-                      strength.label === 'Fuerte' ? 'text-green-600' :
-                        strength.label === 'Normal' ? 'text-yellow-600' : 'text-red-600'
+                      strength.label === 'Fuerte' ? 'text-success' :
+                        strength.label === 'Normal' ? 'text-warning' : 'text-destructive'
                     )}>
                       {strength.label}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-muted rounded-full h-2">
                     <div
                       className={cn('h-2 rounded-full transition-all duration-300', strength.color)}
                       style={{ width: `${(strength.score / 4) * 100}%` }}
@@ -256,7 +256,7 @@ export default function ResetPassword() {
               {/* Requirements */}
               {isTouched && (
                 <div className="space-y-1 text-xs">
-                  <div className={cn('flex items-center gap-2', requirements.length ? 'text-green-600' : 'text-gray-500')}>
+                  <div className={cn('flex items-center gap-2', requirements.length ? 'text-success' : 'text-muted-foreground')}>
                     {requirements.length ? (
                       <Check className="h-3 w-3" />
                     ) : (
@@ -264,7 +264,7 @@ export default function ResetPassword() {
                     )}
                     <span>Mínimo 8 caracteres</span>
                   </div>
-                  <div className={cn('flex items-center gap-2', requirements.alphanumeric ? 'text-green-600' : 'text-gray-500')}>
+                  <div className={cn('flex items-center gap-2', requirements.alphanumeric ? 'text-success' : 'text-muted-foreground')}>
                     {requirements.alphanumeric ? (
                       <Check className="h-3 w-3" />
                     ) : (
@@ -278,7 +278,7 @@ export default function ResetPassword() {
 
             {/* Confirmar Contraseña */}
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
                 Confirmar Nueva Contraseña
               </label>
               <div className="relative">
@@ -287,13 +287,13 @@ export default function ResetPassword() {
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200 pr-10"
+                  className="h-11 bg-background border-input focus:bg-background transition-all duration-200 pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -305,7 +305,7 @@ export default function ResetPassword() {
 
               {/* Password Match Indicator */}
               {confirmPassword && (
-                <div className={cn('flex items-center gap-2 text-xs', passMatch ? 'text-green-600' : 'text-red-600')}>
+                <div className={cn('flex items-center gap-2 text-xs', passMatch ? 'text-success' : 'text-destructive')}>
                   {passMatch ? (
                     <Check className="h-3 w-3" />
                   ) : (

@@ -45,27 +45,27 @@ export default function ForgotPassword() {
 
   if (emailSent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8 bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border">
           
           {/* Header Section */}
           <div className="flex flex-col items-center space-y-4">
-            <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-2">
-              <Mail className="h-8 w-8 text-green-600" />
+            <div className="h-16 w-16 rounded-full bg-success/10 flex items-center justify-center mb-2">
+              <Mail className="h-8 w-8 text-success" />
             </div>
             <div className="text-center space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 Correo enviado
               </h1>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Hemos enviado un enlace de recuperación a tu correo electrónico
               </p>
             </div>
           </div>
 
           {/* Mensaje informativo */}
-          <div className="p-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm">
-            <p className="font-medium mb-2">¿No ves el correo?</p>
+          <div className="p-4 rounded-lg bg-muted/50 border border-border text-muted-foreground text-sm">
+            <p className="font-medium mb-2 text-foreground">¿No ves el correo?</p>
             <ul className="text-xs space-y-1">
               <li>• Revisa tu carpeta de spam o correo no deseado</li>
               <li>• Asegúrate de usar la dirección correcta</li>
@@ -101,8 +101,8 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50/50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8 bg-card text-card-foreground p-8 sm:p-10 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-border">
 
         {/* Header Section */}
         <div className="flex flex-col items-center space-y-4">
@@ -110,10 +110,10 @@ export default function ForgotPassword() {
             <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Recuperar contraseña
             </h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña
             </p>
           </div>
@@ -122,14 +122,14 @@ export default function ForgotPassword() {
         {/* Form Section */}
         <form className="space-y-6" onSubmit={handlePasswordReset}>
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm flex items-center animate-in fade-in slide-in-from-top-1">
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center animate-in fade-in slide-in-from-top-1">
               <span className="font-medium">{error}</span>
             </div>
           )}
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700">
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
                 Correo Electrónico
               </label>
               <Input
@@ -137,7 +137,7 @@ export default function ForgotPassword() {
                 placeholder="nombre@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-11 bg-gray-50/50 border-gray-200 focus:bg-white transition-all duration-200"
+                className="h-11 bg-background border-input focus:bg-background transition-all duration-200"
                 required
               />
             </div>
