@@ -41,7 +41,7 @@ export default function AdminPlans() {
   }, [fromDate, toDate])
 
   const approveMutation = useMutation({
-    mutationFn: ({ requestId, approvedMonths, adminNotes }) => approvePlanChangeRequest({ requestId, approvedMonths, adminNotes }),
+    mutationFn: ({ requestId, billingCycle, adminNotes }) => approvePlanChangeRequest({ requestId, billingCycle, adminNotes }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
       toast.success('Solicitud aprobada')
@@ -156,8 +156,8 @@ export default function AdminPlans() {
         }}
         request={approveRequest}
         submitting={approveMutation.isPending}
-        onApprove={async ({ requestId, approvedMonths, adminNotes }) => {
-          await approveMutation.mutateAsync({ requestId, approvedMonths, adminNotes })
+        onApprove={async ({ requestId, billingCycle, adminNotes }) => {
+          await approveMutation.mutateAsync({ requestId, billingCycle, adminNotes })
           setApproveRequest(null)
         }}
       />

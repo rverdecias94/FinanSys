@@ -14,8 +14,15 @@ import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog
 import { Check, Crown, Loader2, Shield, Send } from 'lucide-react'
 
 export function PlansPanel() {
-  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS, nextPaymentDate, billingCycle, paymentState } = useSubscription()
+  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS, nextPaymentDate, billingCycle, paymentState, pricing } = useSubscription()
   const { isOwner } = useBusiness()
+
+  const premiumPricing = pricing?.premium || {}
+  const cycleOptions = [
+    { id: 'monthly', label: 'Mensual', price: premiumPricing.monthly ?? 10, suffix: '/mes' },
+    { id: 'quarterly', label: 'Trimestral', price: premiumPricing.quarterly ?? 30, suffix: '/trim.' },
+    { id: 'annual', label: 'Anual', price: premiumPricing.annual ?? 102, suffix: '/año', save: premiumPricing.annual_discount_pct ?? 15 }
+  ]
 
   const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }[cycle] || 'Mensual')
   const formatDate = (value) => {
@@ -30,7 +37,7 @@ export function PlansPanel() {
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submittingRequest, setSubmittingRequest] = useState(false)
   const [requestForm, setRequestForm] = useState({
-    requestedMonths: '1',
+    billingCycle: 'monthly',
     contactPhone: '',
     paymentMethod: 'transferencia',
     paymentReference: '',
@@ -92,7 +99,7 @@ export function PlansPanel() {
   const handleRequestPremium = async () => {
     setSubmittingRequest(true)
     const result = await requestPremium({
-      requestedMonths: Number(requestForm.requestedMonths) || 1,
+      billingCycle: requestForm.billingCycle,
       contactPhone: requestForm.contactPhone,
       paymentMethod: requestForm.paymentMethod,
       paymentReference: requestForm.paymentReference,
@@ -213,21 +220,32 @@ export function PlansPanel() {
 
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label>Duración solicitada</Label>
-              <Select
-                value={requestForm.requestedMonths}
-                onValueChange={(value) => setRequestForm(prev => ({ ...prev, requestedMonths: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 mes</SelectItem>
-                  <SelectItem value="3">3 meses</SelectItem>
-                  <SelectItem value="6">6 meses</SelectItem>
-                  <SelectItem value="12">12 meses</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Ciclo de pago</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {cycleOptions.map((c) => {
+                  const selected = requestForm.billingCycle === c.id
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      onClick={() => setRequestForm(prev => ({ ...prev, billingCycle: c.id }))}
+                      aria-pressed={selected}
+                      className={`relative flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${selected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-accent'}`}
+                    >
+                      <span className="text-sm font-medium">{c.label}</span>
+                      <span className="text-lg font-bold leading-none">
+                        ${c.price}
+                        <span className="text-xs font-normal text-muted-foreground"> {c.suffix}</span>
+                      </span>
+                      {c.save ? (
+                        <span className="mt-1 text-xs font-semibold text-success">Ahorra {c.save}%</span>
+                      ) : (
+                        <span className="mt-1 select-none text-xs text-transparent">.</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="grid gap-2">

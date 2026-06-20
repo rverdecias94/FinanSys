@@ -3,6 +3,7 @@ import { supabase } from '@/config/supabase'
 export async function requestPlanChange({
   targetPlanId = 'premium',
   requestedMonths = 1,
+  billingCycle = null,
   contactPhone = '',
   paymentMethod = '',
   paymentReference = '',
@@ -11,6 +12,7 @@ export async function requestPlanChange({
   const { data, error } = await supabase.rpc('request_plan_change', {
     target_plan_id: targetPlanId,
     requested_months: Number(requestedMonths) || 1,
+    billing_cycle: billingCycle || null,
     contact_phone: contactPhone,
     payment_method: paymentMethod,
     payment_reference: paymentReference,
@@ -85,11 +87,12 @@ export async function listPlanChangeRequests({
   return { data: data || [], count: Number(count || 0) }
 }
 
-export async function approvePlanChangeRequest({ requestId, approvedMonths, adminNotes } = {}) {
+export async function approvePlanChangeRequest({ requestId, approvedMonths, adminNotes, billingCycle } = {}) {
   const { data, error } = await supabase.rpc('approve_plan_change_request', {
     request_id: requestId,
     approved_months: approvedMonths == null ? null : Number(approvedMonths),
-    admin_notes: adminNotes || null
+    admin_notes: adminNotes || null,
+    billing_cycle: billingCycle || null
   })
   if (error) throw error
   return data

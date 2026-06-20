@@ -277,9 +277,20 @@ renovar (contactar admin) o **pasar a Gratis** (asistente existente).
 
 ---
 
-### Fase 4 — Ciclos de pago + **15%** en el flujo de solicitud Premium
+### Fase 4 — Ciclos de pago + **15%** en el flujo de solicitud Premium · ✅ HECHA (2026-06-20)
 **Objetivo:** que el usuario elija **Mensual/Trimestral/Anual** con precios y descuento, y que la
 solicitud lleve el ciclo e importe.
+
+> **Hecho.** Migración `20260620_pagos_f4_request_billing_cycle.sql`: `plan_change_requests`
+> +`billing_cycle`/`requested_amount`; `request_plan_change` acepta `billing_cycle` (deriva meses e
+> importe de `plans.pricing`); `approve_plan_change_request` usa por defecto el ciclo solicitado.
+> Front: `SubscriptionContext` expone `pricing`; `requestPremium`/`requestPlanChange`/
+> `approvePlanChangeRequest` propagan `billingCycle`; `PlansPanel` muestra **3 tarjetas de ciclo**
+> (Mensual $10 / Trimestral $30 / Anual $102 "Ahorra 15%"); `ApprovePlanRequestDialog` selector de
+> ciclo + importe solicitado; `PlanRequestDetailsDialog` muestra ciclo/importe. Verificado: backend
+> por SQL (solicitar anual→aprobar crea pago $102/+12m); UI en localhost (tarjetas a 375 y desktop,
+> selección con anillo primary, alturas iguales, sin overflow); `vitest` 58/58 (tests actualizados al
+> nuevo contrato); `lint`/`build` ✅.
 
 **Backend:**
 - `ALTER TABLE plan_change_requests ADD COLUMN billing_cycle text DEFAULT 'monthly'`,

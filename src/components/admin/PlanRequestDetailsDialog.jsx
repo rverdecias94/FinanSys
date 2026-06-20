@@ -85,8 +85,12 @@ export function PlanRequestDetailsDialog({ open, onOpenChange, request }) {
               <div className="capitalize">{r?.current_plan_id || '-'}</div>
             </div>
             <div className="grid gap-1">
-              <div className="text-xs text-muted-foreground">Meses solicitados</div>
-              <div>{r?.requested_months ?? '-'}</div>
+              <div className="text-xs text-muted-foreground">Ciclo</div>
+              <div>{({ monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }[r?.billing_cycle]) || r?.billing_cycle || '-'}</div>
+            </div>
+            <div className="grid gap-1">
+              <div className="text-xs text-muted-foreground">Importe</div>
+              <div>{r?.requested_amount != null ? `$${r.requested_amount}` : '-'}</div>
             </div>
             <div className="grid gap-1">
               <div className="text-xs text-muted-foreground">Método de pago</div>

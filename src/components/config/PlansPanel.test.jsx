@@ -75,7 +75,7 @@ describe('PlansPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
 
     expect(requestPremium).toHaveBeenCalledWith(expect.objectContaining({
-      requestedMonths: 1,
+      billingCycle: 'monthly',
       contactPhone: '',
       paymentMethod: 'transferencia',
       paymentReference: '',

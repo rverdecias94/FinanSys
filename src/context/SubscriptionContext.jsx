@@ -53,6 +53,7 @@ export const SubscriptionProvider = ({ children }) => {
   const [pendingPlanRequest, setPendingPlanRequest] = useState(null)
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
+  const [planPricing, setPlanPricing] = useState({})
 
   const FALLBACK_PLAN_LIMITS = {
     free: {
@@ -150,9 +151,14 @@ export const SubscriptionProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('plans')
-        .select('id, features, limits')
+        .select('id, features, limits, pricing')
       if (error) return
       setPlanLimits(normalizePlanLimits(data))
+      const pmap = {}
+      for (const p of data || []) {
+        if (p?.id) pmap[p.id] = p.pricing || {}
+      }
+      setPlanPricing(pmap)
     } catch {
       return
     }
@@ -375,6 +381,7 @@ export const SubscriptionProvider = ({ children }) => {
 
   const requestPremium = async ({
     requestedMonths = 1,
+    billingCycle = 'monthly',
     contactPhone = '',
     paymentMethod = '',
     paymentReference = '',
@@ -395,6 +402,7 @@ export const SubscriptionProvider = ({ children }) => {
       const result = await requestPlanChange({
         targetPlanId: 'premium',
         requestedMonths,
+        billingCycle,
         contactPhone,
         paymentMethod,
         paymentReference,
@@ -517,6 +525,7 @@ export const SubscriptionProvider = ({ children }) => {
       nextPaymentDate: billingState?.current_period_end ?? subscription?.current_period_end ?? null,
       billingCycle: billingState?.billing_cycle ?? subscription?.billing_cycle ?? 'monthly',
       graceUntil: billingState?.grace_until ?? null,
+      pricing: planPricing,
       PLAN_LIMITS
     }}>
       {children}

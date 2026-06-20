@@ -38,6 +38,7 @@ describe('planRequests service', () => {
     expect(supabase.rpc).toHaveBeenCalledWith('request_plan_change', {
       target_plan_id: 'premium',
       requested_months: 3,
+      billing_cycle: null,
       contact_phone: '+53',
       payment_method: 'efectivo',
       payment_reference: 'abc',
@@ -104,7 +105,8 @@ describe('planRequests service', () => {
     expect(supabase.rpc).toHaveBeenNthCalledWith(1, 'approve_plan_change_request', {
       request_id: 'r1',
       approved_months: 2,
-      admin_notes: 'ok'
+      admin_notes: 'ok',
+      billing_cycle: null
     })
     expect(supabase.rpc).toHaveBeenNthCalledWith(2, 'reject_plan_change_request', {
       request_id: 'r2',
