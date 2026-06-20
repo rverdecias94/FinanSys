@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
 import { logAction } from '@/services/auditLogger'
 import { cancelMyPendingPlanChangeRequest, getPendingPlanRequest, requestPlanChange } from '@/services/planRequests'
+import { getEffectivePlanState } from '@/services/billing'
 import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const SubscriptionContext = createContext({})
@@ -22,10 +23,33 @@ export function normalizeExpiredPremium(sub) {
   return sub
 }
 
+// Fase 2: la "suscripción efectiva" que ve toda la app se deriva del estado de
+// facturación del servidor (get_effective_plan_state). Durante 'grace' el Premium
+// SIGUE activo; solo se degrada a 'free' cuando el pago está 'blocked' (tras la
+// gracia). Si no hay estado del servidor (offline), se cae al comportamiento previo
+// (normalizeExpiredPremium: vencido inmediato → free) para no romper sin conexión.
+export function deriveEffectiveSubscription(raw, billingState) {
+  if (billingState && billingState.payment_state) {
+    const effectivePlan = billingState.payment_state === 'blocked'
+      ? 'free'
+      : (billingState.plan_id || 'free')
+    const base = raw || { status: billingState.status || 'active' }
+    return {
+      ...base,
+      plan_id: effectivePlan,
+      status: billingState.status ?? base.status,
+      current_period_end: billingState.current_period_end ?? base.current_period_end ?? null,
+      billing_cycle: billingState.billing_cycle ?? base.billing_cycle ?? 'monthly'
+    }
+  }
+  return normalizeExpiredPremium(raw)
+}
+
 export const SubscriptionProvider = ({ children }) => {
   const { session } = useSession()
   const { businessId, isOwner, loading: businessLoading } = useBusiness()
-  const [subscription, setSubscription] = useState(null)
+  const [subscriptionRaw, setSubscriptionRaw] = useState(null)
+  const [billingState, setBillingState] = useState(null)
   const [pendingPlanRequest, setPendingPlanRequest] = useState(null)
   const [usage, setUsage] = useState({})
   const [loading, setLoading] = useState(true)
@@ -52,6 +76,13 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const [PLAN_LIMITS, setPlanLimits] = useState(FALLBACK_PLAN_LIMITS)
+
+  // Suscripción efectiva (consciente de gracia/bloqueo). Toda la app la consume
+  // a través de `subscription`; los campos de facturación se exponen aparte.
+  const subscription = useMemo(
+    () => deriveEffectiveSubscription(subscriptionRaw, billingState),
+    [subscriptionRaw, billingState]
+  )
 
   const normalizePlanLimits = (raw) => {
     const out = { ...FALLBACK_PLAN_LIMITS }
@@ -92,13 +123,28 @@ export const SubscriptionProvider = ({ children }) => {
   useEffect(() => {
     if (session?.user && businessId && !businessLoading) {
       fetchSubscription()
+      fetchBillingState()
       fetchPlanLimits()
       fetchUsage()
       fetchPendingPlanRequest()
     } else if (!session?.user) {
+      setBillingState(null)
       setLoading(false)
     }
   }, [session, businessId, businessLoading])
+
+  // Estado de facturación del servidor (payment_state, días al vencimiento, etc.).
+  // Si falla (offline/error), queda null y la app cae al cálculo basado en la
+  // suscripción cacheada (sin banner) para no romper sin conexión.
+  const fetchBillingState = async () => {
+    if (!businessId) return
+    try {
+      const state = await getEffectivePlanState(businessId)
+      setBillingState(state || null)
+    } catch {
+      setBillingState(null)
+    }
+  }
 
   const fetchPlanLimits = async () => {
     try {
@@ -126,7 +172,7 @@ export const SubscriptionProvider = ({ children }) => {
         // Offline/error: usar la suscripción guardada (p. ej. Premium) en vez de
         // caer a 'free'. Solo cae a 'free' si nunca se cargó online.
         const cached = readLocalCache(`subscription:${businessId}`)
-        setSubscription(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
+        setSubscriptionRaw(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
         return
       }
 
@@ -148,25 +194,25 @@ export const SubscriptionProvider = ({ children }) => {
 
           if (createError) {
             // Fallback a objeto por defecto
-            setSubscription({ plan_id: 'free', status: 'active' })
+            setSubscriptionRaw({ plan_id: 'free', status: 'active' })
           } else {
-            setSubscription(newSub)
+            setSubscriptionRaw(newSub)
             toast.success('Suscripción creada', {
               description: 'Se ha asignado un plan gratuito a tu cuenta.'
             })
           }
         } else {
           // Member viewing owner without sub? Fallback to free limits
-          setSubscription({ plan_id: 'free', status: 'active' })
+          setSubscriptionRaw({ plan_id: 'free', status: 'active' })
         }
       } else {
-        setSubscription(normalizeExpiredPremium(data))
+        setSubscriptionRaw(normalizeExpiredPremium(data))
         writeLocalCache(`subscription:${businessId}`, data) // cachear para modo offline
       }
     } catch {
       // Offline/error: preferir la suscripción guardada antes que 'free'.
       const cached = readLocalCache(`subscription:${businessId}`)
-      setSubscription(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
+      setSubscriptionRaw(cached ? normalizeExpiredPremium(cached) : { plan_id: 'free', status: 'active' })
     } finally {
       setLoading(false)
     }
@@ -417,11 +463,17 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const isPremium = () => {
+    // Con estado de facturación del servidor (Fase 2): premium sigue activo en
+    // 'ok'/'due_soon'/'grace' y solo deja de serlo en 'blocked'. Durante la gracia
+    // el negocio conserva Premium aunque el periodo ya venció.
+    if (billingState?.payment_state) {
+      return billingState.plan_id === 'premium' && billingState.payment_state !== 'blocked'
+    }
+    // Fallback offline (sin estado del servidor): lógica previa basada en fechas.
     if (!subscription) return false
     if (subscription.plan_id !== 'premium') return false
     if (subscription.status === 'active') {
-      // P1.10: un periodo vencido NO debe seguir considerándose premium aunque el status siga 'active'
-      // (la expiración del status en BD la hace pg_cron a diario; esto cierra la ventana intermedia).
+      // P1.10: un periodo vencido NO debe seguir considerándose premium aunque el status siga 'active'.
       if (subscription.current_period_end &&
           new Date(subscription.current_period_end).getTime() <= Date.now()) {
         return false
@@ -432,6 +484,11 @@ export const SubscriptionProvider = ({ children }) => {
       return new Date(subscription.trial_end_at).getTime() > Date.now()
     }
     return false
+  }
+
+  const refreshSubscription = async () => {
+    await fetchSubscription()
+    await fetchBillingState()
   }
 
   return (
@@ -448,11 +505,18 @@ export const SubscriptionProvider = ({ children }) => {
       activateTrial, // Keep for backward compatibility
       pendingPlanRequest,
       refreshPendingPlanRequest: fetchPendingPlanRequest,
-      refreshSubscription: fetchSubscription,
+      refreshSubscription,
       refreshUsage: fetchUsage,
       refreshPlanLimits: fetchPlanLimits,
+      refreshBillingState: fetchBillingState,
       getPlanType,
       isPremium,
+      // Estado de facturación (Fase 2)
+      paymentState: billingState?.payment_state ?? null,
+      daysUntilDue: billingState?.days_until_due ?? null,
+      nextPaymentDate: billingState?.current_period_end ?? subscription?.current_period_end ?? null,
+      billingCycle: billingState?.billing_cycle ?? subscription?.billing_cycle ?? 'monthly',
+      graceUntil: billingState?.grace_until ?? null,
       PLAN_LIMITS
     }}>
       {children}

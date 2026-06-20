@@ -14,8 +14,17 @@ import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog
 import { Check, Crown, Loader2, Shield, Send } from 'lucide-react'
 
 export function PlansPanel() {
-  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS } = useSubscription()
+  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS, nextPaymentDate, billingCycle, paymentState } = useSubscription()
   const { isOwner } = useBusiness()
+
+  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }[cycle] || 'Mensual')
+  const formatDate = (value) => {
+    try {
+      return new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+    } catch {
+      return ''
+    }
+  }
   const [requestOpen, setRequestOpen] = useState(false)
   const [downgradeOpen, setDowngradeOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -157,6 +166,21 @@ export function PlansPanel() {
                     </li>
                   ))}
                 </ul>
+
+                {isCurrent && isPremium && nextPaymentDate && (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Ciclo de pago</span>
+                      <span className="font-medium">{cycleLabel(billingCycle)}</span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Próximo pago</span>
+                      <span className={`font-medium ${paymentState === 'grace' ? 'text-destructive' : paymentState === 'due_soon' ? 'text-warning' : ''}`}>
+                        {formatDate(nextPaymentDate)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-end">
                   <Button

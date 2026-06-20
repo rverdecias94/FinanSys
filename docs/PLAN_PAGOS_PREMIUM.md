@@ -195,9 +195,18 @@ Sin cambios visibles de UX todavía (salvo no romper nada).
 
 ---
 
-### Fase 2 — Estado de facturación en cliente + **banner fijo** de aviso de pago
+### Fase 2 — Estado de facturación en cliente + **banner fijo** de aviso de pago · ✅ HECHA (2026-06-20)
 **Objetivo:** que la app conozca `payment_state` y muestre el **banner fijo** (pre-vencimiento y
 gracia). Sin bloqueo todavía.
+
+> **Hecho.** `src/services/billing.js` (`getEffectivePlanState`); `SubscriptionContext` expone
+> `paymentState/daysUntilDue/nextPaymentDate/billingCycle/graceUntil` y deriva la suscripción
+> efectiva (Premium se mantiene en gracia; solo cae a free en `blocked`; fallback offline al
+> comportamiento previo). Nuevo `PaymentReminderBanner` montado en `SidebarLayout` (ámbar
+> `--warning` en due_soon, rojo `--destructive` en grace; solo owner). `PlansPanel` muestra ciclo
+> y próximo pago. **Verificado en localhost** (simulación reversible del vencimiento, restaurado):
+> due_soon a 375px (ámbar, sin overflow), grace (rojo, "se bloqueará en 2 días"), desktop 1 línea,
+> ok → banner oculto. `lint`/`build` ✅; `vitest` 52/52.
 
 **Backend:** ninguno nuevo (usa `get_effective_plan_state`).
 

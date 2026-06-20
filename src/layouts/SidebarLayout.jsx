@@ -10,6 +10,7 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
 import { isSystemAdmin } from '@/services/planRequests'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
+import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner'
 
 export default function SidebarLayout() {
   const location = useLocation()
@@ -163,7 +164,7 @@ export default function SidebarLayout() {
                   <Button
                     variant="default"
                     size="sm"
-                    className="w-full text-xs font-bold uppercase bg-primary/70"
+                    className="w-full text-xs font-bold uppercase"
                     onClick={() => navigate('/configuracion')}
                   >
                     MEJORAR PLAN
@@ -186,6 +187,8 @@ export default function SidebarLayout() {
       <div className="flex flex-col h-screen overflow-hidden">
         {/* Aviso global de modo offline (Capa B) */}
         <OfflineBanner />
+        {/* Aviso fijo de pago próximo/vencido (Pagos Premium · Fase 2) */}
+        <PaymentReminderBanner />
         {/* Mobile Header */}
         <header className="sticky top-0 z-30 flex items-center border-b bg-background px-4 py-3 lg:hidden">
           <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
