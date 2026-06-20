@@ -159,9 +159,17 @@ El front lee `pricing` (con fallback a constantes). Importe del pago = `pricing[
 > prueba**, **Definición de Hecho (DoD)**. El orden respeta dependencias (datos → estado en
 > cliente → banner → bloqueo → flujo de compra → admin → historial → QA).
 
-### Fase 1 — Cimientos de datos: precios, ciclos, historial y estado de facturación
+### Fase 1 — Cimientos de datos: precios, ciclos, historial y estado de facturación · ✅ HECHA (2026-06-20)
 **Objetivo:** dejar la BD lista para ciclos, importes, historial y cálculo de `payment_state`.
 Sin cambios visibles de UX todavía (salvo no romper nada).
+
+> **Aplicada** vía `apply_migration` (en historial). Archivos:
+> `supabase/migrations/20260620_pagos_f1_pricing_payments_state.sql` (+ `_fix_get_effective_plan_state_ambiguity`
+> + `20260620_pagos_f1_harden_grants.sql`). Verificado en prod (transacciones revertidas): los 5 estados
+> (ok/due_soon/grace/blocked/free), RLS de `payments` (owner/miembro ven, no-relacionado no), `admin_set`
+> anual crea pago $102, `approve` compatible 3-args ($10 mensual) y override de ciclo ($30 trimestral).
+> `anon` revocado, FKs indexadas, policy optimizada. `build` ✅; `vitest` 50/52 (2 fallos **pre-existentes**
+> en `PlansPanel.test.jsx`, ajenos a este cambio backend).
 
 **Backend (migración + RPCs):**
 - `ALTER TABLE subscriptions ADD COLUMN billing_cycle text DEFAULT 'monthly'` (+ check).
