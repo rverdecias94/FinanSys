@@ -2,6 +2,7 @@ import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId } from '@/services/team'
+import { getRateForDate } from '@/services/exchangeRates'
 // `exportUtils` (jspdf/xlsx) se importa dinámicamente dentro de exportTransactions
 // para no arrastrar las librerías pesadas de exportación en la carga de Finanzas (P3.5).
 
@@ -121,6 +122,11 @@ export async function createTransaction(payload, userId, businessId) {
   const finalStatus = status || 'paid'
   const finalPaid = finalStatus === 'paid' ? Number(amount) : Number(paid_amount || 0)
 
+  // Nivel 2 (devaluación): sella la tasa vigente el día de la operación. Defensivo:
+  // si no hay tasa o falla la consulta, queda null y NUNCA bloquea la transacción.
+  let fxUnitsPerBase = null
+  try { fxUnitsPerBase = await getRateForDate(currency, date, userId, businessId) } catch { fxUnitsPerBase = null }
+
   const dbPayload = {
     date,
     amount,
@@ -130,6 +136,7 @@ export async function createTransaction(payload, userId, businessId) {
     type,
     user_id: effectiveUserId, // Usar ID efectivo
     contact_id: contact_id || null,
+    fx_units_per_base: fxUnitsPerBase,
     status: finalStatus,
     due_date: finalStatus === 'paid' ? null : (due_date || null),
     paid_amount: finalPaid,
@@ -195,6 +202,11 @@ export async function updateTransaction(transactionId, payload, userId, business
     finalStatus = finalPaid > 0 && finalPaid < Number(amount) ? 'partial' : 'pending'
   }
 
+  // Nivel 2 (devaluación): re-sella la tasa vigente para la fecha/moneda de la
+  // transacción. Defensivo: si falla queda null y no bloquea la edición.
+  let fxUnitsPerBase = null
+  try { fxUnitsPerBase = await getRateForDate(currency, date, userId, businessId) } catch { fxUnitsPerBase = null }
+
   const dbPayload = {
     date,
     amount,
@@ -203,6 +215,7 @@ export async function updateTransaction(transactionId, payload, userId, business
     description,
     type,
     contact_id: contact_id || null,
+    fx_units_per_base: fxUnitsPerBase,
     status: finalStatus,
     due_date: finalStatus === 'paid' ? null : (due_date || null),
     paid_amount: finalPaid,

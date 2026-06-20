@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
+import { getExchangeRates, consolidatePerCurrency } from '@/services/exchangeRates'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrency } from '@/context/CurrencyContext'
 import {
@@ -124,7 +125,14 @@ export default function Dashboard() {
     ...dashboardQueryOptions
   })
 
+  const ratesQuery = useQuery({
+    queryKey: ['exchangeRates', userId, businessId],
+    queryFn: () => getExchangeRates(userId, businessId),
+    ...dashboardQueryOptions
+  })
+
   const stats = statsQuery.data || { balance: {}, income: { current: {}, change: {} }, expense: { current: {}, change: {} }}
+  const rates = ratesQuery.data || {}
   const recentActivityCount = recentActivityQuery.data?.length ?? 0
   const financialDistribution = financialDistributionQuery.data ?? []
   const yearData = yearlySummaryQuery.data ?? {}
@@ -189,6 +197,16 @@ export default function Dashboard() {
   const incomeChange = stats.income.change[panelCurrency]
   const expenseChange = stats.expense.change[panelCurrency]
   const otherBalances = businessCurrencies.filter(c => c.code !== panelCurrency)
+
+  // Total consolidado en la moneda principal (Fase 5), usando los tipos de cambio.
+  const baseCode = useMemo(
+    () => businessCurrencies.find(c => c.is_default)?.code || businessCurrencies[0]?.code,
+    [businessCurrencies]
+  )
+  const consolidated = useMemo(() => {
+    if (!baseCode || businessCurrencies.length <= 1) return null
+    return consolidatePerCurrency(stats.balance, baseCode, rates)
+  }, [baseCode, businessCurrencies.length, stats.balance, rates])
 
   // ¿Hay actividad real? Si no, mostramos el onboarding guiado (empty state).
   const hasData = recentActivityCount > 0 || businessCurrencies.some(c =>
@@ -309,6 +327,15 @@ export default function Dashboard() {
                     <p className="mt-2 text-xs text-primary-foreground/80">
                       {otherBalances.map(c => `${formatCurrency(stats.balance[c.code] || 0, c.code)}`).join('  ·  ')}
                     </p>
+                  )}
+                  {consolidated && (
+                    <div className="mt-3 border-t border-primary-foreground/20 pt-2">
+                      <p className="text-sm font-semibold">≈ {formatCurrency(consolidated.total, baseCode)} en total</p>
+                      <p className="text-[11px] text-primary-foreground/70">
+                        Consolidado en {baseCode}, a tu tipo de cambio
+                        {consolidated.missing.length ? ` · falta la tasa de ${consolidated.missing.join(', ')}` : ''}
+                      </p>
+                    </div>
                   )}
                 </>
               )}
