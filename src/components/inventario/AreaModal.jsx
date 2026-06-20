@@ -131,7 +131,7 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading || (!areaToEdit && !canCreate)}>
+            <Button type="submit" loading={loading} disabled={!areaToEdit && !canCreate}>
               {loading ? (areaToEdit ? 'Actualizando...' : 'Creando...') : (areaToEdit ? 'Guardar Cambios' : 'Crear Área')}
             </Button>
           </div>

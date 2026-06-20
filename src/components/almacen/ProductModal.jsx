@@ -201,7 +201,7 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" loading={loading}>
                 {loading ? 'Guardando...' : 'Guardar'}
               </Button>
             </div>

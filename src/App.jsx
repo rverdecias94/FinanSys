@@ -8,6 +8,7 @@ import { BusinessProvider } from '@/context/BusinessContext'
 import ProtectedRoute from '@/routes/ProtectedRoute'
 import SidebarLayout from '@/layouts/SidebarLayout'
 import { Toaster } from '@/components/ui/sonner'
+import { GlobalProgressBar } from '@/components/common/GlobalProgressBar'
 
 // Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
 // descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
@@ -38,7 +39,9 @@ const PageLoader = () => (
 
 export default function App() {
   return (
-    <BusinessProvider>
+    <>
+      <GlobalProgressBar />
+      <BusinessProvider>
       <SubscriptionProvider>
         <CurrencyProvider>
           <PermissionProvider>
@@ -92,6 +95,7 @@ export default function App() {
           </PermissionProvider>
         </CurrencyProvider>
       </SubscriptionProvider>
-    </BusinessProvider>
+      </BusinessProvider>
+    </>
   )
 }

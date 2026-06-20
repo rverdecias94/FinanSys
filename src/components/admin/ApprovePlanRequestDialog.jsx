@@ -67,7 +67,8 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
               approvedMonths: Number(approvedMonths) || 1,
               adminNotes
             })}
-            disabled={!canSubmit || submitting}
+            loading={submitting}
+            disabled={!canSubmit}
           >
             Aprobar Premium
           </Button>

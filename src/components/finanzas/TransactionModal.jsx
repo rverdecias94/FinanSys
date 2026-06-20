@@ -87,7 +87,7 @@ const formSchema = z.object({
   files: z.any().optional(), // For mock attachment
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], readonly = false }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], submitting = false, readonly = false }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
@@ -699,7 +699,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                       Volver a editar
                     </Button>
                   )}
-                  <Button type="submit" className={cn("w-full sm:w-auto", isPreview && "bg-green-600 hover:bg-green-700")}>
+                  <Button type="submit" loading={isPreview && submitting} className={cn("w-full sm:w-auto", isPreview && "bg-green-600 hover:bg-green-700")}>
                     {isPreview ? (
                       <>
                         <Check className="w-4 h-4 mr-2" /> {isEditing ? 'Confirmar y Actualizar' : 'Confirmar y Guardar'}

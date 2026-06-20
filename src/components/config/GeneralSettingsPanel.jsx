@@ -343,7 +343,7 @@ export function GeneralSettingsPanel() {
                   ? 'Hay cambios sin guardar.'
                   : 'Todo está guardado.'}
         </div>
-        <Button onClick={() => saveSettingsMutation.mutate()} disabled={!canSave}>
+        <Button onClick={() => saveSettingsMutation.mutate()} loading={saveSettingsMutation.isPending} disabled={!canSave}>
           Guardar Perfil y Formatos
         </Button>
       </div>

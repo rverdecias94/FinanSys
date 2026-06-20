@@ -236,7 +236,7 @@ export default function FinanzasMejorado() {
 
         <div className="flex gap-2">
           <PermissionGuard permission="finanzas.export">
-            <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            <Button variant="outline" onClick={handleExport} loading={isExporting}>
               <Download className="mr-2 h-4 w-4" />
               Exportar
             </Button>
@@ -444,6 +444,7 @@ export default function FinanzasMejorado() {
         paymentMethods={paymentMethods}
         currencies={businessCurrencies}
         contacts={contactsData?.data || []}
+        submitting={createMutation.isPending || updateMutation.isPending}
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />
     </div>

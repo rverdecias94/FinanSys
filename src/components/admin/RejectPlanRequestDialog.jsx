@@ -34,7 +34,8 @@ export function RejectPlanRequestDialog({ open, onOpenChange, request, submittin
           <Button
             variant="destructive"
             onClick={() => onReject?.({ requestId: request?.id, adminNotes })}
-            disabled={!request?.id || submitting}
+            loading={submitting}
+            disabled={!request?.id}
           >
             Rechazar solicitud
           </Button>

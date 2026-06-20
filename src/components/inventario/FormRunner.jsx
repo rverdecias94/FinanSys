@@ -341,7 +341,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                         Cancelar Edición
                       </Button>
                     )}
-                    <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
+                    <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
                       {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
                     </Button>
                   </div>

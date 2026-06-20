@@ -212,7 +212,7 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, re
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                 Cancelar
               </Button>
-              <Button type="submit" form="role-form" disabled={loading}>
+              <Button type="submit" form="role-form" loading={loading}>
                 {loading ? 'Guardando...' : 'Guardar Rol'}
               </Button>
             </>

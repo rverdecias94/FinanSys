@@ -16,7 +16,7 @@ export function ConfirmDialog({ open, onOpenChange, title, description, confirmT
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelText}
           </Button>
-          <Button variant={confirmVariant} onClick={onConfirm} disabled={loading}>
+          <Button variant={confirmVariant} onClick={onConfirm} loading={loading}>
             {confirmText}
           </Button>
         </DialogFooter>

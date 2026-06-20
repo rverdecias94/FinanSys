@@ -114,7 +114,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
           )}
 
           <div className="flex justify-end pt-4">
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" loading={loading}>
               {loading ? 'Registrando...' : 'Confirmar'}
             </Button>
           </div>

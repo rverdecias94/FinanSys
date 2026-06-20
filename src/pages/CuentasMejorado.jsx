@@ -216,7 +216,7 @@ export default function CuentasMejorado() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayTarget(null)}>Cancelar</Button>
-            <Button onClick={confirmPay} disabled={paymentMutation.isPending}>Confirmar</Button>
+            <Button onClick={confirmPay} loading={paymentMutation.isPending}>Confirmar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

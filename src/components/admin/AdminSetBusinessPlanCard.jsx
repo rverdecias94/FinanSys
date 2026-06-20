@@ -68,7 +68,8 @@ export function AdminSetBusinessPlanCard({ onSuccess }) {
           <Button
             className="w-full"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !businessId.trim()}
+            loading={mutation.isPending}
+            disabled={!businessId.trim()}
           >
             Aplicar
           </Button>

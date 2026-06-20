@@ -97,7 +97,7 @@ export function ContactModal({ open, onOpenChange, contact, onSubmit, submitting
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
           {!readOnly && (
-            <Button onClick={handleSubmit} disabled={submitting}>
+            <Button onClick={handleSubmit} loading={submitting}>
               {contact ? 'Guardar' : 'Crear'}
             </Button>
           )}

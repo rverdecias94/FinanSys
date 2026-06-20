@@ -1,7 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
 
 export function DeleteConfirmationModal({ open, onOpenChange, onConfirm, title, description, loading }) {
   return (
@@ -17,8 +16,7 @@ export function DeleteConfirmationModal({ open, onOpenChange, onConfirm, title, 
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button variant="destructive" onClick={onConfirm} loading={loading}>
             Confirmar Eliminación
           </Button>
         </DialogFooter>
