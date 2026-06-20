@@ -89,7 +89,7 @@ export default function ConfiguracionMejorado() {
       )}
 
       <Tabs defaultValue={isOwner ? 'planes' : 'general'} className="space-y-4">
-        <TabsList className="w-full overflow-x-auto flex gap-2 justify-start">
+        <TabsList className="h-auto w-full flex flex-wrap gap-2 justify-start">
           {isOwner && (
             <TabsTrigger value="planes" className="flex items-center gap-2">
               <Crown className="w-4 h-4" />

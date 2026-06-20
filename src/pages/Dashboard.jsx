@@ -230,7 +230,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Encabezado: saludo en lenguaje llano + selector de moneda del panel */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">

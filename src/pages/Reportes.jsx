@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ArrowDownCircle, ArrowUpCircle, File, FileSpreadsheet, FileText, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, FileText, FileType, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -316,7 +316,7 @@ const Reportes = () => {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 pb-20">
+    <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Reportes y Resúmenes</h1>
         <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
@@ -326,10 +326,10 @@ const Reportes = () => {
         <PermissionGuard permission="reports.export" mode="disable">
           <Button
             onClick={() => handlePreview('global')}
-            className="bg-blue-600 hover:bg-blue-700 w-full mt-1"
+            className="bg-blue-600 text-white hover:bg-blue-700 w-full mt-1"
             disabled={!dateFilter || previewLoading}
           >
-            <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+            <FileType className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
             Resumen General (DOCX)
           </Button>
         </PermissionGuard>
@@ -357,7 +357,7 @@ const Reportes = () => {
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
                     <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('finanzas')} disabled={previewLoading}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
                       {isMobile ? <span className="sr-only">Word</span> : 'Word'}
                     </Button>
                   </PermissionGuard>
@@ -440,7 +440,7 @@ const Reportes = () => {
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
                     <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('almacen')} disabled={previewLoading}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
                       {isMobile ? <span className="sr-only">Resumen de Almacén</span> : 'Resumen de Almacén'}
                     </Button>
                   </PermissionGuard>
@@ -524,7 +524,7 @@ const Reportes = () => {
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
                     <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('inventario')} disabled={previewLoading}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
+                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
                       {isMobile ? <span className="sr-only">Resumen de Inventario</span> : 'Resumen de Inventario'}
                     </Button>
                   </PermissionGuard>
@@ -602,8 +602,8 @@ const Reportes = () => {
                 <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cerrar</Button>
                 <PermissionGuard permission="reports.export" mode="disable">
                   {canExportDocs ? (
-                    <Button onClick={handleDownloadDOCX} className="bg-blue-600 hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
-                      <File className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                    <Button onClick={handleDownloadDOCX} className="bg-blue-600 text-white hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
+                      <FileType className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
                       {isMobile ? <span className="sr-only">Descargar Word</span> : 'Descargar Word'}
                     </Button>
                   ) : (

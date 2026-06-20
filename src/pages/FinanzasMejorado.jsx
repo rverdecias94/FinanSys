@@ -12,6 +12,7 @@ import { PermissionGuard, usePermissionCheck, ActionButtons } from '@/components
 import { TransactionModal } from '@/components/finanzas/TransactionModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
@@ -251,42 +252,45 @@ export default function FinanzasMejorado() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full">
-          <div className="w-full sm:col-span-2">
-            <DateRangeFilter onFilterChange={handleDateSelect} />
+      {/* Filtros: un único panel alineado (fecha + moneda + categoría) que afecta
+          tanto a las tarjetas de totales como a la lista de transacciones. */}
+      <DateRangeFilter onFilterChange={handleDateSelect} className="sm:w-full">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4 sm:items-end">
+          <div className="w-full space-y-2 sm:w-auto">
+            <Label>Moneda</Label>
+            <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Todas las monedas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las monedas</SelectItem>
+                {businessCurrencies?.map(currency => (
+                  <SelectItem key={currency.code} value={currency.code}>
+                    {currency.name} ({currency.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <Select value={currencyFilter} onValueChange={setCurrencyFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Todas las monedas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las monedas</SelectItem>
-              {businessCurrencies?.map(currency => (
-                <SelectItem key={currency.code} value={currency.code}>
-                  {currency.name} ({currency.code})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Todas las categorías" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas las categorías</SelectItem>
-              {categoryOptions.map(categoryName => (
-                <SelectItem key={categoryName} value={categoryName}>
-                  {categoryName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-full space-y-2 sm:w-auto">
+            <Label>Categoría</Label>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Todas las categorías" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las categorías</SelectItem>
+                {categoryOptions.map(categoryName => (
+                  <SelectItem key={categoryName} value={categoryName}>
+                    {categoryName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      </DateRangeFilter>
 
       {/* Resumen de totales */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -344,10 +348,10 @@ export default function FinanzasMejorado() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Transacciones</CardTitle>
-            <div className="h-4 w-4 text-gray-600">#</div>
+            <div className="flex h-4 w-4 items-center justify-center font-bold text-muted-foreground">#</div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-600">
+            <div className="text-2xl font-bold text-foreground">
               {txCount}
             </div>
           </CardContent>

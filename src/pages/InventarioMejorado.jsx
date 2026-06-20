@@ -121,23 +121,26 @@ export default function InventarioMejorado() {
             return (
               <div
                 key={area.id}
-                className={`rounded-xl border p-4 flex items-center justify-between gap-3 transition-colors ${active ? 'border-primary/50 bg-primary/5' : 'hover:bg-accent/30'}`}
+                className={`min-w-0 rounded-xl border p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 transition-colors ${active ? 'border-primary/50 bg-primary/5' : 'hover:bg-accent/30'}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-muted">
+                  <div className="p-2 rounded-lg bg-muted shrink-0">
                     <Icon className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div className="min-w-0">
                     <div className="font-semibold truncate">{area.name}</div>
-                    {active && <Badge className="mt-1" variant="default">Activo</Badge>}
-                    {locked && <Badge className="mt-1 ml-2" variant="secondary">Bloqueada</Badge>}
+                    {(active || locked) && (
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {active && <Badge variant="default">Activo</Badge>}
+                        {locked && <Badge variant="secondary">Bloqueada</Badge>}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center justify-end gap-2 border-t pt-3 sm:border-0 sm:pt-0">
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={() => {
                       setSelectedAreaId(area.id)
                       setMode('use')
@@ -164,13 +167,13 @@ export default function InventarioMejorado() {
 
       {selectedArea && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <div className="text-lg font-semibold">{selectedArea.name}</div>
-              {selectedArea.plan_locked === true && <Badge variant="secondary">Bloqueada</Badge>}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="text-lg font-semibold truncate">{selectedArea.name}</div>
+              {selectedArea.plan_locked === true && <Badge variant="secondary" className="shrink-0">Bloqueada</Badge>}
             </div>
 
-            <div className="w-[240px]">
+            <div className="w-full sm:w-[240px] sm:shrink-0">
               <Select value={mode} onValueChange={setMode}>
                 <SelectTrigger>
                   <SelectValue />

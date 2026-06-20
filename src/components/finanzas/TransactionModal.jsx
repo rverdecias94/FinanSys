@@ -35,7 +35,6 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
-import { cn } from '@/lib/utils'
 
 const DEFAULT_CATEGORIES = {
   income: [
@@ -699,7 +698,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                       Volver a editar
                     </Button>
                   )}
-                  <Button type="submit" loading={isPreview && submitting} className={cn("w-full sm:w-auto", isPreview && "bg-green-600 hover:bg-green-700")}>
+                  <Button type="submit" loading={isPreview && submitting} className="w-full sm:w-auto">
                     {isPreview ? (
                       <>
                         <Check className="w-4 h-4 mr-2" /> {isEditing ? 'Confirmar y Actualizar' : 'Confirmar y Guardar'}
