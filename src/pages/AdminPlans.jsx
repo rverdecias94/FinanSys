@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Calendar } from '@/components/ui/calendar'
 import { RefreshCw } from 'lucide-react'
 import { startOfDay, endOfDay } from 'date-fns'
@@ -13,47 +14,78 @@ import {
   approvePlanChangeRequest,
   rejectPlanChangeRequest
 } from '@/services/planRequests'
+import { setPaymentDate, adminRecordPayment } from '@/services/adminBusinesses'
 import { PlanRequestsTable } from '@/components/admin/PlanRequestsTable'
 import { PlanRequestDetailsDialog } from '@/components/admin/PlanRequestDetailsDialog'
 import { ApprovePlanRequestDialog } from '@/components/admin/ApprovePlanRequestDialog'
 import { RejectPlanRequestDialog } from '@/components/admin/RejectPlanRequestDialog'
 import { AdminSetBusinessPlanCard } from '@/components/admin/AdminSetBusinessPlanCard'
+import { BusinessesTable } from '@/components/admin/BusinessesTable'
+import { BusinessDetailDialog } from '@/components/admin/BusinessDetailDialog'
+import { SetPaymentDateDialog } from '@/components/admin/SetPaymentDateDialog'
+import { RecordPaymentDialog } from '@/components/admin/RecordPaymentDialog'
 
 export default function AdminPlans() {
   const qc = useQueryClient()
 
+  // --- Solicitudes ---
   const [status, setStatus] = useState('pending')
   const [requestedPlanId, setRequestedPlanId] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [fromDate, setFromDate] = useState(null)
   const [toDate, setToDate] = useState(null)
   const [totalCount, setTotalCount] = useState(0)
-
   const [detailsRequest, setDetailsRequest] = useState(null)
   const [approveRequest, setApproveRequest] = useState(null)
   const [rejectRequest, setRejectRequest] = useState(null)
 
-  const dateRange = useMemo(() => {
-    return {
-      startDate: fromDate ? startOfDay(fromDate).toISOString() : null,
-      endDate: toDate ? endOfDay(toDate).toISOString() : null
-    }
-  }, [fromDate, toDate])
+  // --- Negocios ---
+  const [bizSearch, setBizSearch] = useState('')
+  const [bizPlan, setBizPlan] = useState('all')
+  const [bizState, setBizState] = useState('all')
+  const [bizTotal, setBizTotal] = useState(0)
+  const [detailBizId, setDetailBizId] = useState(null)
+  const [setDateBiz, setSetDateBiz] = useState(null)
+  const [recordPayBiz, setRecordPayBiz] = useState(null)
+
+  const dateRange = useMemo(() => ({
+    startDate: fromDate ? startOfDay(fromDate).toISOString() : null,
+    endDate: toDate ? endOfDay(toDate).toISOString() : null
+  }), [fromDate, toDate])
+
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
+    qc.invalidateQueries({ queryKey: ['admin-businesses'] })
+  }
 
   const approveMutation = useMutation({
     mutationFn: ({ requestId, billingCycle, adminNotes }) => approvePlanChangeRequest({ requestId, billingCycle, adminNotes }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
-      toast.success('Solicitud aprobada')
-    }
+    onSuccess: () => { invalidateAll(); toast.success('Solicitud aprobada') }
   })
 
   const rejectMutation = useMutation({
     mutationFn: ({ requestId, adminNotes }) => rejectPlanChangeRequest({ requestId, adminNotes }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] }); toast.success('Solicitud rechazada') }
+  })
+
+  const setDateMutation = useMutation({
+    mutationFn: ({ businessId, newPeriodEnd }) => setPaymentDate({ businessId, newPeriodEnd }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
-      toast.success('Solicitud rechazada')
-    }
+      qc.invalidateQueries({ queryKey: ['admin-businesses'] })
+      qc.invalidateQueries({ queryKey: ['admin-business-detail'] })
+      toast.success('Fecha de pago actualizada')
+    },
+    onError: (e) => toast.error('No se pudo cambiar la fecha', { description: e?.message })
+  })
+
+  const recordPayMutation = useMutation({
+    mutationFn: (payload) => adminRecordPayment(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-businesses'] })
+      qc.invalidateQueries({ queryKey: ['admin-business-detail'] })
+      toast.success('Pago registrado')
+    },
+    onError: (e) => toast.error('No se pudo registrar el pago', { description: e?.message })
   })
 
   return (
@@ -61,99 +93,141 @@ export default function AdminPlans() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold">Admin: Planes</h1>
-          <p className="text-sm text-muted-foreground">Gestiona solicitudes Premium y ajustes manuales.</p>
+          <p className="text-sm text-muted-foreground">Gestiona solicitudes Premium, negocios y pagos.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Recargar
-          </Button>
-        </div>
+        <Button variant="outline" onClick={invalidateAll}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Recargar
+        </Button>
       </div>
 
-      <AdminSetBusinessPlanCard onSuccess={() => qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })} />
+      <AdminSetBusinessPlanCard onSuccess={invalidateAll} />
 
-      <Card>
-        <CardHeader className="space-y-3">
-          <CardTitle>Solicitudes de cambio de plan · {totalCount} registros</CardTitle>
-          <div className="grid gap-3 md:grid-cols-6 items-end">
-            <div className="space-y-1.5 md:col-span-2">
-              <Label>Buscar</Label>
-              <Input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Email, teléfono, referencia o negocio"
+      <Tabs defaultValue="requests">
+        <TabsList>
+          <TabsTrigger value="requests">Solicitudes</TabsTrigger>
+          <TabsTrigger value="businesses">Negocios</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="requests">
+          <Card>
+            <CardHeader className="space-y-3">
+              <CardTitle>Solicitudes de cambio de plan · {totalCount} registros</CardTitle>
+              <div className="grid items-end gap-3 md:grid-cols-6">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Buscar</Label>
+                  <Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Email, teléfono, referencia o negocio" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="pending">Pendientes</SelectItem>
+                      <SelectItem value="approved">Aprobadas</SelectItem>
+                      <SelectItem value="rejected">Rechazadas</SelectItem>
+                      <SelectItem value="cancelled">Canceladas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Plan</Label>
+                  <Select value={requestedPlanId} onValueChange={setRequestedPlanId}>
+                    <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="premium">Premium</SelectItem>
+                      <SelectItem value="free">Gratuito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Desde</Label>
+                  <Calendar value={fromDate} onChange={setFromDate} placeholder="Desde" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Hasta</Label>
+                  <Calendar value={toDate} onChange={setToDate} placeholder="Hasta" />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <PlanRequestsTable
+                status={status}
+                requestedPlanId={requestedPlanId}
+                searchTerm={searchTerm.trim()}
+                startDate={dateRange.startDate}
+                endDate={dateRange.endDate}
+                onMeta={({ count }) => setTotalCount(count)}
+                onView={(r) => setDetailsRequest(r)}
+                onApprove={(r) => setApproveRequest(r)}
+                onReject={(r) => setRejectRequest(r)}
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Estado</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendientes</SelectItem>
-                  <SelectItem value="approved">Aprobadas</SelectItem>
-                  <SelectItem value="rejected">Rechazadas</SelectItem>
-                  <SelectItem value="cancelled">Canceladas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Plan</Label>
-              <Select value={requestedPlanId} onValueChange={setRequestedPlanId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
-                  <SelectItem value="free">Gratuito</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Desde</Label>
-              <Calendar value={fromDate} onChange={setFromDate} placeholder="Desde" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Hasta</Label>
-              <Calendar value={toDate} onChange={setToDate} placeholder="Hasta" />
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <PlanRequestsTable
-            status={status}
-            requestedPlanId={requestedPlanId}
-            searchTerm={searchTerm.trim()}
-            startDate={dateRange.startDate}
-            endDate={dateRange.endDate}
-            onMeta={({ count }) => setTotalCount(count)}
-            onView={(r) => setDetailsRequest(r)}
-            onApprove={(r) => setApproveRequest(r)}
-            onReject={(r) => setRejectRequest(r)}
-          />
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
+        <TabsContent value="businesses">
+          <Card>
+            <CardHeader className="space-y-3">
+              <CardTitle>Negocios · {bizTotal} registros</CardTitle>
+              <div className="grid items-end gap-3 md:grid-cols-4">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Buscar</Label>
+                  <Input value={bizSearch} onChange={(e) => setBizSearch(e.target.value)} placeholder="Email o ID de negocio" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Plan</Label>
+                  <Select value={bizPlan} onValueChange={setBizPlan}>
+                    <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="premium">Premium</SelectItem>
+                      <SelectItem value="free">Gratuito</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado de pago</Label>
+                  <Select value={bizState} onValueChange={setBizState}>
+                    <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="ok">Al día</SelectItem>
+                      <SelectItem value="due_soon">Por vencer</SelectItem>
+                      <SelectItem value="grace">En gracia</SelectItem>
+                      <SelectItem value="blocked">Bloqueado</SelectItem>
+                      <SelectItem value="free">Gratis</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <BusinessesTable
+                search={bizSearch.trim()}
+                plan={bizPlan}
+                paymentState={bizState}
+                onMeta={({ count }) => setBizTotal(count)}
+                onView={(b) => setDetailBizId(b.business_id)}
+                onSetDate={(b) => setSetDateBiz(b)}
+                onRecordPayment={(b) => setRecordPayBiz(b)}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Diálogos de solicitudes */}
       <PlanRequestDetailsDialog
         open={!!detailsRequest}
-        onOpenChange={(open) => {
-          if (!open) setDetailsRequest(null)
-        }}
+        onOpenChange={(open) => { if (!open) setDetailsRequest(null) }}
         request={detailsRequest}
       />
-
       <ApprovePlanRequestDialog
         open={!!approveRequest}
-        onOpenChange={(open) => {
-          if (!open) setApproveRequest(null)
-        }}
+        onOpenChange={(open) => { if (!open) setApproveRequest(null) }}
         request={approveRequest}
         submitting={approveMutation.isPending}
         onApprove={async ({ requestId, billingCycle, adminNotes }) => {
@@ -161,12 +235,9 @@ export default function AdminPlans() {
           setApproveRequest(null)
         }}
       />
-
       <RejectPlanRequestDialog
         open={!!rejectRequest}
-        onOpenChange={(open) => {
-          if (!open) setRejectRequest(null)
-        }}
+        onOpenChange={(open) => { if (!open) setRejectRequest(null) }}
         request={rejectRequest}
         submitting={rejectMutation.isPending}
         onReject={async ({ requestId, adminNotes }) => {
@@ -174,7 +245,33 @@ export default function AdminPlans() {
           setRejectRequest(null)
         }}
       />
+
+      {/* Diálogos de negocios */}
+      <BusinessDetailDialog
+        open={!!detailBizId}
+        onOpenChange={(open) => { if (!open) setDetailBizId(null) }}
+        businessId={detailBizId}
+      />
+      <SetPaymentDateDialog
+        open={!!setDateBiz}
+        onOpenChange={(open) => { if (!open) setSetDateBiz(null) }}
+        business={setDateBiz}
+        submitting={setDateMutation.isPending}
+        onConfirm={async (payload) => {
+          await setDateMutation.mutateAsync(payload)
+          setSetDateBiz(null)
+        }}
+      />
+      <RecordPaymentDialog
+        open={!!recordPayBiz}
+        onOpenChange={(open) => { if (!open) setRecordPayBiz(null) }}
+        business={recordPayBiz}
+        submitting={recordPayMutation.isPending}
+        onConfirm={async (payload) => {
+          await recordPayMutation.mutateAsync(payload)
+          setRecordPayBiz(null)
+        }}
+      />
     </div>
   )
 }
-

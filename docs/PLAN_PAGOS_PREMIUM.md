@@ -314,8 +314,19 @@ solicitud lleve el ciclo e importe.
 
 ---
 
-### Fase 5 — Admin: **listado de negocios** + control de **fecha de pago** + registrar pago
+### Fase 5 — Admin: **listado de negocios** + control de **fecha de pago** + registrar pago · ✅ HECHA (2026-06-20)
 **Objetivo:** el admin ve todos los negocios y gestiona su Premium y fechas de pago.
+
+> **Hecho.** Migración `20260620_pagos_f5_admin_business_rpcs.sql`: `get_payment_state` (helper),
+> `admin_list_businesses` (dueños con email/plan/estado/ciclo/vencimiento/nº miembros/último pago,
+> paginado), `admin_get_business_detail` (suscripción+pagos+equipo+solicitudes), `admin_set_payment_date`
+> (ajusta vencimiento y reactiva si es futura). Todas gated `is_system_admin()`, revoke anon/public.
+> Front: `src/services/adminBusinesses.js`; `AdminPlans` con **pestañas** (Solicitudes | Negocios);
+> `BusinessesTable` (ResponsiveListing), `BusinessDetailDialog`, `SetPaymentDateDialog`,
+> `RecordPaymentDialog`. Verificado: backend por SQL (listado=1 dueño, detalle, set-date +30d→ok,
+> **gating** no-admin rechazado); `vitest` 60/60 (+2 tests de diálogos); `lint`/`build` ✅.
+> ⚠️ **Pendiente verificación visual en vivo del panel** (el navegador del preview perdió la sesión
+> admin; `/admin/planes` requiere login de administrador). Hacer al retomar con sesión iniciada.
 
 **Backend (RPCs admin, SECURITY DEFINER, gated `is_system_admin()`):**
 - `admin_list_businesses(filters)` → por negocio: email (de `auth.users`), `plan_id`, `status`,
