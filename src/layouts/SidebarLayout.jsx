@@ -11,6 +11,7 @@ import PermissionGuard from '@/components/SubscriptionGuard' // Actually Permiss
 import { isSystemAdmin } from '@/services/planRequests'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner'
+import { AccountGate } from '@/components/auth/AccountGate'
 
 export default function SidebarLayout() {
   const location = useLocation()
@@ -212,6 +213,9 @@ export default function SidebarLayout() {
           </Suspense>
         </main>
       </div>
+
+      {/* Gate de acceso (Pagos Premium · Fase 3): bloquea por impago/suspensión */}
+      <AccountGate />
     </div>
   )
 }

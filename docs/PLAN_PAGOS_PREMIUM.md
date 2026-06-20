@@ -233,9 +233,20 @@ claro/oscuro; texto truncado correcto en móvil.
 
 ---
 
-### Fase 3 — **Bloqueo duro**: gate + modal (vencido/suspendido) + cron de ciclo de vida
+### Fase 3 — **Bloqueo duro**: gate + modal (vencido/suspendido) + cron de ciclo de vida · ✅ HECHA (2026-06-20)
 **Objetivo:** impedir el acceso cuando `payment_state = blocked` o cuenta suspendida; ofrecer
 renovar (contactar admin) o **pasar a Gratis** (asistente existente).
+
+> **Hecho.** Migración `20260620_pagos_f3_account_status_lifecycle.sql`: tabla `account_status`
+> (+ `get_my_account_status`), cron repuntado a `advance_billing_lifecycle()` (active→past_due→
+> suspended, **sin** bajar a free en silencio), y `get_effective_plan_state`/`get_effective_plan_id`
+> **conscientes de gracia** (premium se mantiene en gracia; free solo bloqueado/suspendido).
+> Front: `useAccountStatus`, `AccountGate` (montado en `SidebarLayout`) y `AccountBlockedDialog`
+> (owner: contactar admin + "Cambiar a Plan Gratis"→asistente; member/account: aviso; cierre de
+> sesión). Falla **abierto** (no bloquea si el estado es desconocido); **exime a system admins**.
+> Verificado: backend por SQL (account_status, cron, gracia↔premium, bloqueo↔free); gate por test
+> RTL (58/58) y smoke visual del modal (móvil 375 + desktop, overlay cubre, sin overflow).
+> `lint`/`build` ✅.
 
 **Backend:**
 - Tabla `account_status` (§2.3) + RLS + `get_my_account_status()`.
