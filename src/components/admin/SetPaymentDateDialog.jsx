@@ -1,27 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { addYears, format } from 'date-fns'
+import { addYears } from 'date-fns'
+import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const toYMD = (d) => {
-  if (!d) return ''
-  const dt = d instanceof Date ? d : new Date(d)
-  if (Number.isNaN(dt.getTime())) return ''
-  return format(dt, 'yyyy-MM-dd')
-}
-
 export function SetPaymentDateDialog({ open, onOpenChange, business, submitting, onConfirm }) {
-  const [date, setDate] = useState('')
+  const [date, setDate] = useState(null)
 
-  // Tope: 1 año posterior a hoy (duración máxima del plan). Se permiten fechas
-  // futuras (input nativo, sin desbordes ni dependencias de calendario).
-  const maxDate = useMemo(() => format(addYears(new Date(), 1), 'yyyy-MM-dd'), [])
+  // Tope: 1 año posterior a hoy (duración máxima del plan). Sobreescribe el
+  // maxDate por defecto del Calendar (hoy) para permitir fechas futuras.
+  const maxDate = useMemo(() => addYears(new Date(), 1), [])
 
   useEffect(() => {
     if (!open) return
-    setDate(toYMD(business?.current_period_end))
+    setDate(business?.current_period_end ? new Date(business.current_period_end) : null)
   }, [open, business])
 
   return (
@@ -35,15 +28,8 @@ export function SetPaymentDateDialog({ open, onOpenChange, business, submitting,
         </DialogHeader>
 
         <div className="grid gap-2 py-2">
-          <Label htmlFor="payment-date">Nueva fecha de vencimiento</Label>
-          <Input
-            id="payment-date"
-            type="date"
-            value={date}
-            max={maxDate}
-            onChange={(e) => setDate(e.target.value)}
-            className="[color-scheme:light] dark:[color-scheme:dark]"
-          />
+          <Label>Nueva fecha de vencimiento</Label>
+          <Calendar value={date} onChange={setDate} placeholder="Selecciona una fecha" options={{ maxDate }} />
           <p className="text-xs text-muted-foreground">Máximo 1 año desde hoy (duración máxima del plan).</p>
         </div>
 
@@ -52,10 +38,7 @@ export function SetPaymentDateDialog({ open, onOpenChange, business, submitting,
             Cancelar
           </Button>
           <Button
-            onClick={() => onConfirm?.({
-              businessId: business.business_id,
-              newPeriodEnd: date ? new Date(`${date}T00:00:00`).toISOString() : null
-            })}
+            onClick={() => onConfirm?.({ businessId: business.business_id, newPeriodEnd: date ? new Date(date).toISOString() : null })}
             loading={submitting}
             disabled={!date}
           >
