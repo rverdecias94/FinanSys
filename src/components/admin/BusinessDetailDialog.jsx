@@ -77,11 +77,18 @@ export function BusinessDetailDialog({ open, onOpenChange, businessId, onSetStat
                 <div className="py-1 text-muted-foreground">Sin pagos registrados</div>
               ) : (
                 data.payments.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-2 border-b py-1.5 last:border-0">
-                    <span className="text-muted-foreground">
-                      {fmt(p.paid_at)} · {CYCLE_LABEL[p.billing_cycle] || p.billing_cycle || '-'}
-                    </span>
-                    <span className="font-medium">${p.amount} {p.currency_code}</span>
+                  <div key={p.id} className="flex items-start justify-between gap-2 border-b py-1.5 last:border-0">
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">
+                        {fmt(p.paid_at)} · {CYCLE_LABEL[p.billing_cycle] || p.billing_cycle || '-'}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground/80">
+                        {p.method || 'Método no indicado'}
+                        {p.reference ? ` · Ref: ${p.reference}` : ''}
+                        {(p.period_start || p.period_end) ? ` · ${fmt(p.period_start)} → ${fmt(p.period_end)}` : ''}
+                      </div>
+                    </div>
+                    <span className="shrink-0 font-medium">${p.amount} {p.currency_code}</span>
                   </div>
                 ))
               )}

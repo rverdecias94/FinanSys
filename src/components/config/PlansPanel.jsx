@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
 import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog'
+import { PaymentHistory } from '@/components/config/PaymentHistory'
 import { Check, Crown, Loader2, Shield, Send } from 'lucide-react'
 
 export function PlansPanel() {
@@ -208,6 +209,8 @@ export function PlansPanel() {
           )
         })}
       </div>
+
+      <PaymentHistory alwaysShow={currentPlan === 'premium'} />
 
       <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
         <DialogContent className="sm:max-w-[520px]">

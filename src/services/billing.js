@@ -11,3 +11,16 @@ export async function getEffectivePlanState(businessId) {
   if (error) throw error
   return data
 }
+
+// Historial de pagos del negocio del usuario (Fase 7). Paginado {data,count}
+// para ResponsiveListing. La RLS de `payments` garantiza la visibilidad correcta
+// (owner / miembro activo / admin); businessId lo aporta BusinessContext.
+export async function getMyPayments({ businessId = null, page = 1, pageSize = 5 } = {}) {
+  const { data, error } = await supabase.rpc('get_my_payments', {
+    p_business_id: businessId || null,
+    p_page: page,
+    p_page_size: pageSize
+  })
+  if (error) throw error
+  return { data: data?.rows || [], count: Number(data?.total || 0) }
+}

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { afterEach } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
 
@@ -12,6 +13,12 @@ vi.mock('@/context/SubscriptionContext', () => ({
 vi.mock('@/context/BusinessContext', () => ({
   useBusiness: vi.fn()
 }))
+
+// PlansPanel renderiza PaymentHistory (usa React Query); proveer un cliente.
+const renderPanel = (ui) => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+}
 
 describe('PlansPanel', () => {
   beforeEach(() => {
@@ -41,7 +48,7 @@ describe('PlansPanel', () => {
     })
 
     const { PlansPanel } = await import('./PlansPanel')
-    render(<PlansPanel />)
+    renderPanel(<PlansPanel />)
     expect(screen.getByText(/Solicitud Premium pendiente/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancelar' }))
     expect(screen.getByText('Cancelar solicitud Premium')).toBeInTheDocument()
@@ -68,7 +75,7 @@ describe('PlansPanel', () => {
     })
 
     const { PlansPanel } = await import('./PlansPanel')
-    render(<PlansPanel />)
+    renderPanel(<PlansPanel />)
 
     await user.click(screen.getByRole('button', { name: 'Solicitar Premium' }))
     expect(screen.getByRole('heading', { name: 'Solicitar Premium' })).toBeInTheDocument()
