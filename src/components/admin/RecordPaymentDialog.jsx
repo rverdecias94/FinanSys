@@ -25,7 +25,7 @@ export function RecordPaymentDialog({ open, onOpenChange, business, submitting, 
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
-          <DialogDescription className="truncate">
+          <DialogDescription className="break-words">
             Registra un pago de {business?.email || 'este negocio'} en el historial (no cambia el plan).
           </DialogDescription>
         </DialogHeader>

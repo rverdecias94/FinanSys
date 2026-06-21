@@ -46,7 +46,7 @@ export function BusinessDetailDialog({ open, onOpenChange, businessId, onSetStat
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[640px]">
         <DialogHeader>
           <DialogTitle>Detalle del negocio</DialogTitle>
-          <DialogDescription className="truncate">{data?.email || businessId}</DialogDescription>
+          <DialogDescription className="break-words">{data?.email || businessId}</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
