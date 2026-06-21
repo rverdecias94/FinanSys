@@ -135,11 +135,19 @@ export function TeamManagement() {
   const handleConfirmDelete = async () => {
     if (!memberToDelete) return
     try {
-      await removeMember(memberToDelete.id, memberToDelete.member_email)
-      toast.success('Socio eliminado correctamente')
+      const result = await removeMember(memberToDelete.id)
+      if (result?.deleted_auth) {
+        toast.success('Miembro eliminado', {
+          description: `La cuenta de ${memberToDelete.member_email} se eliminó por completo.`
+        })
+      } else {
+        toast.success('Miembro desvinculado', {
+          description: `${memberToDelete.member_email} se quitó de tu equipo.`
+        })
+      }
       refreshMembers()
     } catch (err) {
-      toast.error('Error al eliminar socio')
+      toast.error('No se pudo eliminar al miembro', { description: getSupabaseErrorMessage(err) })
     } finally {
       setDeleteConfirmOpen(false)
       setMemberToDelete(null)
@@ -267,9 +275,9 @@ export function TeamManagement() {
           setDeleteConfirmOpen(o)
           if (!o) setMemberToDelete(null)
         }}
-        title="Confirmar eliminación de socio"
-        description={`¿Deseas eliminar a ${memberToDelete?.member_email} de tu equipo?`}
-        confirmText="Eliminar"
+        title="Eliminar miembro del equipo"
+        description={`Esto eliminará por completo la cuenta de ${memberToDelete?.member_email} y su acceso al sistema. Los registros de auditoría del negocio se conservarán. Esta acción no se puede deshacer.`}
+        confirmText="Eliminar cuenta"
         cancelText="Cancelar"
         tone="destructive"
         onConfirm={handleConfirmDelete}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { inviteMember, acceptPendingInvitations } from './team'
+import { inviteMember, acceptPendingInvitations, removeMember } from './team'
 import { supabase } from '@/config/supabase'
 
 vi.mock('@/services/auditLogger', () => ({
@@ -110,6 +110,27 @@ describe('Team Service', () => {
 
       const result = await acceptPendingInvitations('test@example.com')
       expect(result).toBeNull()
+    })
+  })
+
+  describe('removeMember', () => {
+    it('invoca la RPC owner_delete_team_member con el id de la membresía y devuelve el resultado', async () => {
+      const rpcResult = { removed_membership: true, deleted_auth: true, member_email: 'm@x.com' }
+      supabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null })
+
+      const result = await removeMember('tm-1')
+
+      expect(result).toEqual(rpcResult)
+      expect(supabase.rpc).toHaveBeenCalledWith('owner_delete_team_member', { p_member_id: 'tm-1' })
+    })
+
+    it('propaga el error si la RPC falla (ej. gate de owner)', async () => {
+      supabase.rpc.mockResolvedValueOnce({
+        data: null,
+        error: new Error('Solo el propietario del negocio puede eliminar a este miembro')
+      })
+
+      await expect(removeMember('tm-1')).rejects.toThrow('Solo el propietario del negocio')
     })
   })
 })

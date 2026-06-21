@@ -419,27 +419,26 @@ export async function updateMemberRole(memberId, newRoleId, meta = {}) {
 }
 
 /**
- * Remove a member from the team
+ * Eliminar un miembro del equipo.
+ *
+ * Invoca la RPC `owner_delete_team_member` que, según el caso:
+ *  - elimina por completo la cuenta de acceso del miembro (cuando es un miembro
+ *    "puro"), conservando los registros de auditoría del negocio, o
+ *  - solo desliga la membresía cuando el miembro es una cuenta independiente
+ *    (tiene su propio negocio / es miembro activo de otro), o
+ *  - elimina una invitación pendiente sin cuenta vinculada.
+ *
+ * La RPC audita server-side (bajo el owner), por eso aquí ya no se llama a
+ * logAction ni se borra la fila directamente. La UI decide el mensaje según
+ * el campo `deleted_auth` del resultado.
+ *
+ * @param {string} memberId - team_members.id
+ * @returns {Promise<{removed_membership:boolean, deleted_auth:boolean, reason?:string, member_email?:string}>}
  */
-export async function removeMember(memberId, memberEmail) {
-  return await withCrud({ action: 'delete', table: 'team_members' }, async () => {
-    const { error } = await supabase
-      .from('team_members')
-      .delete()
-      .eq('id', memberId)
-
-    if (error) throw error
-
-    await logAction({
-      action: 'Eliminar Miembro',
-      // Mostrar el correo del miembro en el log, nunca su UUID.
-      resource: `Miembro: ${memberEmail || memberId}`,
-      details: null,
-      area: 'Equipo'
-    })
-
-    return true
-  })
+export async function removeMember(memberId) {
+  const { data, error } = await supabase.rpc('owner_delete_team_member', { p_member_id: memberId })
+  if (error) throw error
+  return data
 }
 
 /**
