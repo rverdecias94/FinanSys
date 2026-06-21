@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,7 @@ import {
   rejectPlanChangeRequest
 } from '@/services/planRequests'
 import { setPaymentDate, adminRecordPayment } from '@/services/adminBusinesses'
+import { setAccountStatus, deleteUser, previewUserDeletion } from '@/services/adminUsers'
 import { PlanRequestsTable } from '@/components/admin/PlanRequestsTable'
 import { PlanRequestDetailsDialog } from '@/components/admin/PlanRequestDetailsDialog'
 import { ApprovePlanRequestDialog } from '@/components/admin/ApprovePlanRequestDialog'
@@ -24,6 +25,8 @@ import { BusinessesTable } from '@/components/admin/BusinessesTable'
 import { BusinessDetailDialog } from '@/components/admin/BusinessDetailDialog'
 import { SetPaymentDateDialog } from '@/components/admin/SetPaymentDateDialog'
 import { RecordPaymentDialog } from '@/components/admin/RecordPaymentDialog'
+import { TeamMembersAdminTable } from '@/components/admin/TeamMembersAdminTable'
+import { ConfirmDeleteUserDialog } from '@/components/admin/ConfirmDeleteUserDialog'
 
 export default function AdminPlans() {
   const qc = useQueryClient()
@@ -48,6 +51,14 @@ export default function AdminPlans() {
   const [setDateBiz, setSetDateBiz] = useState(null)
   const [recordPayBiz, setRecordPayBiz] = useState(null)
 
+  // --- Equipo ---
+  const [teamSearch, setTeamSearch] = useState('')
+  const [teamStatus, setTeamStatus] = useState('all')
+  const [teamTotal, setTeamTotal] = useState(0)
+
+  // Objetivo de borrado permanente (owner o miembro): { user_id, email }
+  const [deleteTarget, setDeleteTarget] = useState(null)
+
   const dateRange = useMemo(() => ({
     startDate: fromDate ? startOfDay(fromDate).toISOString() : null,
     endDate: toDate ? endOfDay(toDate).toISOString() : null
@@ -56,6 +67,14 @@ export default function AdminPlans() {
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
     qc.invalidateQueries({ queryKey: ['admin-businesses'] })
+    qc.invalidateQueries({ queryKey: ['admin-team-members'] })
+  }
+
+  const invalidateUsers = () => {
+    qc.invalidateQueries({ queryKey: ['admin-businesses'] })
+    qc.invalidateQueries({ queryKey: ['admin-business-detail'] })
+    qc.invalidateQueries({ queryKey: ['admin-team-members'] })
+    qc.invalidateQueries({ queryKey: ['accountStatus'] })
   }
 
   const approveMutation = useMutation({
@@ -88,6 +107,38 @@ export default function AdminPlans() {
     onError: (e) => toast.error('No se pudo registrar el pago', { description: e?.message })
   })
 
+  const setStatusMutation = useMutation({
+    mutationFn: ({ targetUserId, status, reason }) => setAccountStatus({ targetUserId, status, reason }),
+    onSuccess: (_data, vars) => {
+      invalidateUsers()
+      toast.success(vars.status === 'suspended' ? 'Cuenta suspendida' : 'Cuenta reactivada')
+    },
+    onError: (e) => toast.error('No se pudo cambiar el estado de la cuenta', { description: e?.message })
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (targetUserId) => deleteUser(targetUserId),
+    onSuccess: (data) => {
+      invalidateUsers()
+      toast.success('Usuario eliminado permanentemente', { description: data?.email })
+    },
+    onError: (e) => toast.error('No se pudo eliminar el usuario', { description: e?.message })
+  })
+
+  // Previsualización del impacto del borrado (solo cuando hay objetivo seleccionado).
+  const { data: deletionPreview, isLoading: loadingPreview } = useQuery({
+    queryKey: ['admin-user-deletion-preview', deleteTarget?.user_id],
+    queryFn: () => previewUserDeletion(deleteTarget.user_id),
+    enabled: !!deleteTarget?.user_id
+  })
+
+  const handleSetStatus = (target, status) =>
+    setStatusMutation.mutate({
+      targetUserId: target.user_id,
+      status,
+      reason: status === 'suspended' ? 'Suspendida por el administrador' : null
+    })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -107,6 +158,7 @@ export default function AdminPlans() {
         <TabsList>
           <TabsTrigger value="requests">Solicitudes</TabsTrigger>
           <TabsTrigger value="businesses">Negocios</TabsTrigger>
+          <TabsTrigger value="team">Equipo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests">
@@ -213,6 +265,44 @@ export default function AdminPlans() {
                 onView={(b) => setDetailBizId(b.business_id)}
                 onSetDate={(b) => setSetDateBiz(b)}
                 onRecordPayment={(b) => setRecordPayBiz(b)}
+                onSetStatus={(b, status) => handleSetStatus({ user_id: b.business_id, email: b.email }, status)}
+                onDelete={(b) => setDeleteTarget({ user_id: b.business_id, email: b.email })}
+                statusPending={setStatusMutation.isPending}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="team">
+          <Card>
+            <CardHeader className="space-y-3">
+              <CardTitle>Subcuentas de equipo · {teamTotal} registros</CardTitle>
+              <div className="grid items-end gap-3 md:grid-cols-4">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Buscar</Label>
+                  <Input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)} placeholder="Email del miembro o del negocio" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado de cuenta</Label>
+                  <Select value={teamStatus} onValueChange={setTeamStatus}>
+                    <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Activas</SelectItem>
+                      <SelectItem value="suspended">Suspendidas</SelectItem>
+                      <SelectItem value="deleted">Eliminadas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <TeamMembersAdminTable
+                search={teamSearch.trim()}
+                status={teamStatus}
+                onMeta={({ count }) => setTeamTotal(count)}
+                onSetStatus={(m, status) => handleSetStatus({ user_id: m.member_id, email: m.member_email }, status)}
+                onDelete={(m) => setDeleteTarget({ user_id: m.member_id, email: m.member_email })}
               />
             </CardContent>
           </Card>
@@ -251,6 +341,9 @@ export default function AdminPlans() {
         open={!!detailBizId}
         onOpenChange={(open) => { if (!open) setDetailBizId(null) }}
         businessId={detailBizId}
+        statusPending={setStatusMutation.isPending}
+        onSetStatus={(b, status) => handleSetStatus({ user_id: b.business_id, email: b.email }, status)}
+        onDelete={(b) => { setDeleteTarget({ user_id: b.business_id, email: b.email }); setDetailBizId(null) }}
       />
       <SetPaymentDateDialog
         open={!!setDateBiz}
@@ -270,6 +363,20 @@ export default function AdminPlans() {
         onConfirm={async (payload) => {
           await recordPayMutation.mutateAsync(payload)
           setRecordPayBiz(null)
+        }}
+      />
+
+      {/* Borrado permanente (owner o miembro) */}
+      <ConfirmDeleteUserDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        target={deleteTarget}
+        preview={deletionPreview}
+        loadingPreview={loadingPreview}
+        submitting={deleteMutation.isPending}
+        onConfirm={async ({ targetUserId }) => {
+          await deleteMutation.mutateAsync(targetUserId)
+          setDeleteTarget(null)
         }}
       />
     </div>
