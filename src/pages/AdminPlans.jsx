@@ -25,8 +25,8 @@ import { BusinessesTable } from '@/components/admin/BusinessesTable'
 import { BusinessDetailDialog } from '@/components/admin/BusinessDetailDialog'
 import { SetPaymentDateDialog } from '@/components/admin/SetPaymentDateDialog'
 import { RecordPaymentDialog } from '@/components/admin/RecordPaymentDialog'
-import { TeamMembersAdminTable } from '@/components/admin/TeamMembersAdminTable'
 import { ConfirmDeleteUserDialog } from '@/components/admin/ConfirmDeleteUserDialog'
+import { BillingConfigCard } from '@/components/admin/BillingConfigCard'
 
 export default function AdminPlans() {
   const qc = useQueryClient()
@@ -51,12 +51,7 @@ export default function AdminPlans() {
   const [setDateBiz, setSetDateBiz] = useState(null)
   const [recordPayBiz, setRecordPayBiz] = useState(null)
 
-  // --- Equipo ---
-  const [teamSearch, setTeamSearch] = useState('')
-  const [teamStatus, setTeamStatus] = useState('all')
-  const [teamTotal, setTeamTotal] = useState(0)
-
-  // Objetivo de borrado permanente (owner o miembro): { user_id, email }
+  // Objetivo de borrado permanente del dueño de un negocio: { user_id, email }
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const dateRange = useMemo(() => ({
@@ -67,13 +62,11 @@ export default function AdminPlans() {
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['admin-plan-change-requests'] })
     qc.invalidateQueries({ queryKey: ['admin-businesses'] })
-    qc.invalidateQueries({ queryKey: ['admin-team-members'] })
   }
 
   const invalidateUsers = () => {
     qc.invalidateQueries({ queryKey: ['admin-businesses'] })
     qc.invalidateQueries({ queryKey: ['admin-business-detail'] })
-    qc.invalidateQueries({ queryKey: ['admin-team-members'] })
     qc.invalidateQueries({ queryKey: ['accountStatus'] })
   }
 
@@ -152,13 +145,15 @@ export default function AdminPlans() {
         </Button>
       </div>
 
-      <AdminSetBusinessPlanCard onSuccess={invalidateAll} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <AdminSetBusinessPlanCard onSuccess={invalidateAll} />
+        <BillingConfigCard />
+      </div>
 
       <Tabs defaultValue="requests">
         <TabsList>
           <TabsTrigger value="requests">Solicitudes</TabsTrigger>
           <TabsTrigger value="businesses">Negocios</TabsTrigger>
-          <TabsTrigger value="team">Equipo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests">
@@ -272,41 +267,6 @@ export default function AdminPlans() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="team">
-          <Card>
-            <CardHeader className="space-y-3">
-              <CardTitle>Subcuentas de equipo · {teamTotal} registros</CardTitle>
-              <div className="grid items-end gap-3 md:grid-cols-4">
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Buscar</Label>
-                  <Input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)} placeholder="Email del miembro o del negocio" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Estado de cuenta</Label>
-                  <Select value={teamStatus} onValueChange={setTeamStatus}>
-                    <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="active">Activas</SelectItem>
-                      <SelectItem value="suspended">Suspendidas</SelectItem>
-                      <SelectItem value="deleted">Eliminadas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <TeamMembersAdminTable
-                search={teamSearch.trim()}
-                status={teamStatus}
-                onMeta={({ count }) => setTeamTotal(count)}
-                onSetStatus={(m, status) => handleSetStatus({ user_id: m.member_id, email: m.member_email }, status)}
-                onDelete={(m) => setDeleteTarget({ user_id: m.member_id, email: m.member_email })}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Diálogos de solicitudes */}
@@ -366,7 +326,7 @@ export default function AdminPlans() {
         }}
       />
 
-      {/* Borrado permanente (owner o miembro) */}
+      {/* Borrado permanente del dueño de un negocio */}
       <ConfirmDeleteUserDialog
         open={!!deleteTarget}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}

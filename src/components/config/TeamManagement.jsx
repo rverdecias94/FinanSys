@@ -48,22 +48,22 @@ export function TeamManagement() {
         setSelectedRole(def.id)
       }
     }
-    ;(async () => {
-      try {
-        const rolesData = await getRoles()
-        const nextRoles = (rolesData || []).filter(allowedRole)
-        if (!active) return
-        setRoles(nextRoles)
-        applyDefaultRole(nextRoles)
-        writeLocalCache(`team:roles:${biz}`, nextRoles)
-      } catch {
-        const cachedRoles = readLocalCache(`team:roles:${biz}`)
-        if (active && cachedRoles) {
-          setRoles(cachedRoles)
-          applyDefaultRole(cachedRoles)
+      ; (async () => {
+        try {
+          const rolesData = await getRoles()
+          const nextRoles = (rolesData || []).filter(allowedRole)
+          if (!active) return
+          setRoles(nextRoles)
+          applyDefaultRole(nextRoles)
+          writeLocalCache(`team:roles:${biz}`, nextRoles)
+        } catch {
+          const cachedRoles = readLocalCache(`team:roles:${biz}`)
+          if (active && cachedRoles) {
+            setRoles(cachedRoles)
+            applyDefaultRole(cachedRoles)
+          }
         }
-      }
-    })()
+      })()
     return () => { active = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, businessId])
@@ -90,7 +90,7 @@ export function TeamManagement() {
   const handleInvite = async () => {
     const limit = PLAN_LIMITS?.[subscription?.plan_id || 'free']?.partners ?? 0
     if (memberCount >= limit) {
-      toast.error('Has alcanzado el límite de socios para tu plan.')
+      toast.error('Has alcanzado el límite de miembros de equipo para tu plan.')
       return
     }
 
@@ -211,7 +211,7 @@ export function TeamManagement() {
     <Card>
       <CardHeader>
         <CardTitle>Gestión de Equipo</CardTitle>
-        <CardDescription>Agrega socios para colaborar en tu cuenta y asigna roles específicos.</CardDescription>
+        <CardDescription>Agrega miembros de equipo para colaborar en tu cuenta y asigna roles específicos.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 items-end bg-muted/20 p-4 rounded-lg border">
@@ -256,7 +256,7 @@ export function TeamManagement() {
           onMeta={({ count }) => setMemberCount(count)}
           getItemKey={(m) => m.id}
           renderItem={renderMember}
-          emptyMessage="No hay socios en el equipo."
+          emptyMessage="No hay miembros de equipo en el equipo."
           loadingMessage="Cargando equipo..."
         />
       </CardContent>

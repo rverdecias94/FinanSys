@@ -21,11 +21,11 @@ export function PlansPanel() {
   const premiumPricing = pricing?.premium || {}
   const cycleOptions = [
     { id: 'monthly', label: 'Mensual', price: premiumPricing.monthly ?? 10, suffix: '/mes' },
-    { id: 'quarterly', label: 'Trimestral', price: premiumPricing.quarterly ?? 30, suffix: '/trim.' },
+    { id: 'semiannual', label: 'Semestral', price: premiumPricing.semiannual ?? 57, suffix: '/6 meses', save: premiumPricing.semiannual_discount_pct ?? 5 },
     { id: 'annual', label: 'Anual', price: premiumPricing.annual ?? 102, suffix: '/año', save: premiumPricing.annual_discount_pct ?? 15 }
   ]
 
-  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }[cycle] || 'Mensual')
+  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }[cycle] || 'Mensual')
   const formatDate = (value) => {
     try {
       return new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -70,7 +70,7 @@ export function PlansPanel() {
           `${areasFree} Áreas de Inventario`,
           '1 Moneda Activa',
           'Reportes Básicos (Solo lectura)',
-          partnersFree ? `Hasta ${partnersFree} Socios` : 'Sin Socios'
+          partnersFree ? `Hasta ${partnersFree} miembros de equipo` : 'Sin miembros de equipo'
         ]
       },
       {
@@ -84,7 +84,7 @@ export function PlansPanel() {
           'Áreas Ilimitadas',
           'Múltiples Monedas',
           'Reportes Avanzados + Exportación',
-          `Hasta ${partnersPremium} Socios`,
+          `Hasta ${partnersPremium} miembros de equipo`,
           'Logs de Auditoría'
         ]
       }

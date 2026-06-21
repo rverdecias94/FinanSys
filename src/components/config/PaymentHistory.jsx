@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useBusiness } from '@/context/BusinessContext'
 import { getMyPayments } from '@/services/billing'
 
-const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }
+const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
 const METHOD_LABEL = { transferencia: 'Transferencia', efectivo: 'Efectivo', acuerdo: 'Acuerdo comercial', otro: 'Otro' }
 const PAGE_SIZE = 100
 

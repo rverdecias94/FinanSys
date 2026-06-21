@@ -1,19 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfirmDeleteUserDialog } from './ConfirmDeleteUserDialog'
-
-// Forzar modo desktop (paginación) para un render determinista del listado.
-vi.mock('@/hooks/useIsMobile', () => ({ useIsMobile: () => false }))
-// Mockear solo la llamada de red; conservar ACCOUNT_STATE real.
-vi.mock('@/services/adminUsers', async (importOriginal) => {
-  const actual = await importOriginal()
-  return { ...actual, listTeamMembers: vi.fn() }
-})
-
-import { listTeamMembers } from '@/services/adminUsers'
-import { TeamMembersAdminTable } from './TeamMembersAdminTable'
 
 afterEach(() => cleanup())
 
@@ -65,49 +53,5 @@ describe('ConfirmDeleteUserDialog', () => {
     render(<ConfirmDeleteUserDialog open target={target} preview={null} loadingPreview submitting={false} onConfirm={vi.fn()} />)
     expect(screen.getByText(/Calculando impacto/i)).toBeInTheDocument()
     expect(deleteBtn()).toBeDisabled()
-  })
-})
-
-function renderWithClient(ui) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
-}
-
-describe('TeamMembersAdminTable', () => {
-  const member = {
-    team_member_id: 'tm1',
-    member_id: 'm1',
-    member_email: 'mem@x.com',
-    owner_email: 'own@x.com',
-    role: 'Editor',
-    membership_status: 'active',
-    account_status: 'active'
-  }
-
-  it('lista subcuentas y dispara las acciones suspender/eliminar', async () => {
-    const user = userEvent.setup()
-    listTeamMembers.mockResolvedValue({ data: [member], count: 1 })
-    const onSetStatus = vi.fn()
-    const onDelete = vi.fn()
-
-    renderWithClient(
-      <TeamMembersAdminTable search="" status="all" onMeta={vi.fn()} onSetStatus={onSetStatus} onDelete={onDelete} />
-    )
-
-    expect(await screen.findByText('mem@x.com')).toBeInTheDocument()
-    expect(screen.getByText(/Negocio: own@x.com/)).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /Suspender/i }))
-    expect(onSetStatus).toHaveBeenCalledWith(member, 'suspended')
-
-    await user.click(screen.getByRole('button', { name: /Eliminar/i }))
-    expect(onDelete).toHaveBeenCalledWith(member)
-  })
-
-  it('muestra "Reactivar" para cuentas suspendidas', async () => {
-    listTeamMembers.mockResolvedValue({ data: [{ ...member, account_status: 'suspended' }], count: 1 })
-    renderWithClient(<TeamMembersAdminTable search="" status="all" onMeta={vi.fn()} onSetStatus={vi.fn()} onDelete={vi.fn()} />)
-    expect(await screen.findByText('Suspendida')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Reactivar/i })).toBeInTheDocument()
   })
 })

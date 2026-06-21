@@ -19,8 +19,8 @@ export function DowngradeFinalStep({ preview, selectedCurrencyCode, selectedArea
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground">Socios</div>
-            <div className="text-sm">{partnersCount} usuarios perderán acceso</div>
+            <div className="text-xs text-muted-foreground">Miembros de equipo</div>
+            <div className="text-sm">{partnersCount} Usuarios perderán acceso</div>
           </div>
 
           <div>

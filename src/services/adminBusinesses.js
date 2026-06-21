@@ -1,6 +1,6 @@
 import { supabase } from '@/config/supabase'
 
-export const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }
+export const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
 
 // Etiqueta + clases (tokens) por estado de pago. Verde=al día, ámbar=por vencer,
 // rojo=gracia/bloqueado, neutro=gratis.
@@ -26,6 +26,22 @@ export async function listBusinesses({ search, plan, paymentState, page = 1, pag
 
 export async function getBusinessDetail(businessId) {
   const { data, error } = await supabase.rpc('admin_get_business_detail', { p_business_id: businessId })
+  if (error) throw error
+  return data
+}
+
+// Config global de aviso/gracia (días). Solo admin (RPC gated).
+export async function getBillingConfig() {
+  const { data, error } = await supabase.rpc('admin_get_billing_config')
+  if (error) throw error
+  return data
+}
+
+export async function setBillingConfig({ reminderLeadDays, graceDays }) {
+  const { data, error } = await supabase.rpc('admin_set_billing_config', {
+    p_reminder_lead_days: Number(reminderLeadDays),
+    p_grace_days: Number(graceDays)
+  })
   if (error) throw error
   return data
 }

@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const CYCLE_MONTHS = { monthly: 1, quarterly: 3, annual: 12 }
-const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', annual: 'Anual' }
+const CYCLE_MONTHS = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }
+const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
 
 export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitting, onApprove }) {
   const [billingCycle, setBillingCycle] = useState('monthly')
@@ -51,7 +51,7 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="monthly">Mensual (1 mes)</SelectItem>
-                <SelectItem value="quarterly">Trimestral (3 meses)</SelectItem>
+                <SelectItem value="semiannual">Semestral (6 meses)</SelectItem>
                 <SelectItem value="annual">Anual (12 meses)</SelectItem>
               </SelectContent>
             </Select>

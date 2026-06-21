@@ -11,13 +11,13 @@ export function DowngradeTeamStep({ members }) {
       </p>
 
       <div className="rounded-md border p-3">
-        <div className="text-sm font-medium">Socios afectados</div>
+        <div className="text-sm font-medium">Miembros de equipo afectados</div>
         <div className="mt-2 text-sm text-muted-foreground">{affected.length} usuarios perderán acceso</div>
         <div className="mt-3">
           <ScrollArea className="h-[180px] rounded-md border">
             <div className="divide-y">
               {affected.length === 0 ? (
-                <div className="p-3 text-sm text-muted-foreground">No hay socios activos o pendientes.</div>
+                <div className="p-3 text-sm text-muted-foreground">No hay miembros de equipo activos o pendientes.</div>
               ) : (
                 affected.map((m) => (
                   <div key={m.id} className="flex items-center justify-between gap-3 p-3 text-sm">

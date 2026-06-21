@@ -19,8 +19,8 @@ export function DowngradeSummaryStep({ preview, activeCurrencies, sortedAreas, a
         </div>
         <div className="rounded-md border p-3">
           <div className="text-sm font-medium">Equipo</div>
-          <div className="text-sm text-muted-foreground">Los socios perderán acceso al negocio.</div>
-          <div className="mt-2 text-xs text-muted-foreground">Socios afectados: {partnersCount}</div>
+          <div className="text-sm text-muted-foreground">Los miembros de equipo perderán acceso al negocio.</div>
+          <div className="mt-2 text-xs text-muted-foreground">Miembros de equipo afectados: {partnersCount}</div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-sm font-medium">Inventario</div>
