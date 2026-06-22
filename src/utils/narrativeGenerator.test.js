@@ -17,7 +17,7 @@ describe('narrativeGenerator — P2.5 moneda no-ISO', () => {
     expect(() => { report = generateFinanceReport(txs, dateFilter) }).not.toThrow()
     expect(report).toBeTruthy()
 
-    const table = report.sections.find(s => s.type === 'table' && /Estado de Resultados/.test(s.title))
+    const table = report.sections.find(s => s.type === 'table' && /Resumen de Ingresos y Gastos/.test(s.title))
     expect(table).toBeTruthy()
     // Fila "Ingresos totales": número formateado + código (fallback), no NaN ni crash.
     expect(table.rows[0][1]).toMatch(/\d.*BITCOIN/)
@@ -27,7 +27,7 @@ describe('narrativeGenerator — P2.5 moneda no-ISO', () => {
   it('formatea con símbolo cuando el código ISO es válido (USD)', () => {
     const txs = [{ type: 'income', amount: 1000, currency: 'USD', category: 'Ventas', date: '2026-06-01' }]
     const report = generateFinanceReport(txs, dateFilter)
-    const table = report.sections.find(s => s.type === 'table' && /Estado de Resultados/.test(s.title))
+    const table = report.sections.find(s => s.type === 'table' && /Resumen de Ingresos y Gastos/.test(s.title))
     expect(table).toBeTruthy()
     expect(table.rows[0][1]).not.toMatch(/NaN/)
   })

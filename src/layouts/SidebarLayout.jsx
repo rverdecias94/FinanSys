@@ -120,7 +120,7 @@ export default function SidebarLayout() {
           <PermissionGuard requiredPermission="logs.view">
             <NavLink to="/logs" className={linkClass}>
               <ShieldAlert className="w-4 h-4" />
-              <span>Auditoría</span>
+              <span>Bitácora</span>
             </NavLink>
           </PermissionGuard>
 

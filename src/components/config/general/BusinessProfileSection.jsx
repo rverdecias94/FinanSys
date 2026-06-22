@@ -23,7 +23,7 @@ export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile
           <Building2 className="h-5 w-5" />
           Perfil de la Empresa
         </CardTitle>
-        <CardDescription>Datos obligatorios para facturas, reportes y documentos.</CardDescription>
+        <CardDescription>Datos que aparecen en tus reportes y documentos exportados.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-4 lg:grid-cols-2">

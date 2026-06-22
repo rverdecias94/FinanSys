@@ -108,7 +108,7 @@ export function DashboardPermissions({ userRole = 'Consultor' }) {
       }
     },
     {
-      name: 'Auditoría',
+      name: 'Bitácora',
       icon: '📝',
       permissions: {
         view: canView('logs'),
@@ -140,7 +140,7 @@ export function DashboardPermissions({ userRole = 'Consultor' }) {
     if (canEdit('finanzas') && canEdit('warehouse') && canEdit('inventory')) {
       return {
         title: 'Editor',
-        description: 'Puede ver y editar Finanzas, Almacén, Inventario y Reportes. Sin acceso a Configuración ni Auditoría',
+        description: 'Puede ver y editar Finanzas, Almacén, Inventario y Reportes. Sin acceso a Configuración ni Bitácora',
         color: 'text-blue-600 bg-blue-100'
       }
     }
@@ -301,7 +301,7 @@ export function DashboardPermissions({ userRole = 'Consultor' }) {
                 <div className="flex items-start gap-2 p-3 bg-red-50 rounded-lg">
                   <XCircle className="w-4 h-4 text-red-600 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-red-800">Auditoría</p>
+                    <p className="text-sm font-medium text-red-800">Bitácora</p>
                     <p className="text-sm text-red-700">No puedes ver el historial de actividades del sistema</p>
                   </div>
                 </div>

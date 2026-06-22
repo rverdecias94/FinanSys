@@ -23,7 +23,7 @@ describe('LogsMejorado · gating Premium', () => {
     useSubscription.mockReturnValue({ canAccessFeature: () => false, loading: false })
     render(<LogsMejorado />)
 
-    expect(screen.getByText('La Auditoría es una función Premium')).toBeInTheDocument()
+    expect(screen.getByText('La Bitácora de actividad es una función Premium')).toBeInTheDocument()
     expect(screen.queryByText('LISTADO_AUDITORIA')).toBeNull()
   })
 
@@ -32,7 +32,7 @@ describe('LogsMejorado · gating Premium', () => {
     render(<LogsMejorado />)
 
     expect(screen.getByText('LISTADO_AUDITORIA')).toBeInTheDocument()
-    expect(screen.queryByText('La Auditoría es una función Premium')).toBeNull()
+    expect(screen.queryByText('La Bitácora de actividad es una función Premium')).toBeNull()
   })
 
   it('mientras carga el plan no bloquea (fail-open): muestra el listado', () => {

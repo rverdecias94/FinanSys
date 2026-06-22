@@ -16,7 +16,7 @@ export default defineConfig({
       manifest: {
         name: 'Gestia',
         short_name: 'Gestia',
-        description: 'Gestión financiera y contable para tu negocio, simple y sin complicaciones.',
+        description: 'Gestión de caja, cobros/pagos e inventario para tu negocio, simple y sin complicaciones.',
         lang: 'es',
         theme_color: '#1aa06a',
         background_color: '#ffffff',
@@ -79,6 +79,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/tests/setupTests.js']
+    setupFiles: ['./src/tests/setupTests.js'],
+    // El entorno jsdom de este equipo es lento (setup/environment ~30-60s); el
+    // timeout por defecto de 5s producía flakiness en tests de integración UI.
+    testTimeout: 15000,
+    hookTimeout: 15000
   }
 });

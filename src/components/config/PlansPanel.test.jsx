@@ -14,6 +14,11 @@ vi.mock('@/context/BusinessContext', () => ({
   useBusiness: vi.fn()
 }))
 
+// Hijos no probados aquí: se aíslan para que el test sea rápido y determinista
+// (PaymentHistory usa React Query; evita fetch/retardos que causaban flakiness).
+vi.mock('@/components/config/PaymentHistory', () => ({ PaymentHistory: () => null }))
+vi.mock('@/components/config/DowngradeToFreeDialog', () => ({ DowngradeToFreeDialog: () => null }))
+
 // PlansPanel renderiza PaymentHistory (usa React Query); proveer un cliente.
 const renderPanel = (ui) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -30,7 +35,7 @@ describe('PlansPanel', () => {
   })
 
   it('shows pending request banner and allows cancel', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const cancelPendingPremiumRequest = vi.fn().mockResolvedValue({ status: 'cancelled' })
 
     useBusiness.mockReturnValue({ isOwner: true })
@@ -57,7 +62,7 @@ describe('PlansPanel', () => {
   })
 
   it('opens request dialog and submits requestPremium', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const requestPremium = vi.fn().mockResolvedValue({ request_id: 'r1', status: 'pending' })
 
     useBusiness.mockReturnValue({ isOwner: true })

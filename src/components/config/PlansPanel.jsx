@@ -85,7 +85,7 @@ export function PlansPanel() {
           'Múltiples Monedas',
           'Reportes Avanzados + Exportación',
           `Hasta ${partnersPremium} miembros de equipo`,
-          'Logs de Auditoría'
+          'Bitácora de actividad'
         ]
       }
     ]

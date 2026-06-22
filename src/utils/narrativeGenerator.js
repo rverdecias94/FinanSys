@@ -87,7 +87,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   const metadata = [
     { label: "Período analizado", value: periodLabel },
     { label: "Fecha de emisión", value: reportDate },
-    { label: currencies.length > 1 ? "Monedas funcionales" : "Moneda funcional", value: currencies.join(' / ') },
+    { label: currencies.length > 1 ? "Monedas" : "Moneda", value: currencies.join(' / ') },
     { label: "Base de preparación", value: "Movimientos de caja registrados (base de efectivo)" }
   ];
 
@@ -149,11 +149,11 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   ];
 
   const resultNote = currencies.length > 1
-    ? `El estado de resultados se presenta segregado por moneda funcional, sin conversión a una unidad de reporte única; su lectura consolidada debe considerar la exposición cambiaria entre las monedas operadas.`
-    : `Estado de resultados elaborado sobre base de efectivo, según los movimientos registrados en el período. El resultado neto refleja la diferencia entre ingresos y egresos efectivamente contabilizados.`
+    ? `El resumen de ingresos y gastos se presenta por separado para cada moneda, sin convertir a una sola; para leerlo en conjunto, ten en cuenta la diferencia de cambio entre las monedas usadas.`
+    : `Resumen de ingresos y gastos del período (base de caja), según los movimientos registrados. El resultado neto es la diferencia entre el dinero que entró y el que salió.`
 
   sections.push({
-    title: prevByCurrency ? "3. Estado de Resultados" : "2. Estado de Resultados",
+    title: prevByCurrency ? "3. Resumen de Ingresos y Gastos" : "2. Resumen de Ingresos y Gastos",
     type: "table",
     headers: resultHeaders,
     rows: resultRows,
@@ -303,12 +303,12 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   if (dp.incomeTotal > 0 || dp.expenseTotal > 0) {
     const margin = dp.incomeTotal > 0 ? (dp.net / dp.incomeTotal) * 100 : null
     if (dp.net >= 0) {
-      conclusions.push(`**Resultado del ejercicio:** el período cerró con superávit de ${fmt(dp.net, primaryCurr)}${margin !== null ? ` y un margen neto del ${margin.toFixed(1)}%` : ''}, lo que evidencia capacidad de generación de excedentes y autofinanciación operativa.`)
+      conclusions.push(`**Resultado del período:** el período cerró con superávit de ${fmt(dp.net, primaryCurr)}${margin !== null ? ` y un margen neto del ${margin.toFixed(1)}%` : ''}, lo que evidencia capacidad de generación de excedentes y autofinanciación operativa.`)
     } else {
-      conclusions.push(`**Resultado del ejercicio:** el período cerró con déficit de ${fmt(dp.net, primaryCurr)}, situación que reduce el capital de trabajo disponible y exige medidas de contención del gasto o de incremento de ingresos.`)
+      conclusions.push(`**Resultado del período:** el período cerró con déficit de ${fmt(dp.net, primaryCurr)}, situación que reduce el capital de trabajo disponible y exige medidas de contención del gasto o de incremento de ingresos.`)
     }
   } else {
-    conclusions.push(`**Resultado del ejercicio:** no se registró actividad financiera relevante en el período analizado.`)
+    conclusions.push(`**Resultado del período:** no se registró actividad financiera relevante en el período analizado.`)
   }
 
   if (dp.expenseTotal > 0) {
@@ -316,7 +316,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     const topExp = Object.entries(expCats).sort((a, b) => b[1] - a[1])[0]
     if (topExp) {
       const share = (topExp[1] / dp.expenseTotal) * 100
-      conclusions.push(`**Estructura del gasto:** la partida "${topExp[0]}" concentra el ${share.toFixed(0)}% del egreso total (${fmt(topExp[1], primaryCurr)}); se recomienda su seguimiento prioritario en el control presupuestario.`)
+      conclusions.push(`**Estructura del gasto:** la categoría "${topExp[0]}" concentra el ${share.toFixed(0)}% del egreso total (${fmt(topExp[1], primaryCurr)}); se recomienda su seguimiento prioritario en el control presupuestario.`)
     }
   }
 
@@ -436,7 +436,7 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
   const metadata = [
     { label: "Período", value: dateFilter?.label },
     { label: "Fecha de emisión", value: reportDate },
-    { label: "Total Activos/Items", value: totalItems.toString() }
+    { label: "Total de ítems", value: totalItems.toString() }
   ];
 
   // Section 1: Summary
@@ -445,7 +445,7 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
   let inventorySummaryText = `El inventario se distribuye en ${inventorySummary.length} áreas operativas, con un total de ${totalItems} ítems registrados. `;
   if (topArea && totalItems > 0) {
     const share = ((topArea.itemsCount || 0) / totalItems) * 100;
-    inventorySummaryText += `El área "${topArea.name}" concentra la mayor densidad de activos (${topArea.itemsCount} ítems, ${share.toFixed(0)}% del total), lo que define el foco principal de control y valoración.`;
+    inventorySummaryText += `El área "${topArea.name}" concentra la mayor parte de las existencias (${topArea.itemsCount} ítems, ${share.toFixed(0)}% del total), lo que la convierte en el foco principal de control de existencias.`;
   }
 
   sections.push({
@@ -466,7 +466,7 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
   });
 
   return {
-    title: "Informe de Inventario de Activos",
+    title: "Informe de Inventario (Existencias)",
     metadata,
     sections
   };

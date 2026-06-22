@@ -50,6 +50,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "vitest",
+    "test:run": "vitest run",
     "preview": "vite preview"
   },
   "eslintConfig": {

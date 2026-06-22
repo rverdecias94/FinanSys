@@ -98,7 +98,7 @@ export default function Login() {
 
         <div className="relative z-10 max-w-lg space-y-6 mx-auto">
           <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-            Bienvenido a tu Sistema Contable
+            Bienvenido a tu gestor de caja e inventario
           </h2>
           <p className="text-base text-primary-foreground/80 leading-relaxed">
             Gestiona tus finanzas, controla tu inventario y analiza reportes detallados en una plataforma unificada diseñada para el crecimiento de tu negocio.
