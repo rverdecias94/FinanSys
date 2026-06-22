@@ -236,8 +236,12 @@ export function CurrenciesPanel() {
                         placeholder={`Ej. 420`}
                         value={value}
                         disabled={!isOwner}
+                        aria-invalid={value !== '' && !valid}
                         onChange={(e) => setDrafts((d) => ({ ...d, [c.code]: e.target.value }))}
                       />
+                      {value !== '' && !valid && (
+                        <p className="text-xs text-destructive">La tasa debe ser un número mayor que 0.</p>
+                      )}
                     </div>
                     {isOwner && (
                       <Button
