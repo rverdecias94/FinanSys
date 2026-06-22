@@ -11,6 +11,7 @@ import { useBusiness } from '@/context/BusinessContext'
 import { usePermissions } from '@/context/PermissionContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { getInventoryAreas, deleteArea } from '@/services/dynamicInventory'
+import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { AreaModal } from '@/components/inventario/AreaModal'
 import { FormRunner } from '@/components/inventario/FormRunner'
 import { FormBuilder } from '@/components/inventario/FormBuilder'
@@ -93,11 +94,19 @@ export default function InventarioMejorado() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <Layers className="w-8 h-8 text-primary" />
           </div>
-          Inventario
+          <div>
+            Inventario
+            <PlanLimitFeedback metric="areas" label="Áreas" currentCount={areas.length} className="mt-1" />
+          </div>
         </h1>
 
         {isOwner && (
-          <Button onClick={openCreateArea} className="gap-2" disabled={!canCreateArea}>
+          <Button
+            onClick={openCreateArea}
+            className="gap-2"
+            disabled={!canCreateArea}
+            title={!canCreateArea ? 'Has alcanzado el límite de áreas de tu plan. Mejora a Premium para crear más.' : undefined}
+          >
             <Plus className="w-4 h-4" />
             Crear Nueva Área
           </Button>

@@ -8,6 +8,7 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { AlmacenDashboard } from '@/components/almacen/AlmacenDashboard'
+import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { notify } from '@/services/notifications'
@@ -93,7 +94,10 @@ export default function AlmacenMejorado() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <Package className="w-8 h-8 text-primary" />
           </div>
-          Almacén
+          <div>
+            Almacén
+            <PlanLimitFeedback metric="products" label="Productos" className="mt-1" />
+          </div>
         </h1>
 
         <div className="flex gap-2">

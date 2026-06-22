@@ -18,12 +18,13 @@ import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function FinanzasMejorado() {
   const { session } = useSession()
   const { businessId, loading: businessLoading } = useBusiness()
-  const { checkLimit, recordUsage, getRemainingUsage, subscription, PLAN_LIMITS } = useSubscription()
+  const { checkLimit, recordUsage } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { canView, canEdit, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
@@ -43,10 +44,6 @@ export default function FinanzasMejorado() {
   const handleDateSelect = (filter) => {
     setDateFilter(filter)
   }
-
-  const remainingTransactions = getRemainingUsage('monthly_transactions')
-  const transactionsLimit = (PLAN_LIMITS?.[subscription?.plan_id || 'free']?.monthly_transactions) ?? 40
-  const remainingDisplay = transactionsLimit === Infinity ? 'Ilimitadas' : remainingTransactions
 
   // Queries
   const { data: categories } = useQuery({
@@ -227,11 +224,7 @@ export default function FinanzasMejorado() {
           </div>
           <div>
             Finanzas
-            {subscription?.plan_id === 'free' && (
-              <div className="text-xs font-normal text-muted-foreground mt-1">
-                Transacciones restantes: {remainingDisplay} / {transactionsLimit}
-              </div>
-            )}
+            <PlanLimitFeedback metric="monthly_transactions" label="Transacciones" className="mt-1" />
           </div>
         </h1>
 
