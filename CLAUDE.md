@@ -40,6 +40,14 @@
 - ⚠️ Mezcla de idiomas en los códigos (`finanzas.view` vs `warehouse.view`/`inventory.view`) — revisar consistencia.
 - **Defensa en profundidad:** el control en cliente NO basta; **debe respaldarse con RLS en Supabase**. (Pendiente de confirmar por auditoría.)
 
+### 4.1 INVARIANTE — Identidad de miembro de equipo (NO romper)
+- **La resolución de identidad (owner vs miembro) ocurre en `src/context/BusinessContext.jsx`** vía RPC `get_user_business_context`. Un miembro **activo** resuelve `{ businessId: owner_id, isOwner: false }`; cualquier otro caso → `{ businessId: self, isOwner: true }`.
+- **`acceptPendingInvitations(email)` DEBE llamarse en `BusinessContext.resolveBusinessContext` ANTES de `getBusinessContext`** (solo si `navigator.onLine`). Es lo que vincula la invitación pendiente (`team_members.status 'pending' → 'active'`, `member_id`) en **TODAS** las vías de entrada: login, **confirmación de email**, recarga y restauración de sesión.
+  - ⚠️ Si esta llamada se quita (pasó en el commit `c30fd84`, dejándola solo en `Login.jsx`), un miembro que entra por confirmación de email/recarga se resuelve como **owner nuevo** → ve el asistente de titular (`OnboardingWizard`) y se le crea una **suscripción free propia** (`ensureOwnerSubscription` en `Login.jsx`), comportándose como cuenta nueva en vez de mostrar los datos del negocio titular.
+  - Guard de regresión: `src/context/BusinessContext.test.jsx` verifica que `acceptPendingInvitations` se invoca al resolver y que un miembro expone `isOwner:false`.
+- El **asistente de onboarding** (`useOnboardingStatus`) solo aplica a `isOwner === true`; los miembros nunca lo ven. Por tanto, si la identidad de miembro se resuelve mal, el síntoma visible es "el miembro ve el formulario de titular".
+- Backend (verificado, correcto): `accept_invitation_for_current_user` y `get_user_business_context` son `SECURITY DEFINER`; el INSERT de invitación (`inviteMember`) pasa por RLS `team_members_manage` (`is_premium(owner_id) AND has_permission_secure(owner_id,'team.manage')`); `has_permission_secure` devuelve `TRUE` cuando `auth.uid() = target_owner_id` (el owner tiene todos los permisos). **No** crear miembros con el owner en plan free (RLS lo bloquea + el cliente avisa del límite).
+
 ## 5. Tema y semántica de color (verificado en `src/index.css` + `tailwind.config.js`)
 - **Modo claro/oscuro** vía clase `.dark` (`darkMode: ["class"]`) y variables HSL en `:root` / `.dark`.
 - Variables clave ya existen: `--success` (verde), `--destructive` (rojo), `--warning` (ámbar), `--chart-1..5`.

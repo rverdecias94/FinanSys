@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSession } from '@/hooks/useSession'
-import { getBusinessContext } from '@/services/team'
+import { getBusinessContext, acceptPendingInvitations } from '@/services/team'
 import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const BusinessContext = createContext({})
@@ -45,10 +45,25 @@ export function BusinessProvider({ children }) {
     }
 
     const userId = session.user.id
+    const email = session.user.email
     setLoading(true)
     setError(null)
 
     try {
+      // Vincular invitaciones pendientes ANTES de resolver el contexto, en CUALQUIER
+      // vía de entrada (login, confirmación de email, recarga, restauración de sesión).
+      // Si no se hace, un miembro recién invitado se resuelve como "owner por defecto"
+      // y ve el asistente de titular en lugar de los datos del negocio.
+      // REGRESIÓN: el commit c30fd84 quitó esta llamada (quedó solo en Login.jsx);
+      // se reintroduce aquí para que el flujo de miembro funcione en todas las vías.
+      if (email && (typeof navigator === 'undefined' || navigator.onLine)) {
+        try {
+          await acceptPendingInvitations(email)
+        } catch {
+          // No bloquear el arranque si la aceptación falla; se reintenta en la próxima carga.
+        }
+      }
+
       const context = await getBusinessContext(userId)
 
       // Offline y sin respuesta del servidor: restaurar el contexto REAL guardado.
