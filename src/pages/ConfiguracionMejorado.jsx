@@ -10,6 +10,7 @@ import { RoleManagement } from '@/components/config/RoleManagement'
 import { PlansPanel } from '@/components/config/PlansPanel'
 import { CurrenciesPanel } from '@/components/config/CurrenciesPanel'
 import { GeneralSettingsPanel } from '@/components/config/GeneralSettingsPanel'
+import { PremiumFeatureScreen } from '@/components/auth/PremiumFeatureScreen'
 
 export default function ConfiguracionMejorado() {
   const { canView, isOwner, hasPermission } = usePermissionCheck()
@@ -17,7 +18,9 @@ export default function ConfiguracionMejorado() {
 
   const isPremium = subscription?.plan_id === 'premium'
   const canManageTeam = isOwner || hasPermission('team.manage')
-  const showTeamTabs = canManageTeam && isPremium
+  // Las pestañas Equipo/Roles se MUESTRAN aunque la cuenta sea gratis (para dar a
+  // conocer la función); el contenido es la pantalla Premium si no es de pago.
+  const showTeamTabs = canManageTeam
 
   if (!canView('config')) {
     return (
@@ -134,13 +137,29 @@ export default function ConfiguracionMejorado() {
 
         {showTeamTabs && (
           <TabsContent value="equipo" className="space-y-4">
-            <TeamManagement />
+            {isPremium ? (
+              <TeamManagement />
+            ) : (
+              <PremiumFeatureScreen
+                icon={Users}
+                title="La Gestión de Equipo es Premium"
+                description="Invita colaboradores a tu negocio, asígnales roles y trabajen juntos con permisos controlados y registro de auditoría. Mejora a Premium para activar tu equipo."
+              />
+            )}
           </TabsContent>
         )}
 
         {showTeamTabs && (
           <TabsContent value="roles" className="space-y-4">
-            <RoleManagement />
+            {isPremium ? (
+              <RoleManagement />
+            ) : (
+              <PremiumFeatureScreen
+                icon={Shield}
+                title="Los Roles personalizados son Premium"
+                description="Crea roles a la medida (Editor, Consultor o los tuyos) y define con precisión qué puede ver y hacer cada miembro. Disponible al mejorar a Premium."
+              />
+            )}
           </TabsContent>
         )}
 
