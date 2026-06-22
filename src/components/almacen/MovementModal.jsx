@@ -9,12 +9,14 @@ import { registerMovement } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { movementSchema, validateForm } from '@/utils/formSchemas'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const safeProducts = Array.isArray(products) ? products : []
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState({})
   const [formData, setFormData] = useState({
     product_id: '',
     qty: '',
@@ -23,6 +25,21 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const validation = validateForm(movementSchema, {
+      product_id: formData.product_id,
+      type: formData.type,
+      qty: String(formData.qty ?? '')
+    })
+    if (!validation.success) {
+      setErrors(validation.errors)
+      return
+    }
+    // Regla contextual: una salida no puede exceder el stock disponible.
+    if (formData.type === 'out' && selectedProduct && Number(formData.qty) > selectedProduct.stock) {
+      setErrors({ qty: 'La cantidad excede el stock disponible' })
+      return
+    }
+    setErrors({})
     setLoading(true)
     try {
       const effectiveBusinessId = businessId || session?.user?.id
@@ -49,6 +66,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
       onOpenChange(nextOpen)
       if (!nextOpen) {
         setFormData({ product_id: '', qty: '', type: 'in' })
+        setErrors({})
       }
     }}>
       <DialogContent>
@@ -61,9 +79,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
             <Select
               value={formData.product_id}
               onValueChange={v => setFormData({ ...formData, product_id: v })}
-              required
             >
-              <SelectTrigger>
+              <SelectTrigger aria-invalid={!!errors.product_id}>
                 <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
@@ -74,6 +91,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
                 ))}
               </SelectContent>
             </Select>
+            {errors.product_id && <p className="text-xs text-destructive">{errors.product_id}</p>}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
@@ -99,8 +117,9 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
                 min="1"
                 value={formData.qty}
                 onChange={e => setFormData({ ...formData, qty: e.target.value })}
-                required
+                aria-invalid={!!errors.qty}
               />
+              {errors.qty && <p className="text-xs text-destructive">{errors.qty}</p>}
             </div>
           </div>
 

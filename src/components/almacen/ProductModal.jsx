@@ -11,6 +11,7 @@ import { useBusiness } from '@/context/BusinessContext'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { usePermissions } from '@/context/PermissionContext'
+import { productSchema, validateForm } from '@/utils/formSchemas'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories, currencies = [] }) {
   const { session } = useSession()
@@ -29,8 +30,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     min_stock: 5
   })
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
+    setErrors({})
     if (product) {
       setFormData({
         name: product.name,
@@ -54,6 +57,19 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const validation = validateForm(productSchema, {
+      name: formData.name,
+      category: formData.category || '',
+      unit_price: String(formData.unit_price ?? ''),
+      currency: formData.currency,
+      stock: String(formData.stock ?? ''),
+      min_stock: String(formData.min_stock ?? '')
+    })
+    if (!validation.success) {
+      setErrors(validation.errors)
+      return
+    }
+    setErrors({})
     setLoading(true)
     try {
       const payload = {
@@ -116,8 +132,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             <Input
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
-              required
+              aria-invalid={!!errors.name}
             />
+            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
 
           <div className="grid gap-2">
@@ -143,11 +160,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               <Input
                 type="number"
                 step="0.01"
-                min="0"
                 value={formData.unit_price}
                 onChange={e => setFormData({ ...formData, unit_price: e.target.value })}
-                required
+                aria-invalid={!!errors.unit_price}
               />
+              {errors.unit_price && <p className="text-xs text-destructive">{errors.unit_price}</p>}
             </div>
             <div className="grid gap-2">
               <Label>Moneda</Label>
@@ -173,21 +190,21 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               <Label>Stock Actual</Label>
               <Input
                 type="number"
-                min="0"
                 value={formData.stock}
                 onChange={e => setFormData({ ...formData, stock: e.target.value })}
-                required
+                aria-invalid={!!errors.stock}
               />
+              {errors.stock && <p className="text-xs text-destructive">{errors.stock}</p>}
             </div>
             <div className="grid gap-2">
               <Label>Stock Mínimo (Alerta)</Label>
               <Input
                 type="number"
-                min="0"
                 value={formData.min_stock}
                 onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
-                required
+                aria-invalid={!!errors.min_stock}
               />
+              {errors.min_stock && <p className="text-xs text-destructive">{errors.min_stock}</p>}
             </div>
           </div>
 

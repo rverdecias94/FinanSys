@@ -6,16 +6,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { contactSchema, validateForm } from '@/utils/formSchemas'
 
 const EMPTY = { name: '', kind: 'cliente', phone: '', email: '', notes: '' }
 
 export function ContactModal({ open, onOpenChange, contact, onSubmit, submitting = false, readOnly = false }) {
   const [form, setForm] = useState(EMPTY)
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (!open) return
-    setError('')
+    setErrors({})
     setForm(contact
       ? {
         name: contact.name || '',
@@ -33,10 +34,18 @@ export function ContactModal({ open, onOpenChange, contact, onSubmit, submitting
   }
 
   const handleSubmit = () => {
-    if (!form.name.trim()) {
-      setError('El nombre es obligatorio')
+    const validation = validateForm(contactSchema, {
+      name: form.name,
+      kind: form.kind,
+      phone: form.phone || '',
+      email: form.email || '',
+      notes: form.notes || ''
+    })
+    if (!validation.success) {
+      setErrors(validation.errors)
       return
     }
+    setErrors({})
     onSubmit({ ...form, name: form.name.trim() })
   }
 
@@ -59,8 +68,9 @@ export function ContactModal({ open, onOpenChange, contact, onSubmit, submitting
               onChange={setField('name')}
               disabled={readOnly}
               placeholder="Nombre o razón social"
+              aria-invalid={!!errors.name}
             />
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
 
           <div className="grid gap-1.5">
@@ -80,11 +90,13 @@ export function ContactModal({ open, onOpenChange, contact, onSubmit, submitting
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label htmlFor="contact-phone">Teléfono</Label>
-              <Input id="contact-phone" value={form.phone} onChange={setField('phone')} disabled={readOnly} placeholder="Opcional" />
+              <Input id="contact-phone" value={form.phone} onChange={setField('phone')} disabled={readOnly} placeholder="Opcional" aria-invalid={!!errors.phone} />
+              {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="contact-email">Correo</Label>
-              <Input id="contact-email" type="email" value={form.email} onChange={setField('email')} disabled={readOnly} placeholder="Opcional" />
+              <Input id="contact-email" type="email" value={form.email} onChange={setField('email')} disabled={readOnly} placeholder="Opcional" aria-invalid={!!errors.email} />
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
           </div>
 
