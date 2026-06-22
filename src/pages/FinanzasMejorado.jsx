@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
 import { listContacts } from '@/services/contacts'
 import { Button } from '@/components/ui/button'
-import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye, Download } from 'lucide-react'
+import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
+import { ExportButton } from '@/components/common/ExportButton'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function FinanzasMejorado() {
@@ -230,10 +231,7 @@ export default function FinanzasMejorado() {
 
         <div className="flex gap-2">
           <PermissionGuard permission="finanzas.export">
-            <Button variant="outline" onClick={handleExport} loading={isExporting}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
+            <ExportButton format="excel" label="Exportar" size="default" loading={isExporting} onClick={handleExport} />
           </PermissionGuard>
 
           <PermissionGuard permission="finanzas.create">

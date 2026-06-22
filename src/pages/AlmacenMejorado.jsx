@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Package, Download } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Package } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { AlmacenDashboard } from '@/components/almacen/AlmacenDashboard'
 import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
+import { ExportButton } from '@/components/common/ExportButton'
 import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { notify } from '@/services/notifications'
@@ -102,10 +102,7 @@ export default function AlmacenMejorado() {
 
         <div className="flex gap-2">
           <PermissionGuard permission="warehouse.export">
-            <Button variant="outline" onClick={handleExportProducts}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
+            <ExportButton format="excel" label="Exportar" size="default" onClick={handleExportProducts} />
           </PermissionGuard>
         </div>
       </div>

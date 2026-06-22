@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ArrowDownCircle, ArrowUpCircle, FileSpreadsheet, FileText, FileType, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, FileText, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PermissionGuard } from '@/components/common/PermissionGuard'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { ExportButton } from '@/components/common/ExportButton'
 import { fetchTransactionsForExport, listTransactions } from '@/services/finanzas'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
@@ -329,7 +330,7 @@ const Reportes = () => {
             className="bg-blue-600 text-white hover:bg-blue-700 w-full mt-1"
             disabled={!dateFilter || previewLoading}
           >
-            <FileType className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+            <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
             Resumen General (DOCX)
           </Button>
         </PermissionGuard>
@@ -356,24 +357,13 @@ const Reportes = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('finanzas')} disabled={previewLoading}>
-                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
-                      {isMobile ? <span className="sr-only">Word</span> : 'Word'}
-                    </Button>
+                    <ExportButton format="word" disabled={previewLoading} onClick={() => handlePreview('finanzas')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')}>
-                      {canExportDocs
-                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
-                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
-                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
-                    </Button>
+                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportFinanzas('pdf')}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
-                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
-                    </Button>
+                    <ExportButton format="pdf" onClick={() => exportFinanzas('pdf')} />
                   </PermissionGuard>
                 </div>
               </CardHeader>
@@ -439,24 +429,13 @@ const Reportes = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('almacen')} disabled={previewLoading}>
-                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
-                      {isMobile ? <span className="sr-only">Resumen de Almacén</span> : 'Resumen de Almacén'}
-                    </Button>
+                    <ExportButton format="word" label="Resumen de Almacén" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')}>
-                      {canExportDocs
-                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
-                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
-                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
-                    </Button>
+                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportAlmacen('pdf')}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
-                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
-                    </Button>
+                    <ExportButton format="pdf" onClick={() => exportAlmacen('pdf')} />
                   </PermissionGuard>
                 </div>
               </CardHeader>
@@ -523,24 +502,13 @@ const Reportes = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => handlePreview('inventario')} disabled={previewLoading}>
-                      <FileType className={isMobile ? 'h-4 w-4 text-blue-600' : 'mr-2 h-4 w-4 text-blue-600'} />
-                      {isMobile ? <span className="sr-only">Resumen de Inventario</span> : 'Resumen de Inventario'}
-                    </Button>
+                    <ExportButton format="word" label="Resumen de Inventario" disabled={previewLoading} onClick={() => handlePreview('inventario')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')}>
-                      {canExportDocs
-                        ? <FileSpreadsheet className={isMobile ? 'h-4 w-4 text-green-600' : 'mr-2 h-4 w-4 text-green-600'} />
-                        : <Lock className={isMobile ? 'h-4 w-4 text-muted-foreground' : 'mr-2 h-4 w-4 text-muted-foreground'} />}
-                      {isMobile ? <span className="sr-only">Excel</span> : 'Excel'}
-                    </Button>
+                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <Button variant="outline" size={isMobile ? 'icon' : 'sm'} onClick={() => exportInventario('pdf')}>
-                      <FileText className={isMobile ? 'h-4 w-4 text-red-600' : 'mr-2 h-4 w-4 text-red-600'} />
-                      {isMobile ? <span className="sr-only">PDF</span> : 'PDF'}
-                    </Button>
+                    <ExportButton format="pdf" onClick={() => exportInventario('pdf')} />
                   </PermissionGuard>
                 </div>
               </CardHeader>
@@ -603,7 +571,7 @@ const Reportes = () => {
                 <PermissionGuard permission="reports.export" mode="disable">
                   {canExportDocs ? (
                     <Button onClick={handleDownloadDOCX} className="bg-blue-600 text-white hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
-                      <FileType className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                      <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
                       {isMobile ? <span className="sr-only">Descargar Word</span> : 'Descargar Word'}
                     </Button>
                   ) : (
