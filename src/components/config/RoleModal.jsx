@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { createRole, updateRole } from '@/services/team'
 import { useBusiness } from '@/context/BusinessContext'
 import { toast } from 'sonner'
+import { roleSchema, validateForm } from '@/utils/formSchemas'
 
 export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, readOnly = false }) {
   const { businessId } = useBusiness()
@@ -15,8 +16,10 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, re
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedPermissions, setSelectedPermissions] = useState([])
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
+    setErrors({})
     if (role) {
       setName(role.name)
       setDescription(role.description || '')
@@ -67,10 +70,12 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, re
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (readOnly) return
-    if (!name.trim()) {
-      toast.error('El nombre del rol es obligatorio')
+    const validation = validateForm(roleSchema, { name, description: description || '' })
+    if (!validation.success) {
+      setErrors(validation.errors)
       return
     }
+    setErrors({})
     if (!role && !businessId) {
       toast.error('No se pudo identificar el negocio. Recarga la página e inténtalo de nuevo.')
       return
@@ -131,7 +136,9 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, re
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej. Contador, Auxiliar de Almacén"
               disabled={loading || readOnly}
+              aria-invalid={!!errors.name}
             />
+            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
 
           <div className="grid gap-2">
@@ -142,7 +149,9 @@ export function RoleModal({ open, onOpenChange, role, permissions, onSuccess, re
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Breve descripción de las responsabilidades"
               disabled={loading || readOnly}
+              aria-invalid={!!errors.description}
             />
+            {errors.description && <p className="text-xs text-destructive">{errors.description}</p>}
           </div>
 
           <div className="flex-1 overflow-hidden flex flex-col">

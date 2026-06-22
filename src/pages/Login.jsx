@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3 } from 'lucide-react'
 import { toast } from 'sonner'
+import { emailSchema, validateForm } from '@/utils/formSchemas'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -14,6 +15,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [emailError, setEmailError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
@@ -56,6 +58,12 @@ export default function Login() {
 
   const handleLogin = async (e) => {
     e.preventDefault()
+    const emailCheck = validateForm(emailSchema, { email })
+    if (!emailCheck.success) {
+      setEmailError(emailCheck.errors.email)
+      return
+    }
+    setEmailError('')
     setLoading(true)
     setError(null)
 
@@ -172,10 +180,12 @@ export default function Login() {
                   type="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError('') }}
                   className="h-10 bg-background border-input focus:bg-background transition-all duration-200"
+                  aria-invalid={!!emailError}
                   required
                 />
+                {emailError && <p className="text-xs text-destructive">{emailError}</p>}
               </div>
 
               <div className="space-y-1.5">

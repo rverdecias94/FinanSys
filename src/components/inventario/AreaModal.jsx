@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInventory'
 import { AREA_ICONS } from '@/lib/areaIcons'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { areaSchema, validateForm } from '@/utils/formSchemas'
 
 export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId, canCreate = true }) {
   const { session } = useSession()
@@ -17,9 +18,11 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
   const queryClient = useQueryClient()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({ name: '', icon: 'Home', slug: '', prefix: '' })
+  const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (open) {
+      setErrors({})
       if (areaToEdit) {
         setFormData({
           name: areaToEdit.name,
@@ -44,6 +47,17 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
       notify.error('Límite del plan alcanzado')
       return
     }
+    const validation = validateForm(areaSchema, {
+      name: formData.name ?? '',
+      icon: formData.icon ?? '',
+      slug: formData.slug ?? '',
+      prefix: formData.prefix ?? ''
+    })
+    if (!validation.success) {
+      setErrors(validation.errors)
+      return
+    }
+    setErrors({})
     setLoading(true)
     try {
       if (areaToEdit) {
@@ -80,8 +94,9 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
               placeholder="Ej: Cocina Principal, Almacén B, Habitación 101..."
-              required
+              aria-invalid={!!errors.name}
             />
+            {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="grid gap-2">
             <Label>Tipo de Espacio (Icono)</Label>
@@ -110,10 +125,13 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
               placeholder="Ej: cocina-principal"
               value={formData.slug}
               onChange={e => setFormData({ ...formData, slug: e.target.value })}
+              aria-invalid={!!errors.slug}
             />
-            <p className="text-xs text-muted-foreground">
-              Identificador único para URL o reportes. Si se deja vacío se generará automáticamente.
-            </p>
+            {errors.slug
+              ? <p className="text-xs text-destructive">{errors.slug}</p>
+              : <p className="text-xs text-muted-foreground">
+                  Identificador único para URL o reportes. Si se deja vacío se generará automáticamente.
+                </p>}
           </div>
           <div className="grid gap-2">
             <Label>Prefijo SKU (3-4 caracteres)</Label>
@@ -122,10 +140,13 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
               value={formData.prefix}
               maxLength={4}
               onChange={e => setFormData({ ...formData, prefix: e.target.value.toUpperCase() })}
+              aria-invalid={!!errors.prefix}
             />
-            <p className="text-xs text-muted-foreground">
-              Se usará para generar SKUs únicos por área. Ejemplo: ADM-0001
-            </p>
+            {errors.prefix
+              ? <p className="text-xs text-destructive">{errors.prefix}</p>
+              : <p className="text-xs text-muted-foreground">
+                  Se usará para generar SKUs únicos por área. Ejemplo: ADM-0001
+                </p>}
           </div>
           <div className="flex justify-end pt-2 gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>

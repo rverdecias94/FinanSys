@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateForm, productSchema, movementSchema, contactSchema } from './formSchemas'
+import { validateForm, productSchema, movementSchema, contactSchema, areaSchema, roleSchema, emailSchema } from './formSchemas'
 
 describe('validateForm + esquemas', () => {
   describe('productSchema', () => {
@@ -46,6 +46,39 @@ describe('validateForm + esquemas', () => {
     })
     it('acepta email y teléfono válidos', () => {
       expect(validateForm(contactSchema, { ...valid, email: 'a@b.com', phone: '+1 555 1234' }).success).toBe(true)
+    })
+  })
+
+  describe('areaSchema', () => {
+    const valid = { name: 'Almacén B', icon: 'Home', slug: '', prefix: '' }
+    it('acepta área mínima válida', () => {
+      expect(validateForm(areaSchema, valid).success).toBe(true)
+    })
+    it('rechaza nombre vacío e icono sin elegir', () => {
+      expect(validateForm(areaSchema, { ...valid, name: '  ' }).errors.name).toBeTruthy()
+      expect(validateForm(areaSchema, { ...valid, icon: '' }).errors.icon).toBeTruthy()
+    })
+    it('valida formato de slug y prefijo', () => {
+      expect(validateForm(areaSchema, { ...valid, slug: 'Con Mayús' }).errors.slug).toBeTruthy()
+      expect(validateForm(areaSchema, { ...valid, prefix: 'AB' }).errors.prefix).toBeTruthy()
+      expect(validateForm(areaSchema, { ...valid, slug: 'cocina-1', prefix: 'ADM' }).success).toBe(true)
+    })
+  })
+
+  describe('roleSchema', () => {
+    it('acepta rol válido y rechaza nombre vacío', () => {
+      expect(validateForm(roleSchema, { name: 'Contador', description: '' }).success).toBe(true)
+      expect(validateForm(roleSchema, { name: '', description: '' }).errors.name).toBeTruthy()
+    })
+  })
+
+  describe('emailSchema', () => {
+    it('acepta email válido', () => {
+      expect(validateForm(emailSchema, { email: 'user@dominio.com' }).success).toBe(true)
+    })
+    it('rechaza email vacío o con formato inválido', () => {
+      expect(validateForm(emailSchema, { email: '' }).errors.email).toBeTruthy()
+      expect(validateForm(emailSchema, { email: 'no-es-email' }).errors.email).toBeTruthy()
     })
   })
 })

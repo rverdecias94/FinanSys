@@ -49,6 +49,9 @@ export const movementSchema = z.object({
     .refine((v) => /^\d{1,9}$/.test(v) && Number(v) >= 1, 'La cantidad debe ser un entero mayor que cero'),
 })
 
+// Correo electrónico (regla reutilizable)
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 // --- Contacto (cliente/proveedor) ---
 export const contactSchema = z.object({
   name: requiredName,
@@ -57,7 +60,32 @@ export const contactSchema = z.object({
     .refine((v) => v === '' || /^[0-9+()\-\s]{6,30}$/.test(v), 'Teléfono inválido (solo dígitos, espacios y + ( ) -)')
     .optional(),
   email: z.string().trim()
-    .refine((v) => v === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Correo electrónico inválido')
+    .refine((v) => v === '' || emailRegex.test(v), 'Correo electrónico inválido')
     .optional(),
   notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+})
+
+// --- Área (inventario dinámico) ---
+export const areaSchema = z.object({
+  name: requiredName,
+  icon: z.string().trim().min(1, 'Selecciona un icono'),
+  slug: z.string().trim().max(60, 'Máximo 60 caracteres')
+    .refine((v) => v === '' || /^[a-z0-9-]+$/.test(v), 'Solo minúsculas, números y guiones (ej: cocina-principal)')
+    .optional(),
+  prefix: z.string().trim()
+    .refine((v) => v === '' || /^[A-Za-z0-9]{3,4}$/.test(v), 'El prefijo debe tener 3-4 letras o números (ej: ADM)')
+    .optional(),
+})
+
+// --- Rol personalizado (config) ---
+export const roleSchema = z.object({
+  name: requiredName,
+  description: z.string().trim().max(200, 'Máximo 200 caracteres').optional(),
+})
+
+// --- Correo electrónico (login / recuperación de contraseña) ---
+export const emailSchema = z.object({
+  email: z.string().trim()
+    .min(1, 'El correo es obligatorio')
+    .refine((v) => emailRegex.test(v), 'Correo electrónico inválido'),
 })
