@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Wallet, TrendingUp, TrendingDown, CalendarClock, AlertTriangle, HandCoins } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +15,7 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { listOpenAccounts, registerPayment } from '@/services/finanzas'
+import { listOpenAccounts, registerPayment, listAccountPayments } from '@/services/finanzas'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -98,6 +98,13 @@ export default function CuentasMejorado() {
   const [payTarget, setPayTarget] = useState(null)
   const [payAmount, setPayAmount] = useState('')
 
+  // Historial de abonos de la cuenta abierta en el diálogo (libro account_payments).
+  const { data: abonos = [] } = useQuery({
+    queryKey: ['account-payments', payTarget?.id],
+    queryFn: () => listAccountPayments(payTarget.id),
+    enabled: !!payTarget?.id
+  })
+
   const enabled = !!userId && !!businessId && !businessLoading && !permissionLoading
 
   const paymentMutation = useMutation({
@@ -107,6 +114,7 @@ export default function CuentasMejorado() {
       qc.invalidateQueries({ queryKey: ['transactions'] })
       qc.invalidateQueries({ queryKey: ['filteredTotals'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['account-payments'] })
       notify.success('Pago registrado correctamente')
       setPayTarget(null)
     },
@@ -201,6 +209,21 @@ export default function CuentasMejorado() {
               {payTarget ? ` · Saldo: ${formatCurrency(payTarget.remaining, payTarget.currency)}` : ''}
             </DialogDescription>
           </DialogHeader>
+          {abonos.length > 0 && (
+            <div className="rounded-md border bg-muted/20 p-3">
+              <div className="mb-1.5 text-xs font-medium text-muted-foreground">Abonos registrados</div>
+              <ul className="space-y-1">
+                {abonos.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="truncate text-muted-foreground">
+                      {format(new Date(a.paid_at), 'PP', { locale: es })}{a.method ? ` · ${a.method}` : ''}
+                    </span>
+                    <span className="shrink-0 font-medium">{formatCurrency(a.amount, payTarget?.currency)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="grid gap-1.5">
             <Label htmlFor="pay-amount">Monto</Label>
             <Input

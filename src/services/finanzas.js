@@ -302,44 +302,43 @@ export async function listOpenAccounts({ direction = 'receivable', page = 1, pag
 }
 
 // Registrar un abono (parcial o total) sobre una cuenta pendiente.
-export async function registerPayment(transactionId, abono, userId, businessId) {
+// S2: delega en la RPC atómica register_account_payment, que inserta el abono en
+// el libro `account_payments` y recalcula paid_amount=SUM(abonos)+status en una sola
+// transacción (sin lost-update; rechaza sobrepago). El negocio se resuelve
+// server-side con get_current_business_id().
+export async function registerPayment(transactionId, abono, userId, businessId, options = {}) {
   if (!userId) throw new Error('User ID is required')
-  const effectiveUserId = getEffectiveUserId(userId, businessId)
-
-  // Volumen bajo: leer-calcular-actualizar (sin RPC).
-  const { data: row, error: readErr } = await supabase
-    .from('transactions')
-    .select('amount, paid_amount, type, description')
-    .eq('id', transactionId)
-    .eq('user_id', effectiveUserId)
-    .single()
-  if (readErr) throw readErr
-
-  const total = Number(row.amount)
-  const current = Number(row.paid_amount || 0)
   const add = Number(abono)
   if (!Number.isFinite(add) || add <= 0) throw new Error('El monto del pago debe ser mayor que cero.')
 
-  const newPaid = Math.min(total, current + add)
-  const newStatus = newPaid >= total ? 'paid' : 'partial'
-
-  const { data, error } = await supabase
-    .from('transactions')
-    .update({ paid_amount: newPaid, status: newStatus })
-    .eq('id', transactionId)
-    .eq('user_id', effectiveUserId)
-    .select()
-    .single()
+  const { data, error } = await supabase.rpc('register_account_payment', {
+    p_transaction_id: transactionId,
+    p_amount: add,
+    p_method: options.method || null,
+    p_note: options.note || null
+  })
   if (error) throw error
 
   await logAction({
-    action: row.type === 'income' ? 'Cobro' : 'Pago',
-    resource: `Transacción: ${row.description || 'Sin descripción'}`,
-    details: { transaction_id: transactionId, abono: add, paid_amount: newPaid, status: newStatus },
+    action: data?.type === 'income' ? 'Cobro' : 'Pago',
+    resource: `Transacción: ${data?.description || 'Sin descripción'}`,
+    details: { transaction_id: transactionId, abono: add, paid_amount: data?.paid_amount, status: data?.status },
     area: 'Finanzas'
   })
 
   return data
+}
+
+// Historial de abonos (libro account_payments) de una cuenta. RLS por negocio.
+export async function listAccountPayments(transactionId) {
+  if (!transactionId) return []
+  const { data, error } = await supabase
+    .from('account_payments')
+    .select('id, amount, paid_at, method, note')
+    .eq('transaction_id', transactionId)
+    .order('paid_at', { ascending: true })
+  if (error) throw error
+  return data || []
 }
 
 export async function fetchTransactionsForExport({ from, to, category, type, currency, userId, businessId }) {
