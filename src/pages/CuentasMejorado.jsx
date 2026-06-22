@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Wallet, TrendingUp, TrendingDown, CalendarClock, AlertTriangle, HandCoins } from 'lucide-react'
+import { Wallet, TrendingUp, TrendingDown, CalendarClock, AlertTriangle, HandCoins, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +15,8 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { listOpenAccounts, registerPayment, listAccountPayments } from '@/services/finanzas'
+import { listOpenAccounts, registerPayment, listAccountPayments, getAgingReport } from '@/services/finanzas'
+import { AgingPanel } from '@/components/finanzas/AgingPanel'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -107,6 +108,14 @@ export default function CuentasMejorado() {
 
   const enabled = !!userId && !!businessId && !businessLoading && !permissionLoading
 
+  // Antigüedad de saldos (Q10) del tab activo. `tab` ya vale 'receivable'/'payable',
+  // que coincide con la `direction` que espera getAgingReport.
+  const { data: aging = [], isLoading: agingLoading } = useQuery({
+    queryKey: ['aging', tab, businessId || userId],
+    queryFn: () => getAgingReport(tab),
+    enabled
+  })
+
   const paymentMutation = useMutation({
     mutationFn: ({ id, amount }) => registerPayment(id, amount, userId, businessId),
     onSuccess: () => {
@@ -115,6 +124,7 @@ export default function CuentasMejorado() {
       qc.invalidateQueries({ queryKey: ['filteredTotals'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       qc.invalidateQueries({ queryKey: ['account-payments'] })
+      qc.invalidateQueries({ queryKey: ['aging'] })
       notify.success('Pago registrado correctamente')
       setPayTarget(null)
     },
@@ -172,6 +182,21 @@ export default function CuentasMejorado() {
               <TabsTrigger value="receivable">Por cobrar ({counts.receivable})</TabsTrigger>
               <TabsTrigger value="payable">Por pagar ({counts.payable})</TabsTrigger>
             </TabsList>
+
+            {/* Antigüedad de saldos (Q10): foto a hoy del tab activo, por moneda y tramo. */}
+            <div className="mt-4 rounded-lg border bg-muted/20 p-3 sm:p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Antigüedad de saldos</span>
+              </div>
+              <AgingPanel
+                rows={aging}
+                loading={agingLoading}
+                formatCurrency={formatCurrency}
+                income={isIncome}
+                emptyMessage={isIncome ? 'No hay cuentas por cobrar pendientes.' : 'No hay cuentas por pagar pendientes.'}
+              />
+            </div>
 
             <TabsContent value="receivable" className="mt-4">
               <AccountsList

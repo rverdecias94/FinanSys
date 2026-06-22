@@ -320,6 +320,18 @@ export async function listAccountPayments(transactionId) {
   return data || []
 }
 
+// Antigüedad de saldos (Q10): clasifica las cuentas pendientes (pending/partial)
+// por tramos de vencimiento respecto a hoy — por vencer / 1-30 / 31-60 / 61-90 / +90
+// días — con saldo = amount - paid_amount, AGREGADO POR MONEDA (1 fila por moneda).
+// direction 'receivable' = por cobrar (income); 'payable' = por pagar (expense).
+// La RPC get_aging_report ancla el negocio en get_current_business_id() y exige
+// finanzas.view (es SECURITY DEFINER → valida el permiso server-side).
+export async function getAgingReport(direction = 'receivable') {
+  const { data, error } = await supabase.rpc('get_aging_report', { p_direction: direction })
+  if (error) throw error
+  return data || []
+}
+
 // Cierre de período (S5): fecha (inclusive) hasta la cual los movimientos están
 // bloqueados. getPeriodLock lee el candado; setPeriodLock cierra (date) o reabre (null).
 export async function getPeriodLock(userId, businessId) {

@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ArrowDownCircle, ArrowUpCircle, FileText, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, FileText, Layers, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { useCurrency } from '@/context/CurrencyContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { getBusinessSettings } from '@/services/businessSettings'
 import { notify } from '@/services/notifications'
@@ -14,10 +15,12 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { PermissionGuard } from '@/components/common/PermissionGuard'
+import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { ExportButton } from '@/components/common/ExportButton'
-import { fetchTransactionsForExport, listTransactions } from '@/services/finanzas'
+import { fetchTransactionsForExport, listTransactions, getAgingReport } from '@/services/finanzas'
+import { AgingPanel } from '@/components/finanzas/AgingPanel'
+import { agingToExportRows } from '@/utils/aging'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
@@ -97,6 +100,8 @@ const Reportes = () => {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { canAccessFeature } = useSubscription()
+  const { formatCurrency } = useCurrency()
+  const { canView } = usePermissionCheck()
   const isMobile = useIsMobile()
   const userId = session?.user?.id
   const effectiveUserId = businessId || userId
@@ -136,6 +141,33 @@ const Reportes = () => {
   const [inventoryCount, setInventoryCount] = useState(0)
 
   const listingsEnabled = !!userId && !!effectiveUserId && !!dateFilter
+
+  // Antigüedad de saldos (Q10): foto "a hoy" (no depende del filtro de fechas).
+  // Solo visible/consultable con finanzas.view (la RPC también lo exige server-side).
+  const [agingTab, setAgingTab] = useState('receivable')
+  const canViewFinanzas = canView('finanzas')
+  const { data: aging = [], isLoading: agingLoading } = useQuery({
+    queryKey: ['aging', agingTab, effectiveUserId],
+    queryFn: () => getAgingReport(agingTab),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+
+  const exportAging = (type) => {
+    const income = agingTab === 'receivable'
+    const rows = agingToExportRows(aging)
+    const fname = income ? 'antiguedad_por_cobrar' : 'antiguedad_por_pagar'
+    const titleBase = income ? 'Por cobrar' : 'Por pagar'
+    if (type === 'pdf') {
+      const headers = ['Moneda', 'Por vencer', '1-30', '31-60', '61-90', '+90', 'Vencido', 'Total']
+      const body = rows.map((r) => [
+        r.Moneda, r['Por vencer'], r['1-30 días'], r['31-60 días'],
+        r['61-90 días'], r['Más de 90 días'], r['Vencido total'], r.Total
+      ].map(String))
+      exportToPDF(`Antigüedad de saldos - ${titleBase}`, headers, body, fname, pdfOptions())
+      return
+    }
+    exportToExcel(`Antiguedad ${income ? 'CxC' : 'CxP'}`, rows, fname)
+  }
 
   const handleFilterChange = (filter) => {
     setDateFilter(filter)
@@ -543,6 +575,43 @@ const Reportes = () => {
             </Card>
           </TabsContent>
         </Tabs>
+      )}
+
+      {/* Antigüedad de saldos (Q10): independiente del filtro de fechas (foto a hoy). */}
+      {canViewFinanzas && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-primary" />
+              Antigüedad de saldos
+            </CardTitle>
+            <CardDescription>Cuentas pendientes clasificadas por vencimiento, a la fecha de hoy.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs value={agingTab} onValueChange={setAgingTab}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex">
+                  <TabsTrigger value="receivable">Por cobrar</TabsTrigger>
+                  <TabsTrigger value="payable">Por pagar</TabsTrigger>
+                </TabsList>
+                <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')} />
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <ExportButton format="pdf" onClick={() => exportAging('pdf')} />
+                  </PermissionGuard>
+                </div>
+              </div>
+              <TabsContent value="receivable" className="mt-4">
+                <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income emptyMessage="No hay cuentas por cobrar pendientes." />
+              </TabsContent>
+              <TabsContent value="payable" className="mt-4">
+                <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income={false} emptyMessage="No hay cuentas por pagar pendientes." />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
       )}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
