@@ -18,7 +18,9 @@ import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { useSubscription } from '@/context/SubscriptionContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
+import { PremiumFeatureScreen } from '@/components/auth/PremiumFeatureScreen'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { listAllAuditLogs, listAuditLogs } from '@/services/auditLogs'
 // `exportToExcel` se importa dinámicamente en handleExport para no cargar
@@ -140,6 +142,7 @@ function LogDetailsDialog({ log, onClose }) {
 export default function LogsMejorado() {
   const { session } = useSession()
   const { businessId } = useBusiness()
+  const { canAccessFeature, loading: subLoading } = useSubscription()
   const { canView, isOwner } = usePermissionCheck()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -292,6 +295,18 @@ export default function LogsMejorado() {
           </CardContent>
         </Card>
       </div>
+    )
+  }
+
+  // La Auditoría es una función Premium: una vez resuelto el plan, las cuentas
+  // free ven la pantalla de mejora (no el listado). Mientras carga el plan no
+  // bloqueamos (fail-open) para no parpadear a usuarios Premium.
+  if (!subLoading && !canAccessFeature('audit_logs')) {
+    return (
+      <PremiumFeatureScreen
+        title="La Auditoría es una función Premium"
+        description="Lleva el registro de quién hizo qué y cuándo en tu negocio. Disponible al mejorar tu plan."
+      />
     )
   }
 
