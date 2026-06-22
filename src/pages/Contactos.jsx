@@ -184,7 +184,7 @@ export default function Contactos() {
         open={!!deleteTarget}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
         title="Eliminar contacto"
-        description={`¿Seguro que quieres eliminar a “${deleteTarget?.name}”? Esta acción no se puede deshacer.`}
+        description={`¿Seguro que quieres eliminar a “${deleteTarget?.name}”? Dejará de aparecer en tus listas y el historial de movimientos asociado se conserva.`}
         confirmText="Eliminar"
         tone="destructive"
         loading={deleteMutation.isPending}

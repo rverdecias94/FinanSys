@@ -15,6 +15,7 @@ export async function listContacts({ page = 1, pageSize = 5, search = '', kind =
     .from('contacts')
     .select('*', { count: 'exact' })
     .eq('user_id', effectiveUserId)
+    .eq('is_active', true)
     .order('name', { ascending: true })
 
   if (search) q = q.ilike('name', `%${search}%`)
@@ -74,23 +75,28 @@ export async function updateContact(id, payload, userId, businessId) {
   })
 }
 
+// Baja lógica (soft-delete): en vez de DELETE físico, marca is_active=false.
+// Así no se huérfana el historial (transactions.contact_id quedaría en NULL) y el
+// contacto deja de aparecer en los listados (listContacts filtra is_active=true).
 export async function deleteContact(id, userId, businessId) {
   if (!userId) throw new Error('User ID is required')
 
   return withCrud({ action: 'delete', table: 'contacts' }, async () => {
     const effectiveUserId = getEffectiveUserId(userId, businessId)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('contacts')
-      .delete()
+      .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', effectiveUserId)
+      .select()
+      .single()
     if (error) throw error
     await logAction({
-      action: 'Eliminar',
-      resource: `Contacto ID: ${id}`,
-      details: { id },
+      action: 'Dar de baja',
+      resource: `Contacto: ${data.name}`,
+      details: { id: data.id, kind: data.kind },
       area: 'Finanzas'
     })
-    return true
+    return data
   })
 }
