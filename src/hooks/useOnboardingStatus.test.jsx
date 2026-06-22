@@ -12,6 +12,7 @@ import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { getBusinessSettings } from '@/services/businessSettings'
+import { writeLocalCache } from '@/offline/localCache'
 
 function Probe() {
   const { needsOnboarding, loading } = useOnboardingStatus()
@@ -26,6 +27,7 @@ const renderProbe = () => {
 describe('useOnboardingStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     useSession.mockReturnValue({ session: { user: { id: 'u1' } } })
   })
 
@@ -64,5 +66,18 @@ describe('useOnboardingStatus', () => {
     renderProbe()
     expect(screen.getByText('needs:false')).toBeInTheDocument()
     expect(getBusinessSettings).not.toHaveBeenCalled()
+  })
+
+  it('usa el flag de localStorage mientras la BD aún verifica (sin parpadeo)', () => {
+    useBusiness.mockReturnValue({ businessId: 'u1', isOwner: true })
+    useCurrency.mockReturnValue({ businessCurrencies: [], loading: false })
+    // BD que nunca resuelve → la query queda en "loading"
+    getBusinessSettings.mockReturnValue(new Promise(() => {}))
+    // Flag local previo: este dispositivo ya completó el onboarding
+    writeLocalCache('onboarding:done:u1', true)
+
+    renderProbe()
+    // Inmediatamente needs:false por el flag local (no espera a la BD)
+    expect(screen.getByText('needs:false')).toBeInTheDocument()
   })
 })

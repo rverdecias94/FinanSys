@@ -9,6 +9,7 @@ import ProtectedRoute from '@/routes/ProtectedRoute'
 import SidebarLayout from '@/layouts/SidebarLayout'
 import { Toaster } from '@/components/ui/sonner'
 import { GlobalProgressBar } from '@/components/common/GlobalProgressBar'
+import { AppInitializer } from '@/components/common/AppInitializer'
 
 // Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
 // descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
@@ -45,6 +46,7 @@ export default function App() {
       <SubscriptionProvider>
         <CurrencyProvider>
           <PermissionProvider>
+            <AppInitializer>
             <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route element={<ProtectedRoute />}>
@@ -91,6 +93,7 @@ export default function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
             </Routes>
             </Suspense>
+            </AppInitializer>
             <Toaster position="top-right" richColors />
           </PermissionProvider>
         </CurrencyProvider>
