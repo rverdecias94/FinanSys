@@ -8,6 +8,7 @@ import { getBusinessSettings, upsertBusinessSettings, uploadCompanyLogo } from '
 import { toast } from 'sonner'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BalanceBaseSection } from '@/components/config/general/BalanceBaseSection'
+import { PeriodLockSection } from '@/components/config/general/PeriodLockSection'
 import { AppearanceSection } from '@/components/config/general/AppearanceSection'
 import { BusinessProfileSection } from '@/components/config/general/BusinessProfileSection'
 import { RegionFormatsSection } from '@/components/config/general/RegionFormatsSection'
@@ -310,6 +311,8 @@ export function GeneralSettingsPanel() {
         onUpdateBalances={handleUpdateBalances}
         isRefreshing={balanceQuery.isFetching}
       />
+
+      <PeriodLockSection isOwner={isOwner} />
 
       <AppearanceSection
         isOwner={isOwner}

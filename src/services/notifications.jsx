@@ -60,10 +60,14 @@ export const getSupabaseErrorMessage = (error) => {
         return "Error de configuración: Tabla no encontrada."
       case '42501': // insufficient_privilege
         return "No tienes permisos para realizar esta acción."
-      case '23514': // check_violation — única fuente actual: CHECK stock >= 0
-        return "El stock no puede quedar en negativo. Revisa la cantidad disponible."
+      case '23514': // check_violation — CHECK stock>=0 (mensaje crudo de PG) o RAISE de sobrepago de abonos (S2, mensaje propio)
+        return (error.message && !/check constraint|violates/i.test(error.message))
+          ? error.message
+          : "El stock no puede quedar en negativo. Revisa la cantidad disponible."
       case '53400': // configuration_limit_exceeded — límite del plan server-side (P1.11)
         return error.message || "Has alcanzado un límite de tu plan. Actualiza a Premium para ampliarlo."
+      case 'P0010': // período cerrado (S5)
+        return error.message || "Ese período está cerrado. No puedes registrar ni editar movimientos con esa fecha."
       default:
         // Mensaje técnico en desarrollo, genérico en producción
         return import.meta.env.DEV

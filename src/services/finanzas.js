@@ -320,6 +320,30 @@ export async function listAccountPayments(transactionId) {
   return data || []
 }
 
+// Cierre de período (S5): fecha (inclusive) hasta la cual los movimientos están
+// bloqueados. getPeriodLock lee el candado; setPeriodLock cierra (date) o reabre (null).
+export async function getPeriodLock(userId, businessId) {
+  if (!userId) return null
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+  const { data, error } = await supabase
+    .from('period_locks')
+    .select('closed_through, updated_at')
+    .eq('user_id', effectiveUserId)
+    .maybeSingle()
+  if (error) throw error
+  return data || null
+}
+
+export async function setPeriodLock(through, userId) {
+  if (!userId) throw new Error('User ID is required')
+  let p = null
+  if (through instanceof Date) p = through.toISOString().slice(0, 10)
+  else if (typeof through === 'string' && through) p = through.slice(0, 10)
+  const { data, error } = await supabase.rpc('set_period_lock', { p_through: p })
+  if (error) throw error
+  return data
+}
+
 export async function fetchTransactionsForExport({ from, to, category, type, currency, userId, businessId }) {
   const pageSize = 1000
   const first = await listTransactions({ from, to, category, type, currency, userId, businessId, page: 1, pageSize })
