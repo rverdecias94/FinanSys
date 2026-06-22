@@ -43,6 +43,7 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { useChartAnimation } from '@/hooks/useChartAnimation'
+import { deriveDashboardView } from '@/utils/dashboardView'
 
 // Paleta del donut "Por categoría": ingresos en VERDES y gastos en ROJOS/NARANJAS,
 // con un tono distinto por categoría dentro de cada familia. El PRIMER tono de cada
@@ -208,14 +209,17 @@ export default function Dashboard() {
     return consolidatePerCurrency(stats.balance, baseCode, rates)
   }, [baseCode, businessCurrencies.length, stats.balance, rates])
 
-  // ¿Hay actividad real? Si no, mostramos el onboarding guiado (empty state).
-  const hasData = recentActivityCount > 0 || businessCurrencies.some(c =>
-    (stats.balance[c.code] || 0) !== 0 ||
+  // Decisión de vista (ver src/utils/dashboardView.js): el asistente "3 pasos"
+  // solo se muestra mientras NO haya moneda principal configurada. En cuanto hay
+  // moneda, se muestra el panel (con el saldo, incluido el inicial). Si además no
+  // hay movimientos aún, un aviso suave invita a registrar el primero.
+  const isConfigured = businessCurrencies.some(c => c.is_default)
+  const hasActivity = recentActivityCount > 0 || businessCurrencies.some(c =>
     (stats.income.current[c.code] || 0) !== 0 ||
     (stats.expense.current[c.code] || 0) !== 0
   )
   const ready = statsQuery.isSuccess && recentActivityQuery.isSuccess
-  const showOnboarding = ready && !hasData
+  const { showOnboarding, showFirstMovementHint } = deriveDashboardView({ isConfigured, hasActivity, ready })
 
   const quickLinks = [
     { title: 'Finanzas', icon: <DollarSign className="h-7 w-7 mb-2 text-primary" />, description: 'Ingresos y gastos', to: '/finanzas' },
@@ -341,6 +345,20 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+
+          {/* Aviso suave: hay moneda configurada pero aún no hay movimientos */}
+          {showFirstMovementHint && (
+            <Link to="/finanzas" className="block">
+              <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/20 p-3 text-sm transition-colors hover:bg-accent/40">
+                <PlusCircle className="h-5 w-5 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium leading-tight">Registra tu primer movimiento</p>
+                  <p className="text-xs text-muted-foreground">Añade un ingreso o gasto para ver cómo evoluciona tu negocio.</p>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </div>
+            </Link>
+          )}
 
           {/* Tres tarjetas de apoyo: entró, salió, resultado del mes */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
