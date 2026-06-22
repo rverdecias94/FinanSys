@@ -1,6 +1,5 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
-import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId } from '@/services/team'
 
 // Servicio de Contactos (clientes/proveedores) — Fase 1 del roadmap contable.
@@ -42,12 +41,7 @@ export async function createContact(payload, userId, businessId) {
       .select()
       .single()
     if (error) throw error
-    await logAction({
-      action: 'Crear',
-      resource: `Contacto: ${data.name}`,
-      details: { id: data.id, kind: data.kind },
-      area: 'Finanzas'
-    })
+    // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })
 }
@@ -65,12 +59,7 @@ export async function updateContact(id, payload, userId, businessId) {
       .select()
       .single()
     if (error) throw error
-    await logAction({
-      action: 'Actualizar',
-      resource: `Contacto: ${data.name}`,
-      details: { id: data.id, kind: data.kind },
-      area: 'Finanzas'
-    })
+    // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })
 }
@@ -91,12 +80,7 @@ export async function deleteContact(id, userId, businessId) {
       .select()
       .single()
     if (error) throw error
-    await logAction({
-      action: 'Dar de baja',
-      resource: `Contacto: ${data.name}`,
-      details: { id: data.id, kind: data.kind },
-      area: 'Finanzas'
-    })
+    // S4: la baja lógica (is_active true->false) la audita el trigger de BD.
     return data
   })
 }

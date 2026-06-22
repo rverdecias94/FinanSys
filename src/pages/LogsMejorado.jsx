@@ -63,9 +63,25 @@ const DETAIL_LABELS = {
   rol: 'Rol',
   nuevo_rol: 'Nuevo rol',
   correo: 'Correo',
-  permission_count: 'N.º de permisos'
+  permission_count: 'N.º de permisos',
+  amount: 'Monto',
+  paid_amount: 'Abonado',
+  status: 'Estado',
+  due_date: 'Vence',
+  description: 'Descripción',
+  contact_id: 'Contacto (ID)',
+  name: 'Nombre',
+  kind: 'Tipo de contacto',
+  phone: 'Teléfono',
+  email: 'Correo',
+  notes: 'Notas',
+  is_active: 'Activo',
+  unit_price: 'Precio',
+  stock: 'Existencias',
+  min_stock: 'Stock mínimo'
 }
 const TYPE_LABELS = { income: 'Ingreso', expense: 'Gasto', transfer: 'Transferencia' }
+const STATUS_LABELS = { paid: 'Pagado', pending: 'Pendiente', partial: 'Parcial' }
 
 function prettyDetailKey(k) {
   return DETAIL_LABELS[k] || String(k).replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
@@ -77,11 +93,40 @@ function prettyDetailValue(k, v) {
   return String(v)
 }
 
-function LogDetailsDialog({ log, onClose }) {
+function fmtChangeValue(k, v) {
+  if (v === null || v === undefined || v === '') return '—'
+  if (k === 'type' && TYPE_LABELS[v]) return TYPE_LABELS[v]
+  if (k === 'status' && STATUS_LABELS[v]) return STATUS_LABELS[v]
+  if (k === 'is_active') return v ? 'Sí' : 'No'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+// S4: calcula los campos que cambiaron entre old_value y new_value para el diff.
+const CHANGE_SKIP = new Set(['id', 'created_at', 'updated_at', 'details', 'image_url', 'fx_units_per_base'])
+function computeChanges(oldVal, newVal) {
+  const o = oldVal && typeof oldVal === 'object' ? oldVal : {}
+  const n = newVal && typeof newVal === 'object' ? newVal : {}
+  const keys = [...new Set([...Object.keys(o), ...Object.keys(n)])].filter((k) => !CHANGE_SKIP.has(k))
+  const out = []
+  for (const k of keys) {
+    const ov = o[k] === undefined ? null : o[k]
+    const nv = n[k] === undefined ? null : n[k]
+    if (JSON.stringify(ov) !== JSON.stringify(nv)) {
+      out.push({ key: k, old: fmtChangeValue(k, ov), new: fmtChangeValue(k, nv) })
+    }
+  }
+  return out
+}
+
+function LogDetailsDialog({ log, onClose, canViewFinance }) {
   const details = log?.details
   const entries = details && typeof details === 'object'
     ? (Array.isArray(details) ? details.map((v, i) => [`#${i + 1}`, v]) : Object.entries(details))
     : []
+  const changes = computeChanges(log?.old_value, log?.new_value)
+  // Privacidad: los valores financieros solo se muestran a quien tiene finanzas.view.
+  const showChangeValues = canViewFinance || (log?.area !== 'Finanzas')
 
   const Field = ({ label, value }) => (
     <div className="rounded-md border bg-muted/30 p-2.5">
@@ -127,6 +172,31 @@ function LogDetailsDialog({ log, onClose }) {
                   <p className="text-sm text-muted-foreground">Sin detalles adicionales para este registro.</p>
                 )}
               </div>
+
+              {changes.length > 0 && (
+                <div>
+                  <p className="mb-2 text-sm font-semibold">Cambios (antes → después)</p>
+                  {showChangeValues ? (
+                    <dl className="grid grid-cols-1 gap-2">
+                      {changes.map((c) => (
+                        <div key={c.key} className="rounded-md border p-2.5">
+                          <dt className="text-xs text-muted-foreground">{prettyDetailKey(c.key)}</dt>
+                          <dd className="text-sm break-words">
+                            <span className="text-muted-foreground line-through">{c.old}</span>
+                            <span className="mx-1">→</span>
+                            <span className="font-medium">{c.new}</span>
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Campos modificados: {changes.map((c) => prettyDetailKey(c.key)).join(', ')}.
+                      <br />Activa el permiso de Finanzas para ver los valores.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <DialogFooter>
@@ -494,7 +564,7 @@ export default function LogsMejorado() {
         </CardContent>
       </Card>
 
-      <LogDetailsDialog log={selectedLog} onClose={() => setSelectedLog(null)} />
+      <LogDetailsDialog log={selectedLog} onClose={() => setSelectedLog(null)} canViewFinance={canView('finanzas')} />
     </div>
   )
 }

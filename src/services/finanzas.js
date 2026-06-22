@@ -153,15 +153,7 @@ export async function createTransaction(payload, userId, businessId) {
   return await withCrud({ action: 'create', table: 'transactions' }, async () => {
     const { data, error } = await supabase.from('transactions').insert(dbPayload).select().single()
     if (error) throw error
-    await logAction({
-      action: 'Crear',
-      resource: `Transacción: ${data.description || 'Sin descripción'}`,
-      // P2.2: el log de auditoría guarda SOLO metadatos, no la fila completa.
-      // Evita exponer PII financiera (monto, cuenta, referencia, notas, adjuntos)
-      // a roles con `logs.view` pero sin `finanzas.view`, y en la exportación de Logs.
-      details: { transaction_id: data.id, type: data.type, category: data.category, currency: data.currency },
-      area: 'Finanzas'
-    })
+    // S4: la auditoría (incl. antes/después) la registra el trigger de BD audit_row_change.
     return data
   })
 }
@@ -234,13 +226,7 @@ export async function updateTransaction(transactionId, payload, userId, business
   return await withCrud({ action: 'update', table: 'transactions' }, async () => {
     const { data, error } = await q.select().single()
     if (error) throw error
-    await logAction({
-      action: 'Actualizar',
-      resource: `Transacción: ${data.description || 'Sin descripción'}`,
-      // P2.2: solo metadatos (sin monto/cuenta/referencia/notas/adjuntos). Ver createTransaction.
-      details: { transaction_id: data.id, type: data.type, category: data.category, currency: data.currency },
-      area: 'Finanzas'
-    })
+    // S4: la auditoría (incl. antes/después) la registra el trigger de BD audit_row_change.
     return data
   })
 }
@@ -318,14 +304,7 @@ export async function registerPayment(transactionId, abono, userId, businessId, 
     p_note: options.note || null
   })
   if (error) throw error
-
-  await logAction({
-    action: data?.type === 'income' ? 'Cobro' : 'Pago',
-    resource: `Transacción: ${data?.description || 'Sin descripción'}`,
-    details: { transaction_id: transactionId, abono: add, paid_amount: data?.paid_amount, status: data?.status },
-    area: 'Finanzas'
-  })
-
+  // S4: la actualización de la cuenta (paid_amount/status) la audita el trigger de BD.
   return data
 }
 

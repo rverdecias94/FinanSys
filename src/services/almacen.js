@@ -102,12 +102,7 @@ export async function createProduct(payload, userId, businessId) {
       .select()
       .single()
     if (error) throw error
-    await logAction({
-      action: 'Crear',
-      resource: `Producto: ${data.name}`,
-      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
-      area: 'Almacén'
-    })
+    // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })
 }
@@ -132,12 +127,7 @@ export async function updateProduct(id, payload, userId, businessId) {
       .select()
       .single()
     if (error) throw error
-    await logAction({
-      action: 'Actualizar',
-      resource: `Producto: ${data.name}`,
-      details: { ...data, user_id: undefined }, // sin user_id (UUID) en auditoría
-      area: 'Almacén'
-    })
+    // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })
 }
@@ -160,12 +150,7 @@ export async function deleteProduct(id, userId, businessId) {
       .eq('id', id)
       .eq('user_id', effectiveUserId) // Solo borrar del owner efectivo
     if (error) throw error
-    await logAction({
-      action: 'Eliminar',
-      resource: `Producto ID: ${id}`,
-      details: { id },
-      area: 'Almacén'
-    })
+    // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return true
   })
 }

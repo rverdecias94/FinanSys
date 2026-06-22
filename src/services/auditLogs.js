@@ -48,7 +48,7 @@ export async function listAuditLogs({
 }) {
   let query = supabase
     .from('audit_logs')
-    .select('id, action, resource, details, ip_address, created_at, user_email, area', { count: 'exact' })
+    .select('id, action, resource, details, ip_address, created_at, user_email, area, old_value, new_value', { count: 'exact' })
     .eq('business_id', businessId)
     .order('created_at', { ascending: false })
 
@@ -79,7 +79,7 @@ export async function listAllAuditLogs({
   while (hasMore) {
     let query = supabase
       .from('audit_logs')
-      .select('id, action, resource, details, ip_address, created_at, user_email, area', { count: 'exact' })
+      .select('id, action, resource, details, ip_address, created_at, user_email, area, old_value, new_value', { count: 'exact' })
       .eq('business_id', businessId)
       .order('created_at', { ascending: false })
 
