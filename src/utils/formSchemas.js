@@ -89,3 +89,18 @@ export const emailSchema = z.object({
     .min(1, 'El correo es obligatorio')
     .refine((v) => emailRegex.test(v), 'Correo electrónico inválido'),
 })
+
+// --- Perfil del negocio (Configuración › General) ---
+// Todos opcionales (el nombre comercial se exige en el asistente inicial), pero
+// con formato validado para evitar datos erróneos en reportes/documentos.
+export const companySchema = z.object({
+  tradeName: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+  legalName: z.string().trim().max(120, 'Máximo 120 caracteres').optional(),
+  taxId: z.string().trim().max(40, 'Máximo 40 caracteres').optional(),
+  phone: z.string().trim().max(30, 'Máximo 30 caracteres')
+    .refine((v) => v === '' || /^[0-9+()\-\s]{6,30}$/.test(v), 'Teléfono inválido (solo dígitos, espacios y + ( ) -)')
+    .optional(),
+  email: z.string().trim()
+    .refine((v) => v === '' || emailRegex.test(v), 'Correo electrónico inválido')
+    .optional(),
+})

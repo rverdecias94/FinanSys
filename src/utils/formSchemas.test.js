@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateForm, productSchema, movementSchema, contactSchema, areaSchema, roleSchema, emailSchema } from './formSchemas'
+import { validateForm, productSchema, movementSchema, contactSchema, areaSchema, roleSchema, emailSchema, companySchema } from './formSchemas'
 
 describe('validateForm + esquemas', () => {
   describe('productSchema', () => {
@@ -79,6 +79,17 @@ describe('validateForm + esquemas', () => {
     it('rechaza email vacío o con formato inválido', () => {
       expect(validateForm(emailSchema, { email: '' }).errors.email).toBeTruthy()
       expect(validateForm(emailSchema, { email: 'no-es-email' }).errors.email).toBeTruthy()
+    })
+  })
+
+  describe('companySchema', () => {
+    it('acepta perfil vacío (todos opcionales)', () => {
+      expect(validateForm(companySchema, { tradeName: '', legalName: '', taxId: '', phone: '', email: '' }).success).toBe(true)
+    })
+    it('valida formato de email y teléfono del negocio', () => {
+      expect(validateForm(companySchema, { email: 'malo' }).errors.email).toBeTruthy()
+      expect(validateForm(companySchema, { phone: 'abc' }).errors.phone).toBeTruthy()
+      expect(validateForm(companySchema, { tradeName: 'Mi Negocio', email: 'a@b.com', phone: '+53 5555 5555' }).success).toBe(true)
     })
   })
 })

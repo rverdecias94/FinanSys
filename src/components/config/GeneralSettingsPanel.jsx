@@ -12,6 +12,7 @@ import { AppearanceSection } from '@/components/config/general/AppearanceSection
 import { BusinessProfileSection } from '@/components/config/general/BusinessProfileSection'
 import { RegionFormatsSection } from '@/components/config/general/RegionFormatsSection'
 import { Button } from '@/components/ui/button'
+import { companySchema, validateForm } from '@/utils/formSchemas'
 
 function toDecimalInput(value) {
   if (value === null || value === undefined) return ''
@@ -77,6 +78,7 @@ export function GeneralSettingsPanel() {
   const [logoUploading, setLogoUploading] = useState(false)
   const [hasEdits, setHasEdits] = useState(false)
   const [savedSnapshot, setSavedSnapshot] = useState(null)
+  const [companyErrors, setCompanyErrors] = useState({})
 
   const [initialBalances, setInitialBalances] = useState(() => ({
     CUP: '',
@@ -185,6 +187,7 @@ export function GeneralSettingsPanel() {
         region: data?.region || settingsPayload.region
       })
       setHasEdits(false)
+      setCompanyErrors({})
       queryClient.setQueryData(['configuracion', 'general-settings', effectiveId], data || null)
       toast.success('Configuración general guardada')
     },
@@ -200,6 +203,23 @@ export function GeneralSettingsPanel() {
     if (!savedSnapshot) return true
     return isDirty
   }, [isDirty, isOwner, saveSettingsMutation.isPending, savedSnapshot, settingsQuery.isLoading])
+
+  const handleSaveSettings = () => {
+    const validation = validateForm(companySchema, {
+      tradeName: company.tradeName || '',
+      legalName: company.legalName || '',
+      taxId: company.taxId || '',
+      phone: company.phone || '',
+      email: company.email || ''
+    })
+    if (!validation.success) {
+      setCompanyErrors(validation.errors)
+      toast.error('Revisa los datos del negocio', { description: 'Hay campos con formato inválido.' })
+      return
+    }
+    setCompanyErrors({})
+    saveSettingsMutation.mutate()
+  }
 
   const handleSaveBaseCurrency = async () => {
     if (!isOwner) return
@@ -303,8 +323,13 @@ export function GeneralSettingsPanel() {
       <BusinessProfileSection
         isOwner={isOwner}
         company={company}
+        errors={companyErrors}
         onCompany={(patch) => {
           setHasEdits(true)
+          const key = Object.keys(patch)[0]
+          if (key && companyErrors[key]) {
+            setCompanyErrors((prev) => { const n = { ...prev }; delete n[key]; return n })
+          }
           setCompany((p) => ({ ...p, ...patch }))
         }}
         onLogoFile={onLogoFile}
@@ -343,7 +368,7 @@ export function GeneralSettingsPanel() {
                   ? 'Hay cambios sin guardar.'
                   : 'Todo está guardado.'}
         </div>
-        <Button onClick={() => saveSettingsMutation.mutate()} loading={saveSettingsMutation.isPending} disabled={!canSave}>
+        <Button onClick={handleSaveSettings} loading={saveSettingsMutation.isPending} disabled={!canSave}>
           Guardar Perfil y Formatos
         </Button>
       </div>

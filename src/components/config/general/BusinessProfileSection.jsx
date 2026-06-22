@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Building2, UploadCloud } from 'lucide-react'
 
-export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile, logoUploading }) {
+export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile, logoUploading, errors = {} }) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDrop = (e) => {
@@ -29,23 +29,28 @@ export function BusinessProfileSection({ isOwner, company, onCompany, onLogoFile
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-2">
             <Label>Nombre Comercial</Label>
-            <Input value={company.tradeName} onChange={(e) => onCompany({ tradeName: e.target.value })} disabled={!isOwner} />
+            <Input value={company.tradeName} onChange={(e) => onCompany({ tradeName: e.target.value })} disabled={!isOwner} aria-invalid={!!errors.tradeName} />
+            {errors.tradeName && <p className="text-xs text-destructive">{errors.tradeName}</p>}
           </div>
           <div className="space-y-2">
             <Label>Razón Social</Label>
-            <Input value={company.legalName} onChange={(e) => onCompany({ legalName: e.target.value })} disabled={!isOwner} />
+            <Input value={company.legalName} onChange={(e) => onCompany({ legalName: e.target.value })} disabled={!isOwner} aria-invalid={!!errors.legalName} />
+            {errors.legalName && <p className="text-xs text-destructive">{errors.legalName}</p>}
           </div>
           <div className="space-y-2">
             <Label>Identificación Fiscal / NIT</Label>
-            <Input value={company.taxId} onChange={(e) => onCompany({ taxId: e.target.value })} disabled={!isOwner} />
+            <Input value={company.taxId} onChange={(e) => onCompany({ taxId: e.target.value })} disabled={!isOwner} aria-invalid={!!errors.taxId} />
+            {errors.taxId && <p className="text-xs text-destructive">{errors.taxId}</p>}
           </div>
           <div className="space-y-2">
             <Label>Teléfono de Contacto</Label>
-            <Input value={company.phone} onChange={(e) => onCompany({ phone: e.target.value })} disabled={!isOwner} />
+            <Input value={company.phone} onChange={(e) => onCompany({ phone: e.target.value })} disabled={!isOwner} aria-invalid={!!errors.phone} />
+            {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
           </div>
           <div className="space-y-2">
             <Label>Correo Electrónico del Negocio</Label>
-            <Input type="email" value={company.email} onChange={(e) => onCompany({ email: e.target.value })} disabled={!isOwner} />
+            <Input type="email" value={company.email} onChange={(e) => onCompany({ email: e.target.value })} disabled={!isOwner} aria-invalid={!!errors.email} />
+            {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
           </div>
         </div>
 
