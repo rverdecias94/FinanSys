@@ -36,18 +36,18 @@ export function AlmacenDashboard({ stats, loading }) {
           <Package className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.totalProducts}</div>
+          <div className="text-2xl font-bold">{stats.totalProducts ?? 0}</div>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Bajo Stock</CardTitle>
-          <AlertTriangle className={`h-4 w-4 ${stats.lowStockCount > 0 ? 'text-warning' : 'text-muted-foreground'}`} />
+          <AlertTriangle className={`h-4 w-4 ${(stats.lowStockCount ?? 0) > 0 ? 'text-warning' : 'text-muted-foreground'}`} />
         </CardHeader>
         <CardContent>
-          <div className={`text-2xl font-bold ${stats.lowStockCount > 0 ? 'text-warning' : ''}`}>
-            {stats.lowStockCount}
+          <div className={`text-2xl font-bold ${(stats.lowStockCount ?? 0) > 0 ? 'text-warning' : ''}`}>
+            {stats.lowStockCount ?? 0}
           </div>
           <p className="text-xs text-muted-foreground">Productos requieren atención</p>
         </CardContent>

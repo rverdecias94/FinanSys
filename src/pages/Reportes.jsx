@@ -566,7 +566,7 @@ const Reportes = () => {
                       </div>
 
                       <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-                        <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount} ítems</Badge>
+                        <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount ?? 0} ítems</Badge>
                       </div>
                     </div>
                   )}
