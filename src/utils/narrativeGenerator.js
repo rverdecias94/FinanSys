@@ -106,7 +106,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     if (!d) return;
     const margin = d.incomeTotal > 0 ? (d.net / d.incomeTotal) * 100 : null;
     const coverage = d.expenseTotal > 0 ? d.incomeTotal / d.expenseTotal : null;
-    summaryText += `En ${curr}, los ingresos totalizaron ${fmt(d.incomeTotal, curr)} frente a egresos por ${fmt(d.expenseTotal, curr)}, arrojando un resultado neto ${d.net >= 0 ? 'positivo (superávit)' : 'negativo (déficit)'} de ${fmt(d.net, curr)}`;
+    summaryText += `En ${curr}, los ingresos totalizaron ${fmt(d.incomeTotal, curr)} frente a egresos por ${fmt(d.expenseTotal, curr)}, arrojando un resultado neto ${d.net >= 0 ? 'positivo (entró más de lo que salió)' : 'negativo (salió más de lo que entró)'} de ${fmt(d.net, curr)}`;
     if (margin !== null) summaryText += `, con un margen neto del ${margin.toFixed(1)}%`;
     if (coverage !== null) summaryText += ` y una razón de cobertura de gastos de ${coverage.toFixed(2)}x`;
     summaryText += '. ';
@@ -242,7 +242,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     type: "table",
     headers: ["Indicador", "Valor"],
     rows: kpis,
-    notes: `Indicadores calculados sobre los movimientos del período. El margen neto mide la proporción del ingreso que se traduce en resultado; la razón de cobertura, las veces que los ingresos cubren los egresos (valores > 1x indican superávit).`
+    notes: `Indicadores calculados sobre los movimientos del período. El margen neto mide la proporción del ingreso que se traduce en resultado; la razón de cobertura, las veces que los ingresos cubren los egresos (valores > 1x indican que los ingresos cubren los gastos).`
   });
 
   if (prevByCurrency) {
@@ -303,9 +303,9 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   if (dp.incomeTotal > 0 || dp.expenseTotal > 0) {
     const margin = dp.incomeTotal > 0 ? (dp.net / dp.incomeTotal) * 100 : null
     if (dp.net >= 0) {
-      conclusions.push(`**Resultado del período:** el período cerró con superávit de ${fmt(dp.net, primaryCurr)}${margin !== null ? ` y un margen neto del ${margin.toFixed(1)}%` : ''}, lo que evidencia capacidad de generación de excedentes y autofinanciación operativa.`)
+      conclusions.push(`**Resultado del período:** el período cerró con un resultado positivo de ${fmt(dp.net, primaryCurr)}${margin !== null ? ` y un margen neto del ${margin.toFixed(1)}%` : ''} (entró más dinero del que salió), lo que deja margen para reinvertir o ahorrar.`)
     } else {
-      conclusions.push(`**Resultado del período:** el período cerró con déficit de ${fmt(dp.net, primaryCurr)}, situación que reduce el capital de trabajo disponible y exige medidas de contención del gasto o de incremento de ingresos.`)
+      conclusions.push(`**Resultado del período:** el período cerró con un resultado negativo de ${fmt(dp.net, primaryCurr)} (salió más dinero del que entró), conviene revisar los gastos o aumentar los ingresos.`)
     }
   } else {
     conclusions.push(`**Resultado del período:** no se registró actividad financiera relevante en el período analizado.`)

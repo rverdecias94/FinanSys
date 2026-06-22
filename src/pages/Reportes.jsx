@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ArrowDownCircle, ArrowUpCircle, FileText, Layers, Lock, Package, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, FileText, Layers, Lock, Package, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
@@ -18,9 +18,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { ExportButton } from '@/components/common/ExportButton'
-import { fetchTransactionsForExport, listTransactions, getAgingReport } from '@/services/finanzas'
+import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig } from '@/services/finanzas'
 import { AgingPanel } from '@/components/finanzas/AgingPanel'
+import { CashFlowPanel } from '@/components/finanzas/CashFlowPanel'
+import { PositionPanel } from '@/components/finanzas/PositionPanel'
 import { agingToExportRows } from '@/utils/aging'
+import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRows } from '@/utils/financials'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
@@ -167,6 +170,59 @@ const Reportes = () => {
       return
     }
     exportToExcel(`Antiguedad ${income ? 'CxC' : 'CxP'}`, rows, fname)
+  }
+
+  // Flujo de Efectivo (Q5): entradas/salidas/neto por moneda del período del filtro.
+  const { data: cashTotals, isLoading: cashLoading } = useQuery({
+    queryKey: ['cashflow', effectiveUserId, dateFilter?.startDate, dateFilter?.endDate],
+    queryFn: () => getFilteredTotals({ from: dateFilter?.startDate, to: dateFilter?.endDate, userId, businessId }),
+    enabled: listingsEnabled && canViewFinanzas
+  })
+  const cashFlow = buildCashFlow(cashTotals)
+
+  // Posición (Q5): saldo (business_balances, devengado) + por cobrar/pagar (aging) →
+  // caja real. Las queries de aging recv/pay comparten caché con el Card de Antigüedad.
+  const { data: balances = [] } = useQuery({
+    queryKey: ['balanceConfig', effectiveUserId],
+    queryFn: () => getBalanceConfig(userId, businessId),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+  const { data: posReceivable = [], isLoading: recvLoading } = useQuery({
+    queryKey: ['aging', 'receivable', effectiveUserId],
+    queryFn: () => getAgingReport('receivable'),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+  const { data: posPayable = [], isLoading: payLoading } = useQuery({
+    queryKey: ['aging', 'payable', effectiveUserId],
+    queryFn: () => getAgingReport('payable'),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+  const position = buildPosition(balances, posReceivable, posPayable)
+  const positionLoading = recvLoading || payLoading
+
+  const exportCashFlow = (type) => {
+    const rows = cashFlowToExportRows(cashFlow)
+    const fname = 'flujo_efectivo'
+    const label = dateFilter?.label ? ` - ${dateFilter.label}` : ''
+    if (type === 'pdf') {
+      const headers = ['Moneda', 'Entradas', 'Salidas', 'Flujo neto']
+      const body = rows.map((r) => [r.Moneda, r.Entradas, r.Salidas, r['Flujo neto']].map(String))
+      exportToPDF(`Flujo de Efectivo${label}`, headers, body, fname, pdfOptions())
+      return
+    }
+    exportToExcel('Flujo de Efectivo', rows, fname)
+  }
+
+  const exportPosition = (type) => {
+    const rows = positionToExportRows(position)
+    const fname = 'posicion'
+    if (type === 'pdf') {
+      const headers = ['Moneda', 'Saldo registrado', 'Por cobrar', 'Por pagar', 'Caja real hoy']
+      const body = rows.map((r) => [r.Moneda, r['Saldo registrado'], r['Por cobrar'], r['Por pagar'], r['Caja real hoy']].map(String))
+      exportToPDF('Posición (a hoy)', headers, body, fname, pdfOptions())
+      return
+    }
+    exportToExcel('Posicion', rows, fname)
   }
 
   const handleFilterChange = (filter) => {
@@ -575,6 +631,63 @@ const Reportes = () => {
             </Card>
           </TabsContent>
         </Tabs>
+      )}
+
+      {/* Flujo de Efectivo (Q5): entradas/salidas del período del filtro, por moneda. */}
+      {canViewFinanzas && (
+        <Card>
+          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <ArrowLeftRight className="h-5 w-5 text-primary" />
+                Flujo de Efectivo
+              </CardTitle>
+              <CardDescription>{dateFilter?.label ? `Entradas y salidas · ${dateFilter.label}` : 'Selecciona un período arriba'}</CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <PermissionGuard permission="reports.export" mode="disable">
+                <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
+              </PermissionGuard>
+              <PermissionGuard permission="reports.export" mode="disable">
+                <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
+              </PermissionGuard>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <CashFlowPanel
+              rows={cashFlow}
+              loading={cashLoading}
+              formatCurrency={formatCurrency}
+              emptyMessage={dateFilter ? 'No hay movimientos en el período seleccionado.' : 'Selecciona un período arriba para ver el flujo.'}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Posición simplificada (Q5): foto a hoy, saldo + caja real (saldo − CxC + CxP). */}
+      {canViewFinanzas && (
+        <Card>
+          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1 min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5 text-primary" />
+                Posición
+              </CardTitle>
+              <CardDescription>Tu caja real hoy y de qué se compone, por moneda.</CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:justify-end">
+              <PermissionGuard permission="reports.export" mode="disable">
+                <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportPosition('excel') : notifyPremiumExport('Excel')} />
+              </PermissionGuard>
+              <PermissionGuard permission="reports.export" mode="disable">
+                <ExportButton format="pdf" onClick={() => exportPosition('pdf')} />
+              </PermissionGuard>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <PositionPanel rows={position} loading={positionLoading} formatCurrency={formatCurrency} />
+          </CardContent>
+        </Card>
       )}
 
       {/* Antigüedad de saldos (Q10): independiente del filtro de fechas (foto a hoy). */}
