@@ -20,7 +20,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const [formData, setFormData] = useState({
     product_id: '',
     qty: '',
-    type: 'in'
+    type: 'in',
+    unit_cost: ''
   })
 
   const handleSubmit = async (e) => {
@@ -28,7 +29,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
     const validation = validateForm(movementSchema, {
       product_id: formData.product_id,
       type: formData.type,
-      qty: String(formData.qty ?? '')
+      qty: String(formData.qty ?? ''),
+      unit_cost: String(formData.unit_cost ?? '')
     })
     if (!validation.success) {
       setErrors(validation.errors)
@@ -47,6 +49,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
         product_id: formData.product_id,
         qty: Number(formData.qty),
         type: formData.type,
+        unit_cost: formData.type === 'in' ? formData.unit_cost : '',
         userId: session?.user?.id,
         businessId: effectiveBusinessId
       })
@@ -65,7 +68,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
     <Dialog open={open} onOpenChange={(nextOpen) => {
       onOpenChange(nextOpen)
       if (!nextOpen) {
-        setFormData({ product_id: '', qty: '', type: 'in' })
+        setFormData({ product_id: '', qty: '', type: 'in', unit_cost: '' })
         setErrors({})
       }
     }}>
@@ -122,6 +125,24 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
               {errors.qty && <p className="text-xs text-destructive">{errors.qty}</p>}
             </div>
           </div>
+
+          {formData.type === 'in' && (
+            <div className="grid gap-2">
+              <Label>Costo unitario <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.unit_cost}
+                onChange={e => setFormData({ ...formData, unit_cost: e.target.value })}
+                aria-invalid={!!errors.unit_cost}
+              />
+              {errors.unit_cost
+                ? <p className="text-xs text-destructive">{errors.unit_cost}</p>
+                : <p className="text-xs text-muted-foreground">Si lo indicas, se recalcula el costo promedio del producto.</p>}
+            </div>
+          )}
 
           {selectedProduct && formData.type === 'out' && (
             <div className="text-sm text-muted-foreground">

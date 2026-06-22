@@ -155,18 +155,24 @@ export async function deleteProduct(id, userId, businessId) {
   })
 }
 
-export async function registerMovement({ product_id, qty, type, userId }) {
+export async function registerMovement({ product_id, qty, type, unit_cost, userId }) {
   if (!userId) throw new Error('User ID is required')
+
+  // Costo unitario (S6): opcional y solo relevante en entradas. Vacío/null → la RPC
+  // no toca el costo promedio (avg_cost); si viene, recalcula el WAC server-side.
+  const cost = (unit_cost === '' || unit_cost === null || unit_cost === undefined) ? null : Number(unit_cost)
 
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
     // Movimiento atómico en servidor (RPC register_stock_movement): en UNA transacción actualiza
     // el stock con un solo UPDATE (sin race condition read-modify-write), inserta el movimiento,
     // valida el permiso warehouse.move y bloquea stock negativo (CHECK + guard). El negocio se
     // resuelve server-side vía get_current_business_id() (no se confía en el businessId del cliente).
+    // En entradas con costo recalcula el promedio ponderado (WAC); en salidas sella el COGS.
     const { data, error } = await supabase.rpc('register_stock_movement', {
       p_product_id: Number(product_id),
       p_qty: Number(qty),
-      p_type: type
+      p_type: type,
+      p_unit_cost: type === 'in' ? cost : null
     })
 
     if (error) throw error
@@ -179,12 +185,13 @@ export async function registerMovement({ product_id, qty, type, userId }) {
         product_name: data?.name,
         qty,
         type,
+        unit_cost: data?.unit_cost ?? null,
         new_stock: data?.new_stock
       },
       area: 'Almacén'
     })
 
-    return { product_id, qty, type, resulting_stock: data?.new_stock, name: data?.name }
+    return { product_id, qty, type, resulting_stock: data?.new_stock, name: data?.name, unit_cost: data?.unit_cost }
   })
 }
 

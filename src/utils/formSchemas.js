@@ -47,6 +47,11 @@ export const movementSchema = z.object({
   type: z.enum(['in', 'out']),
   qty: z.string().trim()
     .refine((v) => /^\d{1,9}$/.test(v) && Number(v) >= 1, 'La cantidad debe ser un entero mayor que cero'),
+  // Costo unitario: opcional (solo aplica a entradas). Si se indica, recalcula el WAC.
+  unit_cost: z.string().trim()
+    .refine((v) => v === '' || (/^\d{1,12}(\.\d{1,2})?$/.test(v) && Number(v) >= 0),
+      'El costo debe ser un número válido (0 o más)')
+    .optional(),
 })
 
 // Correo electrónico (regla reutilizable)
