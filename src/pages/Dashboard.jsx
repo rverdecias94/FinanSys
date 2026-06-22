@@ -498,7 +498,7 @@ export default function Dashboard() {
                     <Tooltip
                       cursor={{ fill: 'transparent' }}
                       contentStyle={{
-                        borderRadius: '8px',
+                        borderRadius: '5px',
                         backgroundColor: 'hsl(var(--card))',
                         color: 'hsl(var(--card-foreground))',
                         border: '1px solid hsl(var(--border))',
@@ -573,7 +573,7 @@ export default function Dashboard() {
                       </Pie>
                       <Tooltip
                         contentStyle={{
-                          borderRadius: '8px',
+                          borderRadius: '5px',
                           backgroundColor: 'hsl(var(--card))',
                           color: 'hsl(var(--card-foreground))',
                           border: '1px solid hsl(var(--border))',

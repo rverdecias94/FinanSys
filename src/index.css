@@ -41,7 +41,7 @@
     --font-sans: Outfit, sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: monospace;
-    --radius: 0.5rem;
+    --radius: 0.3125rem; /* 5px — radio uniforme de la UI */
     --shadow-x: 0px;
     --shadow-y: 1px;
     --shadow-blur: 3px;
@@ -98,7 +98,7 @@
     --font-sans: Outfit, sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: monospace;
-    --radius: 0.5rem;
+    --radius: 0.3125rem; /* 5px — radio uniforme de la UI */
     --shadow-x: 0px;
     --shadow-y: 1px;
     --shadow-blur: 3px;
@@ -235,4 +235,18 @@ html.font-accessible {
     animation: none;
     opacity: 0.7;
   }
+}
+
+/* ── Border-radius uniforme (5px) en componentes de TERCEROS ───────────────
+   Los componentes propios usan los tokens de Tailwind, ya unificados a 5px
+   (ver tailwind.config.js + --radius). Aquí forzamos 5px en widgets de
+   librería que traen su propio radio. Los elementos circulares (avatares,
+   switches, spinners) NO se tocan: siguen usando rounded-full. */
+[data-sonner-toast],
+.flatpickr-calendar,
+.flatpickr-day,
+.react-datepicker,
+.react-datepicker__day,
+.react-datepicker__header {
+  border-radius: 0.3125rem !important;
 }

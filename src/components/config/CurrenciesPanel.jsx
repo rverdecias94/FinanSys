@@ -37,7 +37,7 @@ function RateHistoryChart({ data }) {
         <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} width={48} domain={['auto', 'auto']} />
         <Tooltip
           contentStyle={{
-            borderRadius: '8px',
+            borderRadius: '5px',
             backgroundColor: 'hsl(var(--card))',
             color: 'hsl(var(--card-foreground))',
             border: '1px solid hsl(var(--border))',

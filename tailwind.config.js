@@ -25,11 +25,14 @@ module.exports = {
 				],
 			},
 			borderRadius: {
-				lg: '1rem',
-				md: '0.75rem',
-				sm: '0.25rem',
-				DEFAULT: '0.5rem',
-				xl: '1.5rem',
+				// Radio uniforme de 5px en TODA la UI rectangular (botones, inputs,
+				// selects, cards, modales, badges…). Los elementos circulares siguen
+				// usando `rounded-full`. Ver también --radius en src/index.css.
+				lg: '0.3125rem',
+				md: '0.3125rem',
+				sm: '0.3125rem',
+				DEFAULT: '0.3125rem',
+				xl: '0.3125rem',
 				full: '9999px',
 			},
 			spacing: {

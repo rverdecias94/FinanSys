@@ -77,7 +77,7 @@ export function AlmacenDashboard({ stats, loading }) {
               </Pie>
               <Tooltip
                 contentStyle={{
-                  borderRadius: '8px',
+                  borderRadius: '5px',
                   backgroundColor: 'hsl(var(--card))',
                   color: 'hsl(var(--card-foreground))',
                   border: '1px solid hsl(var(--border))',
@@ -115,7 +115,7 @@ export function AlmacenDashboard({ stats, loading }) {
                 axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  borderRadius: '8px',
+                  borderRadius: '5px',
                   backgroundColor: 'hsl(var(--card))',
                   color: 'hsl(var(--card-foreground))',
                   border: '1px solid hsl(var(--border))',
@@ -146,7 +146,7 @@ export function AlmacenDashboard({ stats, loading }) {
               <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11}} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  borderRadius: '8px',
+                  borderRadius: '5px',
                   backgroundColor: 'hsl(var(--card))',
                   color: 'hsl(var(--card-foreground))',
                   border: '1px solid hsl(var(--border))',
