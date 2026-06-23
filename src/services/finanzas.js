@@ -332,6 +332,23 @@ export async function getAgingReport(direction = 'receivable') {
   return data || []
 }
 
+// Venta conectada (S7): registra la venta de un producto en UNA operación atómica
+// (RPC register_sale). Crea el ingreso (en la moneda del producto, monto = qty*precio
+// calculado server-side), descuenta stock y sella el COGS = avg_cost. El payload lleva
+// los datos de la transacción (date, category, description, contact_id, status,
+// due_date, payment_method); la moneda y el monto los resuelve la RPC. Devuelve
+// { transaction_id, amount, currency, cogs, margin, new_stock }.
+export async function registerSale(payload, productId, qty, unitPrice) {
+  const { data, error } = await supabase.rpc('register_sale', {
+    p_payload: payload || {},
+    p_product_id: Number(productId),
+    p_qty: Number(qty),
+    p_unit_price: Number(unitPrice)
+  })
+  if (error) throw error
+  return data
+}
+
 // Cierre de período (S5): fecha (inclusive) hasta la cual los movimientos están
 // bloqueados. getPeriodLock lee el candado; setPeriodLock cierra (date) o reabre (null).
 export async function getPeriodLock(userId, businessId) {

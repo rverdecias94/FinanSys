@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
+import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions, registerSale } from '@/services/finanzas'
+import { listProductsForSelection } from '@/services/almacen'
 import { listContacts } from '@/services/contacts'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye } from 'lucide-react'
@@ -66,6 +67,14 @@ export default function FinanzasMejorado() {
     enabled: !!userId && !!businessId && !businessLoading,
   })
 
+  // Productos para el modo "venta de producto" del modal (S7). Comparte caché con
+  // Almacén (mismo queryKey) y se refresca al invalidar ['warehouse'] tras una venta.
+  const { data: productsData } = useQuery({
+    queryKey: ['warehouse', 'productsSelection', businessId || userId],
+    queryFn: () => listProductsForSelection({ userId, businessId }),
+    enabled: !!userId && !!businessId && !businessLoading,
+  })
+
   const { data: filteredTotals } = useQuery({
     queryKey: ['filteredTotals', { userId: businessId || userId, currency: currencyFilter, category: categoryFilter, dateKey }],
     queryFn: () => getFilteredTotals({
@@ -82,6 +91,21 @@ export default function FinanzasMejorado() {
   // Mutaciones
   const createMutation = useMutation({
     mutationFn: async (payload) => {
+      // Venta de producto (S7): operación atómica única (crea el ingreso, descuenta
+      // stock y sella el COGS). Se depura el payload a campos serializables (sin Files);
+      // la RPC resuelve moneda y monto.
+      if (payload.isSale) {
+        const salePayload = {
+          date: payload.date instanceof Date ? payload.date.toISOString() : (payload.date || ''),
+          category: payload.category,
+          description: payload.description,
+          contact_id: payload.contact_id != null ? String(payload.contact_id) : '',
+          status: payload.status,
+          due_date: payload.due_date instanceof Date ? payload.due_date.toISOString() : (payload.due_date || ''),
+          payment_method: payload.payment_method || '',
+        }
+        return registerSale(salePayload, payload.product_id, payload.qty, payload.unit_price)
+      }
       const fullPayload = { ...payload, user_id: userId }
       return createTransaction(fullPayload, userId, businessId)
     },
@@ -89,6 +113,7 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] })
       recordUsage('monthly_transactions')
       setModalOpen(false)
       setSelectedTransaction(null)
@@ -439,6 +464,7 @@ export default function FinanzasMejorado() {
         paymentMethods={paymentMethods}
         currencies={businessCurrencies}
         contacts={contactsData?.data || []}
+        products={productsData || []}
         submitting={createMutation.isPending || updateMutation.isPending}
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />

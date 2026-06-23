@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
+import { Switch } from '@/components/ui/switch'
 
 const DEFAULT_CATEGORIES = {
   income: [
@@ -56,23 +57,14 @@ const DEFAULT_PAYMENT_METHODS = [
   'PayPal', 'Zelle', 'Otro'
 ]
 
+// P1.13: monto endurecido (sin Infinity/hex/científica). En modo venta (S7) el monto
+// se calcula (qty*precio) y se validan producto/cantidad/precio; zod no encadena
+// .refine condicional, así que la validación según el modo vive en superRefine.
+const AMOUNT_RE = /^\d{1,12}(\.\d{1,2})?$/
 const formSchema = z.object({
   type: z.enum(['income', 'expense']),
   date: z.date({ required_error: "La fecha es obligatoria" }),
-  amount: z.string()
-    .trim()
-    // P1.13: validación de monto endurecida. El `!isNaN(Number(val))` anterior aceptaba
-    // Infinity, hexadecimal (0x10), notación científica (1e3) y espacios. El regex solo
-    // admite dígitos con hasta 2 decimales (formato monetario), hasta 12 enteros.
-    .refine((val) => /^\d{1,12}(\.\d{1,2})?$/.test(val), {
-      message: "Ingresa un monto válido (ej: 1500.50), sin letras ni símbolos.",
-    })
-    .refine((val) => {
-      const n = Number(val)
-      return Number.isFinite(n) && n > 0
-    }, {
-      message: "El monto debe ser mayor que cero.",
-    }),
+  amount: z.string().trim().optional(),
   currency: z.string().min(1, "La moneda es obligatoria"),
   category: z.string().min(1, "La categoría es obligatoria"),
   description: z.string().min(3, "La descripción debe tener al menos 3 caracteres"),
@@ -84,9 +76,28 @@ const formSchema = z.object({
   status: z.enum(['paid', 'pending']).optional(),
   due_date: z.date().nullable().optional(),
   files: z.any().optional(), // For mock attachment
+  // Venta de producto (S7): un producto por venta.
+  isSale: z.boolean().optional(),
+  sale_product_id: z.string().optional(),
+  sale_qty: z.string().optional(),
+  sale_unit_price: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.isSale) {
+    if (!data.sale_product_id)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sale_product_id'], message: 'Selecciona un producto' })
+    if (!/^\d{1,9}$/.test(data.sale_qty || '') || Number(data.sale_qty) < 1)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sale_qty'], message: 'Cantidad inválida (entero mayor que cero)' })
+    if (!AMOUNT_RE.test(data.sale_unit_price || '') || Number(data.sale_unit_price) <= 0)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['sale_unit_price'], message: 'Precio inválido (mayor que cero)' })
+  } else {
+    if (!AMOUNT_RE.test(data.amount || ''))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'Ingresa un monto válido (ej: 1500.50), sin letras ni símbolos.' })
+    else if (!(Number.isFinite(Number(data.amount)) && Number(data.amount) > 0))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'El monto debe ser mayor que cero.' })
+  }
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], submitting = false, readonly = false }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], products = [], submitting = false, readonly = false }) {
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
@@ -109,6 +120,10 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       contact_id: '',
       status: 'paid',
       due_date: null,
+      isSale: false,
+      sale_product_id: '',
+      sale_qty: '',
+      sale_unit_price: '',
     },
   })
 
@@ -132,6 +147,10 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           contact_id: transaction?.contact_id != null ? String(transaction.contact_id) : '',
           status: transaction?.status === 'paid' ? 'paid' : 'pending',
           due_date: transaction?.due_date ? new Date(transaction.due_date) : null,
+          isSale: false,
+          sale_product_id: '',
+          sale_qty: '',
+          sale_unit_price: '',
         })
 
         const attachments = Array.isArray(details.attachments) ? details.attachments.filter(a => typeof a === 'string' && a.trim() !== '') : []
@@ -151,6 +170,10 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
           contact_id: '',
           status: 'paid',
           due_date: null,
+          isSale: false,
+          sale_product_id: '',
+          sale_qty: '',
+          sale_unit_price: '',
         })
         setExistingAttachments([])
         setDeletedAttachments([])
@@ -161,6 +184,20 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   }, [open, form, isEditing, transaction, defaultCurrency])
 
   const watchedValues = form.watch()
+
+  const selectedSaleProduct = products.find(p => String(p.id) === String(watchedValues.sale_product_id))
+
+  // Modo venta (S7): el monto se calcula (qty*precio) y la moneda = la del producto, de
+  // modo que el preview y el "Total Estimado" reutilizan el form. La categoría se fija a
+  // "Ventas" una sola vez al activar el switch (no aquí, para no pisar al usuario).
+  useEffect(() => {
+    if (!watchedValues.isSale) return
+    const qty = Number(watchedValues.sale_qty)
+    const price = Number(watchedValues.sale_unit_price)
+    const total = qty > 0 && price > 0 ? qty * price : 0
+    form.setValue('amount', total ? String(total) : '')
+    if (selectedSaleProduct?.currency) form.setValue('currency', selectedSaleProduct.currency)
+  }, [watchedValues.isSale, watchedValues.sale_qty, watchedValues.sale_unit_price, selectedSaleProduct, form])
 
   // Use props if available, otherwise fallback to defaults
   const availableCategories = categories && categories[watchedValues.type]?.length > 0
@@ -207,6 +244,13 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       paid_amount: transaction?.paid_amount,
       attachments: mergedAttachments,
       deleted_attachments: deletedAttachments
+    }
+    // Venta de producto (S7): adjunta la línea; el padre detecta isSale y llama register_sale.
+    if (data.isSale) {
+      payload.isSale = true
+      payload.product_id = Number(data.sale_product_id)
+      payload.qty = Number(data.sale_qty)
+      payload.unit_price = Number(data.sale_unit_price)
     }
     onSubmit(payload)
   }
@@ -267,6 +311,24 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
             <fieldset disabled={readonly} className="space-y-6 m-0 p-0 border-0 min-w-0 disabled:cursor-not-allowed disabled:opacity-95">
             {!isPreview ? (
               <>
+                {!isEditing && !readonly && products.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                    <div className="min-w-0">
+                      <FormLabel className="text-sm font-medium">Es venta de producto</FormLabel>
+                      <p className="text-xs text-muted-foreground">Descuenta stock y sella el costo automáticamente.</p>
+                    </div>
+                    <Switch
+                      checked={!!watchedValues.isSale}
+                      onCheckedChange={(checked) => {
+                        form.setValue('isSale', checked)
+                        if (checked) {
+                          form.setValue('type', 'income')
+                          form.setValue('category', 'Ventas')
+                        }
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -310,6 +372,78 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                   />
                 </div>
 
+                {watchedValues.isSale && (
+                  <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                    <FormField
+                      control={form.control}
+                      name="sale_product_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Producto</FormLabel>
+                          <Select
+                            value={field.value}
+                            onValueChange={(v) => {
+                              field.onChange(v)
+                              const p = products.find(pr => String(pr.id) === String(v))
+                              if (p && p.unit_price != null) form.setValue('sale_unit_price', String(p.unit_price))
+                            }}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-11">
+                                <SelectValue placeholder="Selecciona un producto" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="max-h-[200px]">
+                              {products.map(p => (
+                                <SelectItem key={p.id} value={String(p.id)}>
+                                  {p.name} (Stock: {p.stock})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="sale_qty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Cantidad</FormLabel>
+                            <FormControl>
+                              <Input type="number" min="1" placeholder="0" {...field} />
+                            </FormControl>
+                            {selectedSaleProduct && (
+                              <FormDescription>Disponible: {selectedSaleProduct.stock}</FormDescription>
+                            )}
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="sale_unit_price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Precio de venta (unitario)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="0.00" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md bg-background/60 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Total de la venta</span>
+                      <span className="font-semibold tabular-nums">{calculateTotal().toFixed(2)} {watchedValues.currency}</span>
+                    </div>
+                  </div>
+                )}
+
+                {!watchedValues.isSale && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -351,6 +485,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                     )}
                   />
                 </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField

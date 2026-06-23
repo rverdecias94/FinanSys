@@ -64,7 +64,7 @@ export async function listProductsForSelection({ userId, businessId, limit = 500
 
   let q = supabase
     .from('products')
-    .select('id, name, stock, category')
+    .select('id, name, stock, category, currency, unit_price')
     .eq('user_id', effectiveUserId)
     .order('name', { ascending: true })
 
