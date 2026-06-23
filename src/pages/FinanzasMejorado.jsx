@@ -114,6 +114,8 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       queryClient.invalidateQueries({ queryKey: ['warehouse'] })
+      queryClient.invalidateQueries({ queryKey: ['aging'] })
+      queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
       recordUsage('monthly_transactions')
       setModalOpen(false)
       setSelectedTransaction(null)
@@ -134,6 +136,8 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
+      queryClient.invalidateQueries({ queryKey: ['aging'] })
+      queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
       setModalOpen(false)
       setSelectedTransaction(null)
     },
@@ -151,6 +155,14 @@ export default function FinanzasMejorado() {
   }
 
   const handleEdit = (transaction) => {
+    // Una venta de producto (S7) está ligada a Almacén (sale_items + COGS sellado):
+    // editar el monto aquí desincronizaría el margen, así que se abre en solo lectura.
+    if (transaction?.details?.sale) {
+      notify.info('Esta venta está ligada a Almacén; se abre en modo lectura. Para corregirla, registra un ajuste de inventario o una nueva operación.')
+      setSelectedTransaction({ ...transaction, readonly: true })
+      setModalOpen(true)
+      return
+    }
     setSelectedTransaction(transaction)
     setModalOpen(true)
   }
@@ -318,7 +330,7 @@ export default function FinanzasMejorado() {
           <CardContent>
             <div className="space-y-1">
               {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-success ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                <div key={item.code} className={`font-bold text-success break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
                   + {formatCurrency(item.income, item.code)}
                 </div>
               ))}
@@ -334,7 +346,7 @@ export default function FinanzasMejorado() {
           <CardContent>
             <div className="space-y-1">
               {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-destructive ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                <div key={item.code} className={`font-bold text-destructive break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
                   − {formatCurrency(item.expense, item.code)}
                 </div>
               ))}
@@ -352,7 +364,7 @@ export default function FinanzasMejorado() {
               {financeSummary.map(item => (
                 <div
                   key={item.code}
-                  className={`font-bold ${item.net >= 0 ? 'text-success' : 'text-destructive'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
+                  className={`font-bold break-words tabular-nums ${item.net >= 0 ? 'text-success' : 'text-destructive'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
                 >
                   {formatCurrency(item.net, item.code)}
                 </div>

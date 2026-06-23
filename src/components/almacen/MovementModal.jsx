@@ -72,7 +72,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
         setErrors({})
       }
     }}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Registrar Movimiento</DialogTitle>
         </DialogHeader>
@@ -83,7 +83,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
               value={formData.product_id}
               onValueChange={v => setFormData({ ...formData, product_id: v })}
             >
-              <SelectTrigger aria-invalid={!!errors.product_id}>
+              <SelectTrigger className="h-11" aria-invalid={!!errors.product_id}>
                 <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
@@ -104,7 +104,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
                 onValueChange={v => setFormData({ ...formData, type: v })}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -148,7 +148,7 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
             <div className="text-sm text-muted-foreground">
               Stock actual: {selectedProduct.stock}
               {Number(formData.qty) > selectedProduct.stock && (
-                <span className="text-red-500 block font-medium">⚠️ Cantidad excede el stock disponible</span>
+                <span className="text-destructive block font-medium">⚠️ Cantidad excede el stock disponible</span>
               )}
             </div>
           )}

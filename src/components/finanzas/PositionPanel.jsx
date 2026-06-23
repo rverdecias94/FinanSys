@@ -20,7 +20,9 @@ export function PositionPanel({ rows = [], formatCurrency, loading = false, empt
             <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <Wallet className="h-3.5 w-3.5 text-primary" /> Caja real hoy · {r.currency}
             </span>
-            <span className="text-lg font-bold tabular-nums">{formatCurrency(r.caja, r.currency)}</span>
+            <span className={`text-lg font-bold tabular-nums ${r.caja < 0 ? 'text-destructive' : ''}`}>
+              {r.caja < 0 ? '−' : ''}{formatCurrency(Math.abs(r.caja), r.currency)}
+            </span>
           </div>
           <div className="space-y-1.5 border-t pt-2">
             <div className="flex items-center justify-between gap-2 text-sm">

@@ -84,7 +84,8 @@ begin
   v_amount := p_qty * p_unit_price;
 
   v_status := coalesce(p_payload->>'status', 'paid');
-  if v_status not in ('paid', 'pending', 'partial') then v_status := 'paid'; end if;
+  -- Venta nueva: contado ('paid') o a crédito ('pending'). 'partial' u otros → 'pending'.
+  if v_status <> 'paid' then v_status := 'pending'; end if;
   v_paid := case when v_status = 'paid' then v_amount else 0 end;
   v_due  := case when v_status = 'paid' then null
                  else nullif(p_payload->>'due_date', '')::timestamptz end;

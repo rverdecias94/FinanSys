@@ -5,7 +5,7 @@
 > conectando Finanzas↔Almacén↔Inventario para eliminar la doble captura manual, sin convertirlo en ERP.
 > **Apetito de complejidad fijado por Roberto: 8/21** (cashbook sólido, no ERP).
 > **Público:** Cuba (efectivo, informal) + clientes extranjeros informales en crecimiento.
-> **Estado:** PLAN aprobado en alcance. Ejecutar por sesiones, en ramas, con tests y verificación en localhost.
+> **Estado:** 🏁 **PLAN COMPLETADO (2026-06-22).** Las 10 entregas (S1–S10) + el stretch Q21 están aplicadas a prod y verificadas (159 tests verde · lint/build OK · auditoría triple UI/UX·terminología·correctitud superada). Pila de ramas lista para `main`.
 
 ---
 
@@ -65,21 +65,21 @@ Hechos confirmados en la BD viva (Supabase) y el código, que **corrigen** supue
 
 ## 2. Meta de puntaje (honesta) tras P1+P2
 
-**Compromiso firme (8/21 — todos SÍ verificables):**
+**Compromiso firme (8/8 ✅ HECHO — todos verificados en prod):**
 
-| # | Mandamiento | Cómo se cumple |
-|---|---|---|
-| Q2 | Pagos parciales + historial | Tabla `account_payments` (libro de abonos) + RPC atómica |
-| Q3 | No borrar contacto con histórico | Soft-delete con `is_active` |
-| Q4 | Costo promedio ponderado en tiempo real | `products.avg_cost` recomputado en cada entrada |
-| Q5 | Estados financieros | Resumen Ingresos/Gastos + **Flujo de Efectivo** + **Posición simplificada** |
-| Q10 | Antigüedad de saldos | RPC con tramos por-vencer/1-30/31-60/61-90/+90 |
-| Q12 | Multiusuario sin pisarse | Saldo atómico vía trigger correcto + venta vía RPC única |
-| Q16 | Auditoría antes/después | Triggers de auditoría con `old_value`/`new_value` |
-| Q17 | Cierre de período | `period_locks` + guards en BD + reapertura trazable |
+| # | Mandamiento | Cómo se cumple | Estado |
+|---|---|---|---|
+| Q2 | Pagos parciales + historial | Tabla `account_payments` (libro de abonos) + RPC atómica `register_account_payment` | ✅ `a3abe34` (S2) |
+| Q3 | No borrar contacto con histórico | Soft-delete con `is_active` | ✅ `e8dd2eb` (S1) |
+| Q4 | Costo promedio ponderado en tiempo real | `products.avg_cost` recomputado por WAC en cada entrada + COGS sellado en salidas | ✅ `c52fff9` (S6) |
+| Q5 | Estados financieros | **Flujo de Efectivo** + **Posición** (caja real = saldo − por cobrar + por pagar, por el saldo devengado) en Reportes | ✅ `2ee8042` (S10) |
+| Q10 | Antigüedad de saldos | RPC `get_aging_report` con tramos por-vencer/1-30/31-60/61-90/+90, en Cuentas y Reportes | ✅ `7d7dd84` (S9) |
+| Q12 | Multiusuario sin pisarse | Saldo atómico vía trigger sobre `business_balances` + **venta vía RPC `register_sale` única** | ✅ `2f73eca` (S3) + `2cde499` (S7) |
+| Q16 | Auditoría antes/después | Triggers de BD `audit_row_change` con `old_value`/`new_value` | ✅ `335e425` (S4) |
+| Q17 | Cierre de período | `period_locks` + `enforce_period_lock` en BD + reapertura trazable | ✅ `6826c0f` (S5) |
 
-**Stretch alcanzable (subiría a ~11/21):** Q15 (drill-down), Q21 (margen **bruto**), Q13 (FX **realizada**),
-Q19 (campos personalizados en más entidades), reversa de venta (parte de Q8).
+**Stretch logrado:** ✅ **Q21 (margen bruto)** — `sale_items` sella precio y COGS por venta → utilidad derivable (`2cde499`, S7).
+**Stretch pendiente (opcional):** Q15 (drill-down), Q13 (FX realizada), reversa de venta (parte de Q8, S8).
 
 ---
 

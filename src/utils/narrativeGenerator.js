@@ -238,7 +238,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   });
 
   sections.push({
-    title: prevByCurrency ? "6. Indicadores de Gestión Financiera" : "5. Indicadores de Gestión Financiera",
+    title: prevByCurrency ? "6. Indicadores del período" : "5. Indicadores del período",
     type: "table",
     headers: ["Indicador", "Valor"],
     rows: kpis,
@@ -316,7 +316,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     const topExp = Object.entries(expCats).sort((a, b) => b[1] - a[1])[0]
     if (topExp) {
       const share = (topExp[1] / dp.expenseTotal) * 100
-      conclusions.push(`**Estructura del gasto:** la categoría "${topExp[0]}" concentra el ${share.toFixed(0)}% del egreso total (${fmt(topExp[1], primaryCurr)}); se recomienda su seguimiento prioritario en el control presupuestario.`)
+      conclusions.push(`**Estructura del gasto:** la categoría "${topExp[0]}" concentra el ${share.toFixed(0)}% del egreso total (${fmt(topExp[1], primaryCurr)}); conviene vigilar esta categoría de gasto.`)
     }
   }
 
@@ -344,7 +344,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   });
 
   return {
-    title: `Informe de Gestión Financiera`,
+    title: `Resumen financiero del período`,
     metadata,
     sections
   };
