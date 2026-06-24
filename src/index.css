@@ -25,7 +25,10 @@
     --ring: 151 67% 67%;
     --success: 160 90% 26%; /* P3.6: verde más oscuro para contraste WCAG AA (4.98:1) sobre fondo claro */
     --warning: 38 92% 50%;
-    --chart-1: 151 67% 67%;
+    /* Verde de gráficas (ingresos/entradas). El pastel anterior (151 67% 67%) no
+       contrastaba sobre fondo claro (~1.6:1). Verde medio con ~3.8:1 sobre blanco,
+       que sigue destacando en modo oscuro. La variante .dark mantiene su tono claro. */
+    --chart-1: 152 62% 37%;
     --chart-2: 217 91% 60%;
     --chart-3: 258 90% 66%;
     --chart-4: 38 92% 50%;

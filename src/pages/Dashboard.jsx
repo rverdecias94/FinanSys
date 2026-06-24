@@ -49,22 +49,24 @@ import { deriveDashboardView } from '@/utils/dashboardView'
 // con un tono distinto por categoría dentro de cada familia. El PRIMER tono de cada
 // familia usa la variable del tema (`--chart-1` ingresos / `--destructive` gastos)
 // para que coincida EXACTO con la leyenda de la gráfica de barras y se adapte a
-// claro/oscuro. El resto son tonos PASTEL suaves (saturación y brillo moderados).
+// claro/oscuro. El resto son tonos MEDIOS (brillo 30–48%): antes eran pastel (54–66%)
+// y sobre fondo blanco no llegaban a 2:1 de contraste; estos cumplen ≥3:1 (objeto
+// gráfico WCAG) tanto sobre el blanco del modo claro como sobre el oscuro.
 const INCOME_COLORS = [
   'hsl(var(--chart-1))',
-  'hsl(140 52% 58%)',
-  'hsl(168 42% 55%)',
-  'hsl(122 40% 62%)',
-  'hsl(186 44% 54%)',
-  'hsl(104 38% 60%)'
+  'hsl(168 64% 30%)',
+  'hsl(140 55% 35%)',
+  'hsl(190 68% 32%)',
+  'hsl(122 45% 37%)',
+  'hsl(100 45% 34%)'
 ]
 const EXPENSE_COLORS = [
   'hsl(var(--destructive))',
-  'hsl(18 62% 62%)',
-  'hsl(30 64% 62%)',
-  'hsl(42 58% 60%)',
-  'hsl(352 50% 66%)',
-  'hsl(8 50% 58%)'
+  'hsl(26 80% 44%)',
+  'hsl(40 85% 38%)',
+  'hsl(350 62% 48%)',
+  'hsl(320 50% 46%)',
+  'hsl(14 68% 45%)'
 ]
 
 export default function Dashboard() {

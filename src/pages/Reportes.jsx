@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { ExportButton } from '@/components/common/ExportButton'
+import { ReportPreview } from '@/components/reportes/ReportPreview'
 import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig } from '@/services/finanzas'
 import { AgingPanel } from '@/components/finanzas/AgingPanel'
 import { CashFlowPanel } from '@/components/finanzas/CashFlowPanel'
@@ -29,75 +30,6 @@ import { listAreas, listItems } from '@/services/dynamicInventory'
 import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
 import { generateDOCX } from '@/utils/docxGenerator'
 import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
-
-const ReportPreview = ({ report }) => {
-  if (!report) return null;
-  return (
-    <div className="space-y-6 text-sm font-serif">
-      {/* Title */}
-      <div className="text-center space-y-2 pb-4 border-b">
-        <h2 className="text-2xl font-bold uppercase tracking-wide">{report.title}</h2>
-        {report.metadata && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-left max-w-2xl mx-auto text-xs text-muted-foreground">
-            {report.metadata.map((m, i) => (
-              <div key={i} className="flex justify-between md:justify-start gap-2">
-                <span className="font-bold min-w-[120px]">{m.label}:</span>
-                <span>{m.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Sections */}
-      {report.sections.map((section, idx) => (
-        <div key={idx} className="space-y-3">
-          {section.title && (
-            <h3 className={`${section.type === 'header_section' ? 'text-xl font-bold text-center mt-8 border-b-2 border-black pb-2' : 'text-lg font-bold text-primary mt-4'}`}>
-              {section.title}
-            </h3>
-          )}
-
-          {(!section.type || section.type === 'paragraph') && (
-            <p className="text-justify leading-relaxed whitespace-pre-wrap">{section.content}</p>
-          )}
-
-          {section.type === 'table' && (
-            <div className="overflow-x-auto my-4 border rounded-sm">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    {section.headers.map((h, i) => <th key={i} className="px-3 py-2 text-center font-bold border-b">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {section.rows.map((row, i) => (
-                    <tr key={i} className="border-b last:border-0 hover:bg-gray-50">
-                      {row.map((cell, j) => (
-                        <td key={j} className={`px-3 py-2 ${isNaN(cell.replace(/[^0-9.-]+/g, "")) ? 'text-left' : 'text-right'}`}>
-                          {cell}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {section.notes && <p className="text-xs text-muted-foreground p-2 italic bg-gray-50 border-t">{section.notes}</p>}
-            </div>
-          )}
-
-          {section.type === 'list' && (
-            <ul className="list-disc pl-5 space-y-1 marker:text-gray-400">
-              {section.items.map((item, i) => (
-                <li key={i} dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
 
 const Reportes = () => {
   const { session } = useSession()
@@ -309,14 +241,18 @@ const Reportes = () => {
 
   const exportInventario = async (type) => {
     const summary = await fetchInventorySummaryForExport()
-    const data = summary.map(area => ({
-      Área: area.name,
-      'Ítems Registrados (en periodo)': area.itemsCount,
-      'Icono': area.icon
-    }))
+    const totalItems = summary.reduce((sum, a) => sum + (a.itemsCount || 0), 0)
+    const data = summary
+      .slice()
+      .sort((a, b) => (b.itemsCount || 0) - (a.itemsCount || 0))
+      .map(area => ({
+        Área: area.name,
+        'Ítems Registrados (en periodo)': area.itemsCount ?? 0,
+        'Participación': totalItems > 0 ? `${(((area.itemsCount || 0) / totalItems) * 100).toFixed(1)}%` : '0.0%'
+      }))
 
     if (type === 'pdf') {
-      const headers = ['Área', 'Ítems Registrados', 'Icono']
+      const headers = ['Área', 'Ítems Registrados', 'Participación']
       const body = data.map(Object.values)
       await exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, body, `inventario_${dateFilter?.type}`, pdfOptions())
       return
@@ -727,37 +663,42 @@ const Reportes = () => {
         </Card>
       )}
 
+      {/* Modal de previsualización: el cierre (X) vive arriba a la derecha (lo aporta
+          DialogContent). Abajo, un único botón de descarga a ancho completo en móvil. */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-[800px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-h-[85vh] max-w-[800px] overflow-y-auto p-4 sm:p-6">
           {previewReport && (
             <>
-              <DialogHeader>
+              <DialogHeader className="pr-8 text-left">
                 <DialogTitle>Previsualización del Informe</DialogTitle>
                 <DialogDescription>
-                  Revisa el contenido antes de generar el documento Word.
+                  Así se verá el documento que descargarás en Word.
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="mt-4 p-8 border rounded-md bg-white shadow-sm text-black">
-                <ReportPreview report={previewReport} />
+              {/* min-w-0: el DialogContent es un grid; sin esto, la "hoja" (grid item con
+                  min-width:auto) se estira al min-content de una tabla ancha y desbordaba
+                  el modal (se recortaba). Con min-w-0 la hoja cabe y la tabla hace scroll
+                  interno en su propio recuadro. */}
+              <div className="mt-2 min-w-0 rounded-md border bg-white p-4 text-black shadow-sm sm:p-8">
+                <ReportPreview report={previewReport} company={company} />
               </div>
 
-              <DialogFooter className="mt-6 flex-col gap-2 sm:flex-row sm:items-center">
+              <DialogFooter className="mt-4 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
                 {!canExportDocs && (
                   <p className="flex items-center gap-1 text-xs text-muted-foreground sm:mr-auto">
-                    <Lock className="h-3 w-3" />
-                    La descarga del informe en Word con tu marca es Premium.
+                    <Lock className="h-3 w-3 shrink-0" />
+                    La descarga en Word con tu marca es Premium.
                   </p>
                 )}
-                <Button variant="outline" onClick={() => setPreviewOpen(false)}>Cerrar</Button>
                 <PermissionGuard permission="reports.export" mode="disable">
                   {canExportDocs ? (
-                    <Button onClick={handleDownloadDOCX} className="bg-blue-600 text-white hover:bg-blue-700" size={isMobile ? 'icon' : undefined}>
-                      <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-                      {isMobile ? <span className="sr-only">Descargar Word</span> : 'Descargar Word'}
+                    <Button onClick={handleDownloadDOCX} className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Descargar Word
                     </Button>
                   ) : (
-                    <Button onClick={() => notifyPremiumExport('Word')} variant="secondary">
+                    <Button onClick={() => notifyPremiumExport('Word')} variant="secondary" className="w-full sm:w-auto">
                       <Lock className="mr-2 h-4 w-4" />
                       Word (Premium)
                     </Button>

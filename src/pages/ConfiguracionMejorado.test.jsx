@@ -29,6 +29,18 @@ describe('ConfiguracionMejorado · Equipo/Roles', () => {
     expect(screen.getByRole('tab', { name: /Roles/i })).toBeInTheDocument()
   })
 
+  it('las pestañas van en una sola fila con scroll horizontal (sin wrap) en pantallas pequeñas', () => {
+    useSubscription.mockReturnValue({ subscription: { plan_id: 'free' } })
+    render(<ConfiguracionMejorado />)
+    const tablist = screen.getByRole('tablist')
+    // Requisito: nunca hacer wrap; desplazarse en horizontal cuando no caben.
+    expect(tablist.className).toMatch(/flex-nowrap/)
+    expect(tablist.className).toMatch(/overflow-x-auto/)
+    expect(tablist.className).not.toMatch(/flex-wrap/)
+    // Los triggers no se comprimen (shrink-0), así conservan su ancho al desplazarse.
+    expect(screen.getByRole('tab', { name: /General/i }).className).toMatch(/shrink-0/)
+  })
+
   it('cuenta free: al abrir Equipo muestra la pantalla Premium (no la gestión real)', async () => {
     const user = userEvent.setup()
     useSubscription.mockReturnValue({ subscription: { plan_id: 'free' } })

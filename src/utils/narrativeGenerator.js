@@ -442,10 +442,14 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
   // Section 1: Summary
   const sortedAreas = [...inventorySummary].sort((a, b) => (b.itemsCount || 0) - (a.itemsCount || 0));
   const topArea = sortedAreas[0];
+  const emptyAreas = inventorySummary.filter(a => !((a.itemsCount || 0) > 0)).length;
   let inventorySummaryText = `El inventario se distribuye en ${inventorySummary.length} áreas operativas, con un total de ${totalItems} ítems registrados. `;
   if (topArea && totalItems > 0) {
     const share = ((topArea.itemsCount || 0) / totalItems) * 100;
     inventorySummaryText += `El área "${topArea.name}" concentra la mayor parte de las existencias (${topArea.itemsCount} ítems, ${share.toFixed(0)}% del total), lo que la convierte en el foco principal de control de existencias.`;
+  }
+  if (emptyAreas > 0) {
+    inventorySummaryText += ` ${emptyAreas === 1 ? '1 área no registró' : `${emptyAreas} áreas no registraron`} ítems en el período, susceptible${emptyAreas === 1 ? '' : 's'} de revisión o consolidación.`;
   }
 
   sections.push({
@@ -453,16 +457,21 @@ export const generateInventoryReport = (inventorySummary, dateFilter) => {
     content: inventorySummaryText
   });
 
-  // Section 2: Area Breakdown Table
-  const areaRows = inventorySummary
-    .sort((a, b) => (b.itemsCount || 0) - (a.itemsCount || 0))
-    .map(area => [area.name, area.itemsCount?.toString() || "0", area.icon || "-"]);
+  // Section 2: Area Breakdown Table — participación (% del total) en lugar del icono
+  // (un dato decorativo sin valor analítico). Cierra con una fila de Total que cuadra al 100%.
+  const areaRows = sortedAreas.map(area => {
+    const count = area.itemsCount || 0;
+    const share = totalItems > 0 ? (count / totalItems) * 100 : 0;
+    return [area.name, count.toString(), `${share.toFixed(1)}%`];
+  });
+  areaRows.push(['Total', totalItems.toString(), totalItems > 0 ? '100.0%' : '0.0%']);
 
   sections.push({
     title: "2. Desglose por Área",
     type: "table",
-    headers: ["Área", "Items Registrados", "Icono Ref."],
-    rows: areaRows
+    headers: ["Área", "Ítems registrados", "Participación"],
+    rows: areaRows,
+    notes: "La participación es el porcentaje de los ítems registrados que concentra cada área en el período; ayuda a identificar dónde se acumula el inventario y a priorizar su control."
   });
 
   return {

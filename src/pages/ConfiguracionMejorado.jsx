@@ -78,7 +78,7 @@ export default function ConfiguracionMejorado() {
       {!isOwner && (
         <Card className="border-border bg-muted/30">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex shrink-0 items-center gap-2">
               <AlertTriangle className="w-5 h-5" />
               Vista de Solo Lectura
             </CardTitle>
@@ -92,29 +92,31 @@ export default function ConfiguracionMejorado() {
       )}
 
       <Tabs defaultValue={isOwner ? 'planes' : 'general'} className="space-y-4">
-        <TabsList className="h-auto w-full flex flex-wrap gap-2 justify-start">
+        {/* Una sola fila siempre: en móvil las pestañas no hacen wrap, se desplazan
+            horizontalmente (scroll). `shrink-0` evita que se compriman. */}
+        <TabsList className="h-auto w-full flex flex-nowrap justify-start gap-2 overflow-x-auto">
           {isOwner && (
-            <TabsTrigger value="planes" className="flex items-center gap-2">
+            <TabsTrigger value="planes" className="flex shrink-0 items-center gap-2">
               <Crown className="w-4 h-4" />
               Planes
             </TabsTrigger>
           )}
-          <TabsTrigger value="general" className="flex items-center gap-2">
+          <TabsTrigger value="general" className="flex shrink-0 items-center gap-2">
             <Settings className="w-4 h-4" />
             General
           </TabsTrigger>
-          <TabsTrigger value="monedas" className="flex items-center gap-2">
+          <TabsTrigger value="monedas" className="flex shrink-0 items-center gap-2">
             <Coins className="w-4 h-4" />
             Monedas
           </TabsTrigger>
           {showTeamTabs && (
-            <TabsTrigger value="equipo" className="flex items-center gap-2">
+            <TabsTrigger value="equipo" className="flex shrink-0 items-center gap-2">
               <Users className="w-4 h-4" />
               Equipo
             </TabsTrigger>
           )}
           {showTeamTabs && (
-            <TabsTrigger value="roles" className="flex items-center gap-2">
+            <TabsTrigger value="roles" className="flex shrink-0 items-center gap-2">
               <Shield className="w-4 h-4" />
               Roles
             </TabsTrigger>
