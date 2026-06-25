@@ -165,7 +165,7 @@ Aceptas mantenernos indemnes frente a reclamaciones, daños o gastos (incluidos 
 
 ## 16. Ley aplicable y resolución de disputas
 
-Estos Términos se rigen por las leyes aplicables en el lugar de residencia del Responsable. Para cualquier controversia, las partes se someten a los tribunales competentes de Monterrey, México, salvo que una norma imperativa de protección al consumidor disponga otra cosa.
+Estos Términos se rigen por las leyes aplicables en el lugar de residencia del Responsable. Para cualquier controversia, las partes se someten a los tribunales competentes de 10 de Octubre, La Habana, Cuba, salvo que una norma imperativa de protección al consumidor disponga otra cosa.
 
 Antes de acudir a la vía judicial, las partes intentarán resolver cualquier desacuerdo de buena fe, contactando a través de soporteprofesional247@gmail.com.
 

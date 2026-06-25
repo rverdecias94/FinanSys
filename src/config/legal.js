@@ -13,7 +13,7 @@ export const LEGAL = {
   email: 'soporteprofesional247@gmail.com',
 
   // Ciudad y país para el foro legal (sección "Ley aplicable" de los Términos).
-  ciudadPais: 'Monterrey, México',
+  ciudadPais: '10 de Octubre, La Habana, Cuba',
 
   // Fecha de la última revisión de los documentos. Actualízala cuando los cambies.
   ultimaActualizacion: '24 de junio de 2026',
