@@ -12,6 +12,7 @@ import { isSystemAdmin } from '@/services/planRequests'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner'
 import { AccountGate } from '@/components/auth/AccountGate'
+import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 
 export default function SidebarLayout() {
@@ -231,6 +232,11 @@ export default function SidebarLayout() {
       {/* Asistente de configuración inicial obligatorio (cuentas nuevas). Cede
           la prioridad a AccountGate: no se muestra si la cuenta está bloqueada. */}
       <OnboardingWizard />
+
+      {/* Candado de consentimiento legal: obliga a aceptar Términos/Privacidad
+          (versión vigente) y registra la aceptación a nivel de cuenta. z-[100]
+          para quedar por encima de los demás avisos. */}
+      <LegalConsentGate />
     </div>
   )
 }
