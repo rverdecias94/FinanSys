@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '@/config/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +15,7 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
 
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -63,7 +65,8 @@ export default function Signup() {
     requirements.length &&
     requirements.alphanumeric &&
     (strength.label === 'Normal' || strength.label === 'Fuerte') &&
-    passMatch
+    passMatch &&
+    acceptedTerms
 
   const handleSignup = async (e) => {
     e.preventDefault()
@@ -239,6 +242,40 @@ export default function Signup() {
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="flex items-start gap-2.5">
+            <Checkbox
+              id="accept-terms"
+              checked={acceptedTerms}
+              onCheckedChange={(value) => setAcceptedTerms(value === true)}
+              className="mt-0.5"
+              aria-label="Aceptar Términos de Servicio y Política de Privacidad"
+            />
+            <label
+              htmlFor="accept-terms"
+              className="text-sm leading-snug text-muted-foreground cursor-pointer select-none"
+            >
+              He leído y acepto los{' '}
+              <Link
+                to="/terminos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary hover:underline"
+              >
+                Términos de Servicio
+              </Link>{' '}
+              y la{' '}
+              <Link
+                to="/privacidad"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary hover:underline"
+              >
+                Política de Privacidad
+              </Link>
+              .
+            </label>
           </div>
 
           <Button

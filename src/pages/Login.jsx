@@ -250,6 +250,16 @@ export default function Login() {
               </Link>
             </div>
           </form>
+
+          <p className="text-center text-xs text-muted-foreground">
+            <Link to="/terminos" className="transition-colors hover:text-foreground hover:underline">
+              Términos
+            </Link>
+            <span className="mx-2">·</span>
+            <Link to="/privacidad" className="transition-colors hover:text-foreground hover:underline">
+              Privacidad
+            </Link>
+          </p>
         </div>
       </div>
     </div>

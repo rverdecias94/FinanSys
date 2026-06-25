@@ -1,5 +1,5 @@
 import { useEffect, useState, Suspense } from 'react'
-import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
@@ -182,6 +182,16 @@ export default function SidebarLayout() {
               <span>{roleName || 'Miembro'}</span>
             </div>
           )}
+
+          <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
+            <Link to="/terminos" className="transition-colors hover:text-foreground hover:underline">
+              Términos
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/privacidad" className="transition-colors hover:text-foreground hover:underline">
+              Privacidad
+            </Link>
+          </div>
         </div>
       </aside>
 

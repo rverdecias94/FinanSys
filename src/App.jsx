@@ -31,6 +31,8 @@ const Reportes = lazy(() => import('@/pages/Reportes'))
 const ConfiguracionMejorado = lazy(() => import('@/pages/ConfiguracionMejorado'))
 const LogsMejorado = lazy(() => import('@/pages/LogsMejorado'))
 const AdminPlans = lazy(() => import('@/pages/AdminPlans'))
+const Terminos = lazy(() => import('@/pages/Terminos'))
+const Privacidad = lazy(() => import('@/pages/Privacidad'))
 
 const PageLoader = () => (
   <div className="flex min-h-screen w-full items-center justify-center bg-background">
@@ -91,6 +93,8 @@ export default function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/terminos" element={<Terminos />} />
+              <Route path="/privacidad" element={<Privacidad />} />
             </Routes>
             </Suspense>
             </AppInitializer>
