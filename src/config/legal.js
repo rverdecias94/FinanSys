@@ -16,11 +16,11 @@ export const LEGAL = {
   ciudadPais: '10 de Octubre, La Habana, Cuba',
 
   // Fecha de la última revisión de los documentos. Actualízala cuando los cambies.
-  ultimaActualizacion: '24 de junio de 2026',
+  ultimaActualizacion: '3 de julio de 2026',
 
   // Versión de los documentos para el registro de aceptación (consentimiento).
   // Súbela (p. ej. una nueva fecha ISO) cada vez que cambies los Términos o la
   // Privacidad: el sistema volverá a pedir la aceptación a TODOS los usuarios y
   // quedará registrada por cuenta en la tabla `legal_acceptances`.
-  version: '2026-06-24',
+  version: '2026-07-03',
 }

@@ -65,6 +65,11 @@ export default function Privacidad() {
               <span className="text-[15px] leading-relaxed text-muted-foreground">{item.text}</span>
             </div>
           ))}
+          <p className="pt-1 text-xs leading-relaxed text-muted-foreground">
+            Nota de transparencia: para la trazabilidad de seguridad usamos un servicio externo puntual
+            que nos indica tu dirección IP (no es publicidad ni analítica). Lo detallamos en las
+            secciones 3.4 y 7.
+          </p>
         </div>
       </Callout>
 
@@ -333,8 +338,10 @@ export default function Privacidad() {
         <li><strong>Eliminación</strong> de tus datos o de tu cuenta.</li>
         <li><strong>Oposición</strong> o limitación a ciertos tratamientos.</li>
         <li>
-          <strong>Portabilidad:</strong> puedes exportar tu información en formatos estándar (PDF, Excel
-          y Word) desde el módulo de Reportes.
+          <strong>Portabilidad:</strong> puedes exportar tu información desde el módulo de Reportes. La
+          exportación en <strong>PDF</strong> está disponible en todos los planes; la exportación en{' '}
+          <strong>Excel y Word</strong> es una función del Plan Premium. En cualquier caso, si necesitas
+          una copia completa de tus datos puedes solicitárnosla en <a href={mailto}>{LEGAL.email}</a>.
         </li>
       </ul>
       <p>

@@ -49,7 +49,7 @@ export default function Terminos() {
         </li>
         <li>
           <strong>Auditoría (Logs):</strong> registro de las acciones realizadas en la cuenta (qué se
-          hizo, quién y cuándo).
+          hizo, quién y cuándo). El acceso al historial de auditoría es una función del Plan Premium.
         </li>
         <li>
           <strong>Planes Gratuito y Premium</strong> con distintos límites y funciones.
@@ -225,8 +225,10 @@ export default function Terminos() {
         detalle.
       </p>
       <p>
-        9.4. <strong>Exportación.</strong> Puedes exportar tu información en formatos estándar (PDF,
-        Excel y Word) desde el módulo de Reportes.
+        9.4. <strong>Exportación.</strong> Puedes exportar tu información desde el módulo de Reportes.
+        La exportación en <strong>PDF</strong> está disponible en todos los planes (en el Plan Gratuito
+        el documento puede incluir una marca de agua identificativa); la exportación en{' '}
+        <strong>Excel y Word</strong> es una función del Plan Premium.
       </p>
       <p>
         9.5. <strong>Respaldo.</strong> Aunque la infraestructura realiza copias de seguridad a nivel
