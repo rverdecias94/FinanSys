@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -36,6 +36,17 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Switch } from '@/components/ui/switch'
+
+// UUID de idempotencia para la venta: identifica un intento de venta para que un reintento
+// (tras perder la respuesta por mala conexión) no cree una venta duplicada. crypto.randomUUID
+// en navegadores modernos; fallback v4 con Math.random (basta: solo debe ser único, no seguro).
+const genSaleUuid = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
 
 const DEFAULT_CATEGORIES = {
   income: [
@@ -128,6 +139,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   })
 
   const isEditing = Boolean(transaction?.id)
+  // UUID de idempotencia de la venta: se genera en el primer envío y se conserva mientras
+  // el modal siga abierto, para que un reintento use el mismo (no duplica la venta).
+  const saleUuidRef = useRef(null)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -251,6 +265,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       payload.product_id = Number(data.sale_product_id)
       payload.qty = Number(data.sale_qty)
       payload.unit_price = Number(data.sale_unit_price)
+      // Reutiliza el mismo UUID en los reintentos de esta venta (idempotencia).
+      if (!saleUuidRef.current) saleUuidRef.current = genSaleUuid()
+      payload.client_uuid = saleUuidRef.current
     }
     onSubmit(payload)
   }
@@ -280,6 +297,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
         setDeletedAttachments([])
         setFiles([])
         setIsPreview(false)
+        saleUuidRef.current = null
       }
     }}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">

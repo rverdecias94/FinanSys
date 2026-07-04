@@ -337,13 +337,15 @@ export async function getAgingReport(direction = 'receivable') {
 // calculado server-side), descuenta stock y sella el COGS = avg_cost. El payload lleva
 // los datos de la transacción (date, category, description, contact_id, status,
 // due_date, payment_method); la moneda y el monto los resuelve la RPC. Devuelve
-// { transaction_id, amount, currency, cogs, margin, new_stock }.
-export async function registerSale(payload, productId, qty, unitPrice) {
+// { transaction_id, amount, currency, cogs, margin, new_stock }. clientUuid (opcional) da
+// idempotencia: un reintento con el mismo UUID no duplica la venta (devuelve idempotent:true).
+export async function registerSale(payload, productId, qty, unitPrice, clientUuid) {
   const { data, error } = await supabase.rpc('register_sale', {
     p_payload: payload || {},
     p_product_id: Number(productId),
     p_qty: Number(qty),
-    p_unit_price: Number(unitPrice)
+    p_unit_price: Number(unitPrice),
+    p_client_uuid: clientUuid || null
   })
   if (error) throw error
   return data

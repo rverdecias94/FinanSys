@@ -104,19 +104,25 @@ export default function FinanzasMejorado() {
           due_date: payload.due_date instanceof Date ? payload.due_date.toISOString() : (payload.due_date || ''),
           payment_method: payload.payment_method || '',
         }
-        return registerSale(salePayload, payload.product_id, payload.qty, payload.unit_price)
+        return registerSale(salePayload, payload.product_id, payload.qty, payload.unit_price, payload.client_uuid)
       }
       const fullPayload = { ...payload, user_id: userId }
       return createTransaction(fullPayload, userId, businessId)
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       queryClient.invalidateQueries({ queryKey: ['warehouse'] })
       queryClient.invalidateQueries({ queryKey: ['aging'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
-      recordUsage('monthly_transactions')
+      // Reintento idempotente de una venta (la respuesta se había perdido): la venta ya
+      // existía, así que avisamos y NO volvemos a contar el uso (no se creó otra tx).
+      if (data?.idempotent) {
+        notify.info('Esta venta ya estaba registrada; no se duplicó.')
+      } else {
+        recordUsage('monthly_transactions')
+      }
       setModalOpen(false)
       setSelectedTransaction(null)
     },

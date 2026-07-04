@@ -27,6 +27,7 @@ describe('registerSale (S7)', () => {
       p_product_id: 5,
       p_qty: 3,
       p_unit_price: 50,
+      p_client_uuid: null,
     })
   })
 
@@ -38,6 +39,16 @@ describe('registerSale (S7)', () => {
   it('payload nulo se envía como objeto vacío', async () => {
     await registerSale(undefined, '7', 1, 10)
     expect(supabase.rpc.mock.calls[0][1].p_payload).toEqual({})
+  })
+
+  it('propaga el client_uuid como p_client_uuid (idempotencia)', async () => {
+    await registerSale({}, '5', 1, 10, 'uuid-de-prueba')
+    expect(supabase.rpc.mock.calls[0][1]).toMatchObject({ p_client_uuid: 'uuid-de-prueba' })
+  })
+
+  it('sin client_uuid envía p_client_uuid null (retrocompatible)', async () => {
+    await registerSale({}, '5', 1, 10)
+    expect(supabase.rpc.mock.calls[0][1].p_client_uuid).toBeNull()
   })
 
   it('propaga el error de la RPC (p. ej. stock insuficiente)', async () => {
