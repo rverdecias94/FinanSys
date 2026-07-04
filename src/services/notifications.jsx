@@ -141,3 +141,13 @@ export const getSupabaseErrorMessage = (error) => {
 
   return error.message || "Error inesperado"
 }
+
+/**
+ * ¿El error indica que el correo aún no está confirmado? Se usa en Login para
+ * ofrecer reenviar el enlace de confirmación (supabase.auth.resend).
+ */
+export const isEmailNotConfirmedError = (error) => {
+  if (!error) return false
+  if (error.code === 'email_not_confirmed') return true
+  return typeof error.message === 'string' && /email not confirmed/i.test(error.message)
+}

@@ -4,10 +4,10 @@ import { supabase } from '@/config/supabase'
 import { acceptPendingInvitations, getBusinessContext } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3 } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3, Mail, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
-import { getSupabaseErrorMessage } from '@/services/notifications'
+import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -18,6 +18,11 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [emailError, setEmailError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  // Reenvío del correo de confirmación: se ofrece cuando el login falla porque el
+  // correo aún no está confirmado (frecuente con proveedores lentos como nauta.cu).
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
 
   useEffect(() => {
     if (location.state?.email) {
@@ -28,6 +33,14 @@ export default function Login() {
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [location.state, location.pathname, navigate])
+
+  // Cuenta atrás del reenvío para respetar el límite de envío de Supabase (~60 s)
+  // y no frustrar al usuario con un error de "demasiados correos".
+  useEffect(() => {
+    if (resendCooldown <= 0) return
+    const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [resendCooldown])
 
   const ensureOwnerSubscription = async (userId) => {
     const { data: existingSubscription, error: fetchError } = await supabase
@@ -67,6 +80,7 @@ export default function Login() {
     setEmailError('')
     setLoading(true)
     setError(null)
+    setNeedsConfirmation(false)
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password })
@@ -93,8 +107,26 @@ export default function Login() {
       navigate('/')
     } catch (err) {
       setError(getSupabaseErrorMessage(err))
+      setNeedsConfirmation(isEmailNotConfirmedError(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendConfirmation = async () => {
+    if (!email || resending || resendCooldown > 0) return
+    setResending(true)
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email })
+      if (error) throw error
+      toast.success('Correo de confirmación reenviado', {
+        description: 'Te enviamos otra vez el enlace. Revisa tu bandeja de entrada y la carpeta de spam.'
+      })
+      setResendCooldown(60)
+    } catch (err) {
+      toast.error(getSupabaseErrorMessage(err))
+    } finally {
+      setResending(false)
     }
   }
 
@@ -169,6 +201,38 @@ export default function Login() {
               </div>
             )}
 
+            {needsConfirmation && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-2.5 animate-in fade-in slide-in-from-top-1">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  ¿No te llegó el correo? Revisa tu carpeta de spam o pide que te enviemos otra vez el enlace de confirmación.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleResendConfirmation}
+                  disabled={resending || resendCooldown > 0}
+                  className="w-full h-10 text-sm font-medium"
+                >
+                  {resending ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Enviando...
+                    </span>
+                  ) : resendCooldown > 0 ? (
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Podrás reenviar en {resendCooldown} s
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Reenviar correo de confirmación
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <label htmlFor="login-email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
@@ -179,7 +243,7 @@ export default function Login() {
                   type="email"
                   placeholder="nombre@ejemplo.com"
                   value={email}
-                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError('') }}
+                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); if (needsConfirmation) setNeedsConfirmation(false) }}
                   className="h-10 bg-background border-input focus:bg-background transition-all duration-200"
                   aria-invalid={!!emailError}
                   required

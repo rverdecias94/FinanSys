@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getSupabaseErrorMessage } from './notifications'
+import { getSupabaseErrorMessage, isEmailNotConfirmedError } from './notifications'
 
 // Cobertura del mapeo de errores de Postgres a mensajes amigables (notifications.jsx).
 // Cubre el código de stock negativo 23514 (P1.6/P1.7) y el límite de plan 53400 (P1.11),
@@ -67,5 +67,19 @@ describe('getSupabaseErrorMessage', () => {
     // conserva su propio mensaje, como antes.
     expect(getSupabaseErrorMessage({ message: 'Mensaje de negocio en español' }))
       .toBe('Mensaje de negocio en español')
+  })
+})
+
+describe('isEmailNotConfirmedError', () => {
+  it('detecta el correo sin confirmar por code y por texto', () => {
+    expect(isEmailNotConfirmedError({ code: 'email_not_confirmed' })).toBe(true)
+    expect(isEmailNotConfirmedError({ message: 'Email not confirmed' })).toBe(true)
+  })
+
+  it('no marca otros errores ni valores vacíos', () => {
+    expect(isEmailNotConfirmedError({ code: 'invalid_credentials' })).toBe(false)
+    expect(isEmailNotConfirmedError({ message: 'Invalid login credentials' })).toBe(false)
+    expect(isEmailNotConfirmedError(null)).toBe(false)
+    expect(isEmailNotConfirmedError({})).toBe(false)
   })
 })
