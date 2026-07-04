@@ -70,7 +70,7 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(1)
   const [company, setCompany] = useState({ tradeName: '', legalName: '', taxId: '', phone: '', email: '' })
-  const [region, setRegion] = useState({ dateFormat: 'DD/MM/AAAA', timeZone: 'America/Mexico_City', numberFormat: 'es-ES' })
+  const [region, setRegion] = useState({ dateFormat: 'DD/MM/AAAA', timeZone: 'America/Havana', numberFormat: 'es-ES' })
   const [currencyCode, setCurrencyCode] = useState('')
   const [initialBalance, setInitialBalance] = useState('')
   const [saving, setSaving] = useState(false)

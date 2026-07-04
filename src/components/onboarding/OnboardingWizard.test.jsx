@@ -88,7 +88,12 @@ describe('OnboardingWizard', () => {
     await waitFor(() => expect(upsertBusinessSettings).toHaveBeenCalledTimes(1))
     expect(upsertBusinessSettings).toHaveBeenCalledWith(
       'u1', 'u1',
-      expect.objectContaining({ company: expect.objectContaining({ tradeName: 'Acme' }) })
+      expect.objectContaining({
+        company: expect.objectContaining({ tradeName: 'Acme' }),
+        // Default Cuba-first: sin tocar el selector de región, la zona horaria
+        // guardada debe ser La Habana (no Ciudad de México).
+        region: expect.objectContaining({ timeZone: 'America/Havana' })
+      })
     )
     expect(currency.setMainCurrency).toHaveBeenCalledWith('USD')
   })
