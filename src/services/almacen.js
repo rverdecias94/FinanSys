@@ -2,7 +2,6 @@ import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
 import { getEffectiveUserId, validateResourceAccess } from '@/services/team'
-import { exportToExcel } from '@/utils/exportUtils'
 
 /**
  * Función auxiliar para obtener el userUuid efectivo
@@ -220,6 +219,8 @@ export async function exportProducts(businessId) {
     updated_at: p.updated_at,
   }))
 
+  // Carga diferida: la librería de exportación (~1.5MB) no entra en el arranque.
+  const { exportToExcel } = await import('@/utils/exportUtils')
   exportToExcel('Productos', rows, `productos_${new Date().toISOString().slice(0, 10)}`)
 }
 

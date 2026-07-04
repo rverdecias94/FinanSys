@@ -27,9 +27,24 @@ import { agingToExportRows } from '@/utils/aging'
 import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRows } from '@/utils/financials'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
-import { exportToPDF, exportToExcel } from '@/utils/exportUtils'
-import { generateDOCX } from '@/utils/docxGenerator'
 import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
+
+// Carga diferida de las utilidades de exportación (jspdf/xlsx/docx ~1.5MB): no entran
+// en el arranque; se descargan solo al exportar (ver vite.config manualChunks). Si la
+// descarga del chunk falla (p. ej. sin conexión la primera vez), avisamos al usuario
+// en vez de fallar en silencio.
+const loadExportUtils = async () => {
+  try { return await import('@/utils/exportUtils') }
+  catch { notify.error('No se pudo cargar el módulo de exportación. Revisa tu conexión e inténtalo de nuevo.'); return null }
+}
+const exportToPDF = async (...args) => { const m = await loadExportUtils(); return m?.exportToPDF(...args) }
+const exportToExcel = async (...args) => { const m = await loadExportUtils(); return m?.exportToExcel(...args) }
+const generateDOCX = async (...args) => {
+  let mod
+  try { mod = await import('@/utils/docxGenerator') }
+  catch { notify.error('No se pudo cargar el módulo de exportación. Revisa tu conexión e inténtalo de nuevo.'); return }
+  return mod.generateDOCX(...args)
+}
 
 const Reportes = () => {
   const { session } = useSession()

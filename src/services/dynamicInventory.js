@@ -1,7 +1,6 @@
 import { supabase } from '@/config/supabase'
 import { withCrud } from '@/services/notifyWrap'
 import { logAction } from '@/services/auditLogger'
-import { exportToExcel } from '@/utils/exportUtils'
 import { getEffectiveUserId } from '@/services/team'
 
 export async function listAreas(userUuid, { page, pageSize } = {}) {
@@ -374,5 +373,7 @@ export async function exportInventoryData(businessId) {
     .limit(5000)
 
   if (error) throw error
+  // Carga diferida: la librería de exportación (~1.5MB) no entra en el arranque.
+  const { exportToExcel } = await import('@/utils/exportUtils')
   exportToExcel('Inventario', data || [], `inventario_${new Date().toISOString().slice(0, 10)}`)
 }

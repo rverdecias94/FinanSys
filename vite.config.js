@@ -35,6 +35,11 @@ export default defineConfig({
         // Fallback SPA (compatible con public/_redirects de Netlify).
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // No precachear las librerías de exportación (~1.5 MB: jspdf/xlsx/docx). Ya no
+        // se cargan en el arranque (imports dinámicos en Reportes/almacen/inventario);
+        // se descargan solo al exportar y quedan cacheadas (runtimeCaching abajo). Así
+        // la instalación de la PWA es más ligera — clave en Cuba (datos caros).
+        globIgnores: ['**/export-vendor-*.js'],
         // El bundle principal supera el tope por defecto (2 MiB) hasta resolver el
         // code-splitting; subimos el límite para que el precache no falle.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
@@ -44,6 +49,17 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.hostname.endsWith('supabase.co'),
             handler: 'NetworkOnly',
+          },
+          {
+            // El chunk de exportación no va en el precache (ver globIgnores): se
+            // descarga la primera vez que se exporta y queda cacheado, para que
+            // exportar siga funcionando sin conexión a partir de entonces.
+            urlPattern: ({ url }) => /\/assets\/export-vendor-.*\.js$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'export-vendor-lazy',
+              expiration: { maxEntries: 3, maxAgeSeconds: 60 * 60 * 24 * 90 },
+            },
           },
         ],
       },
@@ -63,6 +79,10 @@ export default defineConfig({
         // gráficas, exportación (PDF/Excel/Word) y Supabase no se cargan en el
         // arranque, solo cuando la ruta que las usa se visita.
         manualChunks(id) {
+          // El helper de precarga de Vite lo usa el entry para cargar TODAS las rutas
+          // lazy; si Rollup lo agrupa dentro de un vendor pesado (export-vendor), el
+          // entry arrastra ese peso al arranque. Lo aislamos en un chunk minúsculo.
+          if (id.includes('preload-helper')) return 'vite-preload'
           if (!id.includes('node_modules')) return
           if (id.includes('recharts') || id.includes('d3-') || id.includes('victory-vendor')) return 'charts'
           if (
