@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -90,7 +91,7 @@ export default function Signup() {
         }
       })
     } catch (err) {
-      setError(err.message)
+      setError(getSupabaseErrorMessage(err))
     } finally {
       setLoading(false)
     }

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3 } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
+import { getSupabaseErrorMessage } from '@/services/notifications'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -91,9 +92,7 @@ export default function Login() {
 
       navigate('/')
     } catch (err) {
-      setError(err.message === 'Invalid login credentials'
-        ? 'Credenciales incorrectas. Por favor verifica tu correo y contraseña.'
-        : err.message)
+      setError(getSupabaseErrorMessage(err))
     } finally {
       setLoading(false)
     }
