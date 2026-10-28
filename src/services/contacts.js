@@ -15,6 +15,7 @@ export async function listContacts({ page = 1, pageSize = 5, search = '', kind =
     .select('*', { count: 'exact' })
     .eq('user_id', effectiveUserId)
     .eq('is_active', true)
+    .order('created_at', { ascending: false })
     .order('name', { ascending: true })
 
   if (search) q = q.ilike('name', `%${search}%`)

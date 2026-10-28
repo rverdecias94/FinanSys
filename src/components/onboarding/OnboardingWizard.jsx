@@ -16,6 +16,7 @@ import { isSystemAdmin } from '@/services/planRequests'
 import { getBusinessSettings, upsertBusinessSettings } from '@/services/businessSettings'
 import { updateBalanceConfig } from '@/services/finanzas'
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
+import { writeLocalCache } from '@/offline/localCache'
 
 // Lista corta de zonas horarias frecuentes en LatAm + España (paso opcional).
 const TIME_ZONES = [
@@ -135,7 +136,13 @@ export function OnboardingWizard() {
       }
 
       await refreshCurrencies()
+      // Marcar done YA en este dispositivo para que el wizard no parpadee
+      // mientras React Query / monedas se refrescan.
+      if (businessId) writeLocalCache(`onboarding:done:${businessId}`, true)
       queryClient.invalidateQueries({ queryKey: ['onboarding', 'business-settings', businessId] })
+      // El panel usa staleTime: Infinity; sin esto el saldo inicial queda en 0
+      // hasta la próxima mutación financiera.
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       toast.success('¡Listo! Tu negocio quedó configurado.')
     } catch (e) {
       toast.error('No se pudo guardar la configuración', { description: e?.message })

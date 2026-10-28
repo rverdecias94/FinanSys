@@ -238,7 +238,10 @@ export async function listTransactions({ from, to, category, type, currency, use
     .from('transactions')
     .select('*', { count: 'exact' })
     .eq('user_id', effectiveUserId) // Usar ID efectivo
+    // Fecha de negocio primero; id (bigserial) desempata: lo recién guardado sale arriba
+    // aunque varias txs compartan la misma fecha. (La tabla no tiene created_at.)
     .order('date', { ascending: false })
+    .order('id', { ascending: false })
 
   if (limit) {
     q = q.limit(limit)
@@ -740,6 +743,7 @@ export async function getRecentActivity(userId, businessId) {
     .eq('user_id', effectiveUserId) // Usar ID efectivo
     .gte('date', thirtyDaysAgo.toISOString())
     .order('date', { ascending: false })
+    .order('id', { ascending: false })
 
   if (error) throw error
 

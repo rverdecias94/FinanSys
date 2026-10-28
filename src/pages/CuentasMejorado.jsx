@@ -28,14 +28,13 @@ function isOverdue(dueDate) {
   return new Date(dueDate) < today
 }
 
-function AccountsList({ direction, userId, businessId, enabled, formatCurrency, onPay, onMeta }) {
+function AccountsList({ direction, userId, businessId, enabled, formatCurrency, onPay }) {
   const income = direction === 'receivable'
   return (
     <ResponsiveListing
       queryKey={['open-accounts', direction, businessId || userId]}
       queryFn={({ page, pageSize }) => listOpenAccounts({ direction, page, pageSize, userId, businessId })}
       enabled={enabled}
-      onMeta={onMeta}
       getItemKey={(t) => t.id}
       loadingMessage="Cargando cuentas..."
       emptyMessage={income ? 'No tienes cuentas por cobrar pendientes.' : 'No tienes cuentas por pagar pendientes.'}
@@ -95,7 +94,6 @@ export default function CuentasMejorado() {
   const userId = session?.user?.id
 
   const [tab, setTab] = useState('receivable')
-  const [counts, setCounts] = useState({ receivable: 0, payable: 0 })
   const [payTarget, setPayTarget] = useState(null)
   const [payAmount, setPayAmount] = useState('')
 
@@ -107,6 +105,26 @@ export default function CuentasMejorado() {
   })
 
   const enabled = !!userId && !!businessId && !businessLoading && !permissionLoading
+
+  // Contadores de ambos tabs al cargar (antes solo se actualizaba el tab activo
+  // vía onMeta → "Por pagar (0)" aunque hubiera pendientes).
+  const { data: receivableCount = 0 } = useQuery({
+    queryKey: ['open-accounts-count', 'receivable', businessId || userId],
+    queryFn: async () => {
+      const res = await listOpenAccounts({ direction: 'receivable', page: 1, pageSize: 1, userId, businessId })
+      return res.count || 0
+    },
+    enabled
+  })
+  const { data: payableCount = 0 } = useQuery({
+    queryKey: ['open-accounts-count', 'payable', businessId || userId],
+    queryFn: async () => {
+      const res = await listOpenAccounts({ direction: 'payable', page: 1, pageSize: 1, userId, businessId })
+      return res.count || 0
+    },
+    enabled
+  })
+  const counts = { receivable: receivableCount, payable: payableCount }
 
   // Antigüedad de saldos (Q10) del tab activo. `tab` ya vale 'receivable'/'payable',
   // que coincide con la `direction` que espera getAgingReport.
@@ -120,6 +138,7 @@ export default function CuentasMejorado() {
     mutationFn: ({ id, amount }) => registerPayment(id, amount, userId, businessId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['open-accounts'] })
+      qc.invalidateQueries({ queryKey: ['open-accounts-count'] })
       qc.invalidateQueries({ queryKey: ['transactions'] })
       qc.invalidateQueries({ queryKey: ['filteredTotals'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
@@ -206,7 +225,6 @@ export default function CuentasMejorado() {
                 enabled={enabled && isIncome}
                 formatCurrency={formatCurrency}
                 onPay={openPay}
-                onMeta={({ count }) => setCounts((c) => ({ ...c, receivable: count }))}
               />
             </TabsContent>
 
@@ -218,7 +236,6 @@ export default function CuentasMejorado() {
                 enabled={enabled && !isIncome}
                 formatCurrency={formatCurrency}
                 onPay={openPay}
-                onMeta={({ count }) => setCounts((c) => ({ ...c, payable: count }))}
               />
             </TabsContent>
           </Tabs>

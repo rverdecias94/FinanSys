@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +11,7 @@ import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInvento
 import { AREA_ICONS } from '@/lib/areaIcons'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { areaSchema, validateForm } from '@/utils/formSchemas'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 
 export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId, canCreate = true }) {
   const { session } = useSession()
@@ -19,10 +20,12 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({ name: '', icon: 'Home', slug: '', prefix: '' })
   const [errors, setErrors] = useState({})
+  const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
     if (open) {
       setErrors({})
+      setShowAdvanced(false)
       if (areaToEdit) {
         setFormData({
           name: areaToEdit.name,
@@ -60,13 +63,14 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
     setErrors({})
     setLoading(true)
     try {
+      let created = null
       if (areaToEdit) {
         await updateArea(areaToEdit.id, formData, userId, businessId)
       } else {
-        await createArea(formData, userId, businessId)
+        created = await createArea(formData, userId, businessId)
       }
       queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
-      onSuccess?.()
+      onSuccess?.(created)
     } catch (error) {
       const msg = getSupabaseErrorMessage(error)
       notify.error(msg)
@@ -85,21 +89,24 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
     }}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{areaToEdit ? 'Editar Área' : 'Crear Nueva Área'}</DialogTitle>
+          <DialogTitle>{areaToEdit ? 'Editar área' : 'Nueva área'}</DialogTitle>
+          <DialogDescription>
+            Un área es un lugar o categoría donde guardas artículos (cocina, depósito, equipos…).
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-2">
-            <Label>Nombre del Área</Label>
+            <Label>Nombre</Label>
             <Input
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Ej: Cocina Principal, Almacén B, Habitación 101..."
+              placeholder="Ej: Cocina Principal, Depósito, Equipos…"
               aria-invalid={!!errors.name}
             />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
           <div className="grid gap-2">
-            <Label>Tipo de Espacio (Icono)</Label>
+            <Label>Icono</Label>
             <Select
               value={formData.icon}
               onValueChange={v => setFormData({ ...formData, icon: v })}
@@ -119,41 +126,56 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-2">
-            <Label>Identificador (Slug) - Opcional</Label>
-            <Input
-              placeholder="Ej: cocina-principal"
-              value={formData.slug}
-              onChange={e => setFormData({ ...formData, slug: e.target.value })}
-              aria-invalid={!!errors.slug}
-            />
-            {errors.slug
-              ? <p className="text-xs text-destructive">{errors.slug}</p>
-              : <p className="text-xs text-muted-foreground">
-                  Identificador único para URL o reportes. Si se deja vacío se generará automáticamente.
-                </p>}
-          </div>
-          <div className="grid gap-2">
-            <Label>Prefijo SKU (3-4 caracteres)</Label>
-            <Input
-              placeholder="Ej: ADM, VNT, LOG"
-              value={formData.prefix}
-              maxLength={4}
-              onChange={e => setFormData({ ...formData, prefix: e.target.value.toUpperCase() })}
-              aria-invalid={!!errors.prefix}
-            />
-            {errors.prefix
-              ? <p className="text-xs text-destructive">{errors.prefix}</p>
-              : <p className="text-xs text-muted-foreground">
-                  Se usará para generar SKUs únicos por área. Ejemplo: ADM-0001
-                </p>}
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-accent/40"
+          >
+            <span>Opciones avanzadas (opcional)</span>
+            {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+
+          {showAdvanced && (
+            <div className="space-y-4 rounded-lg border bg-muted/20 p-3">
+              <div className="grid gap-2">
+                <Label>Código corto (para enlaces)</Label>
+                <Input
+                  placeholder="Ej: cocina-principal"
+                  value={formData.slug}
+                  onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                  aria-invalid={!!errors.slug}
+                />
+                {errors.slug
+                  ? <p className="text-xs text-destructive">{errors.slug}</p>
+                  : <p className="text-xs text-muted-foreground">
+                      Si lo dejas vacío, se crea solo. Casi nunca lo necesitas.
+                    </p>}
+              </div>
+              <div className="grid gap-2">
+                <Label>Prefijo de código (3–4 letras)</Label>
+                <Input
+                  placeholder="Ej: COC, DEP, EQ"
+                  value={formData.prefix}
+                  maxLength={4}
+                  onChange={e => setFormData({ ...formData, prefix: e.target.value.toUpperCase() })}
+                  aria-invalid={!!errors.prefix}
+                />
+                {errors.prefix
+                  ? <p className="text-xs text-destructive">{errors.prefix}</p>
+                  : <p className="text-xs text-muted-foreground">
+                      Sirve para códigos automáticos tipo COC-0001. Opcional.
+                    </p>}
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end pt-2 gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancelar
             </Button>
             <Button type="submit" loading={loading} disabled={!areaToEdit && !canCreate}>
-              {loading ? (areaToEdit ? 'Actualizando...' : 'Creando...') : (areaToEdit ? 'Guardar Cambios' : 'Crear Área')}
+              {loading ? (areaToEdit ? 'Guardando…' : 'Creando…') : (areaToEdit ? 'Guardar' : 'Crear área')}
             </Button>
           </div>
         </form>

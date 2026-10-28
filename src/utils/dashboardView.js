@@ -7,9 +7,10 @@
  * - Hasta que las consultas no están listas (`ready=false`) no se muestra nada
  *   especial (evita parpadeos).
  * - Si NO hay moneda principal configurada → asistente "Empieza en 3 pasos".
- * - Si ya hay moneda principal → se muestra el panel (con el saldo, incluido el
- *   saldo inicial). Si además no hay movimientos todavía, se muestra un aviso
- *   suave (no bloqueante) para registrar el primer movimiento.
+ * - Si ya hay moneda principal → se muestra el panel (caja real = saldo
+ *   registrado − por cobrar + por pagar, incluido el saldo inicial). Si además
+ *   no hay movimientos todavía, se muestra un aviso suave (no bloqueante) para
+ *   registrar el primer movimiento.
  *
  * @param {object} args
  * @param {boolean} args.isConfigured - hay una moneda principal (is_default).

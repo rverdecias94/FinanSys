@@ -5,25 +5,26 @@ import { listFields, addField, updateField, deleteField, renameInventoryField } 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical, Sparkles, Loader2, HelpCircle } from 'lucide-react'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { arrayMove, optionsToCsv, parseOptionsCsv, toLabelFromName } from '@/utils/inventoryFormUtils'
+import { FormBuilderHelpModal } from '@/components/inventario/FormBuilderHelpModal'
+import {
+  arrayMove,
+  optionsToCsv,
+  parseOptionsCsv,
+  toLabelFromName,
+  FIELD_TYPE_GUIDES,
+  FORM_STARTERS
+} from '@/utils/inventoryFormUtils'
 
-const TYPE_OPTIONS = [
-  { value: 'text', label: 'Texto', hint: 'Texto corto en una línea (ej. nombre, marca).' },
-  { value: 'number', label: 'Número', hint: 'Solo números (ej. cantidad, precio).' },
-  { value: 'select', label: 'Lista de opciones', hint: 'El usuario elige de una lista que tú defines.' },
-  { value: 'color', label: 'Color', hint: 'Un color para identificar el artículo.' },
-  { value: 'date', label: 'Fecha', hint: 'Una fecha (ej. compra o vencimiento).' },
-  { value: 'boolean', label: 'Sí / No', hint: 'Una casilla para marcar Sí o No.' },
-  { value: 'textarea', label: 'Texto largo', hint: 'Texto de varias líneas (ej. descripción, notas).' }
-]
+function typeGuide(type) {
+  return FIELD_TYPE_GUIDES.find((t) => t.value === type) || FIELD_TYPE_GUIDES[0]
+}
 
-export function FormBuilder({ areaId, userId }) {
+export function FormBuilder({ areaId, userId, onReadyToRegister }) {
   const queryClient = useQueryClient()
   const { data: fields = [], isLoading } = useQuery({
     queryKey: ['inventoryFields', areaId],
@@ -42,6 +43,9 @@ export function FormBuilder({ areaId, userId }) {
   const [newField, setNewField] = useState({ name: '', type: 'text', required: false, optionsText: '' })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [applyingStarter, setApplyingStarter] = useState(null)
+  const [adding, setAdding] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   useEffect(() => {
     setLocalFields(sortedFields)
@@ -50,18 +54,27 @@ export function FormBuilder({ areaId, userId }) {
   const persistOrder = async (nextList) => {
     const changes = nextList
       .map((f, idx) => ({ id: f.id, prev: f.order ?? 0, next: idx }))
-      .filter(x => x.prev !== x.next)
+      .filter((x) => x.prev !== x.next)
 
     if (changes.length === 0) return
 
-    await Promise.all(changes.map(c => updateField(c.id, { order: c.next }, userId)))
+    await Promise.all(changes.map((c) => updateField(c.id, { order: c.next }, userId)))
     queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
   }
+
+  const createFieldPayload = (field, order) => ({
+    name: field.name,
+    label: toLabelFromName(field.name),
+    type: field.type,
+    required: Boolean(field.required),
+    options: field.type === 'select' ? (field.options || null) : null,
+    order
+  })
 
   const handleAddField = async () => {
     const name = String(newField.name || '').trim()
     if (!name) {
-      notify.warning('Nombre es obligatorio')
+      notify.warning('Escribe el nombre de la pregunta (ej. Nombre, Cantidad)')
       return
     }
 
@@ -69,22 +82,39 @@ export function FormBuilder({ areaId, userId }) {
     const options = type === 'select' ? parseOptionsCsv(newField.optionsText) : null
 
     if (type === 'select' && (!options || options.length === 0)) {
-      notify.warning('Ingresa al menos una opción separada por comas')
+      notify.warning('Escribe al menos una opción, separadas por comas')
       return
     }
 
-    const payload = {
-      name,
-      label: toLabelFromName(name),
-      type,
-      required: Boolean(newField.required),
-      options,
-      order: localFields.length
+    setAdding(true)
+    try {
+      await addField(areaId, createFieldPayload({ name, type, required: newField.required, options }, localFields.length), userId)
+      setNewField({ name: '', type: 'text', required: false, optionsText: '' })
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+      notify.success('Pregunta agregada')
+    } catch (e) {
+      notify.error(getSupabaseErrorMessage(e))
+    } finally {
+      setAdding(false)
     }
+  }
 
-    await addField(areaId, payload, userId)
-    setNewField({ name: '', type: 'text', required: false, optionsText: '' })
-    queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+  const applyStarter = async (starter) => {
+    if (!starter?.fields?.length) return
+    setApplyingStarter(starter.id)
+    try {
+      let order = localFields.length
+      for (const f of starter.fields) {
+        await addField(areaId, createFieldPayload(f, order), userId)
+        order += 1
+      }
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+      notify.success(`Listo: ${starter.title}`)
+    } catch (e) {
+      notify.error(getSupabaseErrorMessage(e))
+    } finally {
+      setApplyingStarter(null)
+    }
   }
 
   const handleUpdateField = async (fieldId, changes) => {
@@ -97,11 +127,14 @@ export function FormBuilder({ areaId, userId }) {
     if (next.type && next.type !== 'select') {
       next.options = null
     }
-    await updateField(fieldId, next, userId)
-    queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+    try {
+      await updateField(fieldId, next, userId)
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+    } catch (e) {
+      notify.error(getSupabaseErrorMessage(e))
+    }
   }
 
-  // P1.9: renombrar pasa por la RPC para re-indexar los values de los ítems (evita huérfanos).
   const handleRenameField = async (field, rawNewName) => {
     const newName = String(rawNewName || '').trim()
     if (!newName || newName === field.name) return
@@ -121,10 +154,15 @@ export function FormBuilder({ areaId, userId }) {
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
-    await deleteField(pendingDeleteId, userId)
-    setConfirmOpen(false)
-    setPendingDeleteId(null)
-    queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+    try {
+      await deleteField(pendingDeleteId, userId)
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
+    } catch (e) {
+      notify.error(getSupabaseErrorMessage(e))
+    } finally {
+      setConfirmOpen(false)
+      setPendingDeleteId(null)
+    }
   }
 
   const moveByArrow = async (index, direction) => {
@@ -135,14 +173,14 @@ export function FormBuilder({ areaId, userId }) {
     try {
       await persistOrder(next)
     } catch {
-      notify.error('Error al reordenar campos')
+      notify.error('No se pudo reordenar')
     }
   }
 
   const handleDropOn = async (targetId) => {
     if (!draggingId || !targetId || draggingId === targetId) return
-    const fromIndex = localFields.findIndex(f => f.id === draggingId)
-    const toIndex = localFields.findIndex(f => f.id === targetId)
+    const fromIndex = localFields.findIndex((f) => f.id === draggingId)
+    const toIndex = localFields.findIndex((f) => f.id === targetId)
     if (fromIndex < 0 || toIndex < 0) return
     const next = arrayMove(localFields, fromIndex, toIndex)
     setLocalFields(next)
@@ -151,155 +189,262 @@ export function FormBuilder({ areaId, userId }) {
     try {
       await persistOrder(next)
     } catch {
-      notify.error('Error al reordenar campos')
+      notify.error('No se pudo reordenar')
     }
   }
 
+  const selectedGuide = typeGuide(newField.type)
+  const isEmpty = !isLoading && localFields.length === 0
+
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border bg-card p-4 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight">¿Qué quieres anotar de cada artículo?</h2>
+            <p className="mt-1 text-sm text-muted-foreground max-w-prose">
+              Arma las preguntas de tu lista. Cuando registres algo, verás exactamente estos campos — sin jerga técnica.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full shrink-0 gap-2 sm:w-auto"
+            onClick={() => setHelpOpen(true)}
+          >
+            <HelpCircle className="h-4 w-4" />
+            ¿Necesitas ayuda?
+          </Button>
+        </div>
+      </div>
+
+      {/* Plantillas: siempre visibles si no hay preguntas; opcionales si ya hay pocas */}
+      {isEmpty && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Empieza en un toque
+            </CardTitle>
+            <CardDescription>
+              Elige un modelo listo. Luego puedes agregar, quitar o renombrar preguntas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {FORM_STARTERS.map((starter) => (
+                <button
+                  key={starter.id}
+                  type="button"
+                  disabled={!!applyingStarter}
+                  onClick={() => applyStarter(starter)}
+                  className="flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                    {applyingStarter === starter.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {starter.title}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-snug">{starter.description}</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
-        <CardHeader>
-          <CardTitle>Campos del Formulario</CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Tus preguntas</CardTitle>
+          {!isEmpty && (
+            <CardDescription>Arrastra o usa las flechas para cambiar el orden.</CardDescription>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading ? (
-            <div className="text-muted-foreground">Cargando campos...</div>
-          ) : localFields.length === 0 ? (
+            <div className="text-sm text-muted-foreground py-6 text-center">Cargando…</div>
+          ) : isEmpty ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Aún no hay campos en esta área.<br />
-              Agrega tu primer campo abajo (por ejemplo <span className="font-medium text-foreground">Nombre</span> y <span className="font-medium text-foreground">Cantidad</span>) para empezar a registrar artículos.
+              Todavía no hay preguntas.<br />
+              Usa un modelo de arriba o agrega la primera abajo.
             </div>
           ) : (
-            localFields.map((f, idx) => (
-              <div
-                key={f.id}
-                className={
-                  `rounded-lg border p-3 transition-colors ${dragOverId === f.id ? 'border-primary' : ''}`
-                }
-                draggable
-                onDragStart={() => {
-                  setDraggingId(f.id)
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault()
-                  setDragOverId(f.id)
-                }}
-                onDragLeave={() => {
-                  setDragOverId(null)
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  handleDropOn(f.id)
-                }}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                  <div className="md:col-span-1 flex items-center justify-start">
-                    <div className="p-2 rounded-md border bg-background text-muted-foreground cursor-grab active:cursor-grabbing">
-                      <GripVertical className="w-4 h-4" />
+            localFields.map((f, idx) => {
+              const guide = typeGuide(f.type)
+              const Icon = guide.Icon
+              return (
+                <div
+                  key={f.id}
+                  className={`rounded-lg border p-3 transition-colors ${dragOverId === f.id ? 'border-primary bg-primary/5' : ''}`}
+                  draggable
+                  onDragStart={() => setDraggingId(f.id)}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    setDragOverId(f.id)
+                  }}
+                  onDragLeave={() => setDragOverId(null)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    handleDropOn(f.id)
+                  }}
+                >
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-2">
+                      <div className="mt-1 p-2 rounded-md border bg-background text-muted-foreground cursor-grab active:cursor-grabbing shrink-0">
+                        <GripVertical className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1 grid gap-3">
+                        <div className="grid gap-1.5">
+                          <Label>Pregunta</Label>
+                          <Input
+                            defaultValue={f.name}
+                            onBlur={(e) => handleRenameField(f, e.target.value)}
+                            placeholder="Ej: Nombre, Cantidad, Marca"
+                          />
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          <Label>Cómo se responde</Label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {FIELD_TYPE_GUIDES.map((t) => {
+                              const TIcon = t.Icon
+                              const active = f.type === t.value
+                              return (
+                                <button
+                                  key={t.value}
+                                  type="button"
+                                  onClick={() => handleUpdateField(f.id, { type: t.value })}
+                                  className={`flex items-start gap-2 rounded-md border p-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                                    active
+                                      ? 'border-primary bg-primary/10 text-foreground'
+                                      : 'hover:bg-accent/50 text-muted-foreground'
+                                  }`}
+                                >
+                                  <TIcon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${active ? 'text-primary' : ''}`} />
+                                  <span className="leading-tight font-medium">{t.label}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <Icon className="h-3.5 w-3.5" />
+                            {guide.example}
+                          </p>
+                        </div>
+
+                        {f.type === 'select' && (
+                          <div className="grid gap-1.5">
+                            <Label>Opciones (separadas por comas)</Label>
+                            <Input
+                              defaultValue={optionsToCsv(f.options)}
+                              placeholder="Ej: Chico, Mediano, Grande"
+                              onBlur={(e) => {
+                                const parsed = parseOptionsCsv(e.target.value)
+                                handleUpdateField(f.id, { options: parsed })
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t">
+                          <label htmlFor={`field-req-${f.id}`} className="flex items-center gap-2 cursor-pointer select-none">
+                            <Checkbox
+                              id={`field-req-${f.id}`}
+                              checked={Boolean(f.required)}
+                              onCheckedChange={(checked) => handleUpdateField(f.id, { required: Boolean(checked) })}
+                            />
+                            <span className="text-sm">Hay que llenarlo sí o sí</span>
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => moveByArrow(idx, -1)}
+                              disabled={idx === 0}
+                              aria-label="Subir"
+                            >
+                              <ArrowUp className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={() => moveByArrow(idx, 1)}
+                              disabled={idx === localFields.length - 1}
+                              aria-label="Bajar"
+                            >
+                              <ArrowDown className="w-4 h-4" />
+                            </Button>
+                            <Button variant="destructive" size="icon" onClick={() => handleDeleteField(f.id)} aria-label="Eliminar">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="md:col-span-4 grid gap-1">
-                    <Label>Nombre</Label>
-                    <Input
-                      defaultValue={f.name}
-                      onBlur={(e) => handleRenameField(f, e.target.value)}
-                      placeholder="Ej: nombre, cantidad, tipo"
-                    />
-                  </div>
-
-                  <div className="md:col-span-3 grid gap-1">
-                    <Label>Tipo</Label>
-                    <Select defaultValue={f.type} onValueChange={(v) => handleUpdateField(f.id, { type: v })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="md:col-span-2 grid gap-1">
-                    <Label htmlFor={`field-req-${f.id}`}>Obligatorio</Label>
-                    <label htmlFor={`field-req-${f.id}`} className="flex h-9 items-center gap-2 cursor-pointer select-none">
-                      <Checkbox
-                        id={`field-req-${f.id}`}
-                        checked={Boolean(f.required)}
-                        onCheckedChange={(checked) => handleUpdateField(f.id, { required: Boolean(checked) })}
-                      />
-                      <span className="text-sm text-muted-foreground">{f.required ? 'Sí' : 'No'}</span>
-                    </label>
-                  </div>
-
-                  <div className="md:col-span-2 flex items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => moveByArrow(idx, -1)}
-                      disabled={idx === 0}
-                      aria-label="Subir"
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => moveByArrow(idx, 1)}
-                      disabled={idx === localFields.length - 1}
-                      aria-label="Bajar"
-                    >
-                      <ArrowDown className="w-4 h-4" />
-                    </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDeleteField(f.id)} aria-label="Eliminar">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
                 </div>
-
-                {f.type === 'select' && (
-                  <div className="grid gap-1 mt-3">
-                    <Label>Opciones (separadas por comas)</Label>
-                    <Input
-                      defaultValue={optionsToCsv(f.options)}
-                      placeholder="Ej: Chico, Mediano, Grande"
-                      onBlur={(e) => {
-                        const parsed = parseOptionsCsv(e.target.value)
-                        handleUpdateField(f.id, { options: parsed })
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))
+              )
+            })
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Agregar Campo</CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="text-base">Agregar una pregunta</CardTitle>
+              <CardDescription>Di qué quieres saber y cómo se responde.</CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto shrink-0 gap-1.5 self-start px-2 text-primary hover:text-primary"
+              onClick={() => setHelpOpen(true)}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              ¿Necesitas ayuda?
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
-            <div className="grid gap-1.5">
-              <Label htmlFor="new-field-name">Nombre del campo</Label>
-              <Input id="new-field-name" value={newField.name} onChange={e => setNewField({ ...newField, name: e.target.value })} placeholder="Ej: nombre, cantidad, color" />
+          <div className="grid gap-1.5">
+            <Label htmlFor="new-field-name">Nombre de la pregunta</Label>
+            <Input
+              id="new-field-name"
+              value={newField.name}
+              onChange={(e) => setNewField({ ...newField, name: e.target.value })}
+              placeholder="Ej: Nombre, Cantidad, Color"
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <Label>Cómo se responde</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {FIELD_TYPE_GUIDES.map((t) => {
+                const TIcon = t.Icon
+                const active = newField.type === t.value
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setNewField({ ...newField, type: t.value })}
+                    className={`flex flex-col gap-1 rounded-md border p-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      active
+                        ? 'border-primary bg-primary/10'
+                        : 'hover:bg-accent/50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      <TIcon className={`h-3.5 w-3.5 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+                      {t.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground leading-snug">{t.example}</span>
+                  </button>
+                )
+              })}
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="new-field-type">Tipo de dato</Label>
-              <Select value={newField.type} onValueChange={(v) => setNewField({ ...newField, type: v })}>
-                <SelectTrigger id="new-field-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TYPE_OPTIONS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {TYPE_OPTIONS.find(t => t.value === newField.type)?.hint}
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">{selectedGuide.example}</p>
           </div>
 
           {newField.type === 'select' && (
@@ -321,15 +466,23 @@ export function FormBuilder({ areaId, userId }) {
                 checked={newField.required}
                 onCheckedChange={(checked) => setNewField({ ...newField, required: Boolean(checked) })}
               />
-              <span className="text-sm">¿Obligatorio? <span className="text-muted-foreground">(el usuario deberá rellenarlo)</span></span>
+              <span className="text-sm">Hay que llenarlo sí o sí</span>
             </label>
-            <Button className="w-full gap-2 sm:w-auto" onClick={handleAddField}>
-              <Plus className="w-4 h-4" />
-              Agregar campo
+            <Button className="w-full gap-2 sm:w-auto" onClick={handleAddField} disabled={adding}>
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Agregar pregunta
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {!isEmpty && typeof onReadyToRegister === 'function' && (
+        <div className="flex justify-end">
+          <Button onClick={onReadyToRegister} className="w-full sm:w-auto">
+            Listo — empezar a registrar
+          </Button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmOpen}
@@ -337,13 +490,15 @@ export function FormBuilder({ areaId, userId }) {
           setConfirmOpen(o)
           if (!o) setPendingDeleteId(null)
         }}
-        title="Confirmar eliminación"
-        description="Eliminar este campo puede afectar formularios existentes. ¿Deseas continuar?"
-        confirmText="Eliminar"
+        title="¿Quitar esta pregunta?"
+        description="Los artículos que ya guardaste seguirán existiendo, pero esta pregunta dejará de pedirse."
+        confirmText="Quitar"
         cancelText="Cancelar"
         tone="destructive"
         onConfirm={confirmDelete}
       />
+
+      <FormBuilderHelpModal open={helpOpen} onOpenChange={setHelpOpen} />
     </div>
   )
 }

@@ -31,7 +31,9 @@ export async function listAreas(userUuid, { page, pageSize } = {}) {
 export async function createArea({ name, icon, slug, prefix }, userUuid, businessId) {
   if (!userUuid) throw new Error('User UUID is required')
   const effectiveUserId = getEffectiveUserId(userUuid, businessId)
-  const payload = { name, icon, slug, user_id: effectiveUserId }
+  // Slug vacío → null para que la BD genere uno único (evita 409 por '' repetido).
+  const cleanSlug = String(slug || '').trim() || null
+  const payload = { name, icon, slug: cleanSlug, user_id: effectiveUserId }
   const { data: area, error } = await supabase
     .from('inventory_areas')
     .insert(payload)

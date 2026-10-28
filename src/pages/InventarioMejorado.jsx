@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Layers, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Layers, Plus, Pencil, Trash2, ClipboardList, Settings2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
@@ -119,8 +118,20 @@ export default function InventarioMejorado() {
             <CardContent className="py-10 text-muted-foreground">Cargando áreas...</CardContent>
           </Card>
         ) : areas.length === 0 ? (
-          <Card>
-            <CardContent className="py-10 text-muted-foreground">No hay áreas creadas aún</CardContent>
+          <Card className="md:col-span-2 lg:col-span-3">
+            <CardContent className="py-10 text-center space-y-3">
+              <p className="text-base font-medium text-foreground">Crea tu primera área</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Un área es un lugar o categoría de tu negocio (cocina, depósito, equipos…).
+                Después armás qué quieres anotar de cada artículo.
+              </p>
+              {isOwner && (
+                <Button onClick={openCreateArea} className="gap-2" disabled={!canCreateArea}>
+                  <Plus className="w-4 h-4" />
+                  Crear área
+                </Button>
+              )}
+            </CardContent>
           </Card>
         ) : (
           areas.map(area => {
@@ -182,21 +193,54 @@ export default function InventarioMejorado() {
               {selectedArea.plan_locked === true && <Badge variant="secondary" className="shrink-0">Bloqueada</Badge>}
             </div>
 
-            <div className="w-full sm:w-[240px] sm:shrink-0">
-              <Select value={mode} onValueChange={setMode}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="use">Usar Formulario</SelectItem>
-                  <SelectItem value="edit" disabled={!isOwner || selectedArea.plan_locked === true}>Editar Campos del Formulario</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Pestañas en lenguaje claro (antes: combobox “Usar/Editar formulario”) */}
+            <div
+              className="grid w-full grid-cols-2 gap-1 rounded-lg bg-muted p-1 sm:w-auto sm:inline-grid sm:min-w-[320px]"
+              role="tablist"
+              aria-label="Modo del área"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'use'}
+                onClick={() => setMode('use')}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  mode === 'use'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <ClipboardList className="h-4 w-4 shrink-0" />
+                Registrar
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={mode === 'edit'}
+                disabled={!isOwner || selectedArea.plan_locked === true}
+                onClick={() => {
+                  if (!isOwner || selectedArea.plan_locked === true) return
+                  setMode('edit')
+                }}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none ${
+                  mode === 'edit'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Settings2 className="h-4 w-4 shrink-0" />
+                Armar lista
+              </button>
             </div>
           </div>
 
           {mode === 'use' && (
-            <FormRunner areaId={selectedArea.id} userId={effectiveUserId} currentArea={selectedArea} />
+            <FormRunner
+              areaId={selectedArea.id}
+              userId={effectiveUserId}
+              currentArea={selectedArea}
+              onConfigure={() => setMode('edit')}
+            />
           )}
 
           {mode === 'edit' && (
@@ -211,7 +255,11 @@ export default function InventarioMejorado() {
                   </CardContent>
                 </Card>
               ) : (
-                <FormBuilder areaId={selectedArea.id} userId={effectiveUserId} />
+                <FormBuilder
+                  areaId={selectedArea.id}
+                  userId={effectiveUserId}
+                  onReadyToRegister={() => setMode('use')}
+                />
               )
             ) : (
               <Card>
@@ -219,7 +267,7 @@ export default function InventarioMejorado() {
                   <CardTitle>Acceso restringido</CardTitle>
                 </CardHeader>
                 <CardContent className="text-muted-foreground">
-                  No tienes permisos para editar la configuración del formulario.
+                  Solo el dueño del negocio puede armar las preguntas de esta área.
                 </CardContent>
               </Card>
             )
@@ -230,9 +278,14 @@ export default function InventarioMejorado() {
       <AreaModal
         open={areaModalOpen}
         onOpenChange={setAreaModalOpen}
-        onSuccess={() => {
+        onSuccess={(created) => {
           setAreaModalOpen(false)
           setAreaToEdit(null)
+          // Tras crear: abrir el área y llevar a “Armar lista” (el paso natural).
+          if (created?.id) {
+            setSelectedAreaId(created.id)
+            setMode('edit')
+          }
         }}
         areaToEdit={areaToEdit}
         businessId={businessId}

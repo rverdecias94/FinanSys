@@ -11,6 +11,7 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { PermissionGuard, usePermissionCheck, ActionButtons } from '@/components/common/PermissionGuard'
 import { TransactionModal } from '@/components/finanzas/TransactionModal'
+import { RecurringPanel } from '@/components/finanzas/RecurringPanel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
@@ -28,7 +29,7 @@ export default function FinanzasMejorado() {
   const { businessId, loading: businessLoading } = useBusiness()
   const { checkLimit, recordUsage } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
-  const { canView, canEdit, canExport, loading: permissionLoading } = usePermissionCheck()
+  const { canView, canEdit, canCreate, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
 
   // Estado local
@@ -115,6 +116,8 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       queryClient.invalidateQueries({ queryKey: ['warehouse'] })
       queryClient.invalidateQueries({ queryKey: ['aging'] })
+      queryClient.invalidateQueries({ queryKey: ['open-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['open-accounts-count'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
       // Reintento idempotente de una venta (la respuesta se había perdido): la venta ya
       // existía, así que avisamos y NO volvemos a contar el uso (no se creó otra tx).
@@ -143,6 +146,8 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
       queryClient.invalidateQueries({ queryKey: ['aging'] })
+      queryClient.invalidateQueries({ queryKey: ['open-accounts'] })
+      queryClient.invalidateQueries({ queryKey: ['open-accounts-count'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
       setModalOpen(false)
       setSelectedTransaction(null)
@@ -391,6 +396,18 @@ export default function FinanzasMejorado() {
           </CardContent>
         </Card>
       </div>
+
+      <RecurringPanel
+        userId={userId}
+        businessId={businessId}
+        businessLoading={businessLoading}
+        categories={categories}
+        paymentMethods={paymentMethods}
+        currencies={businessCurrencies}
+        contacts={contactsData?.data || []}
+        formatCurrency={formatCurrency}
+        canCreate={canCreate('finanzas')}
+      />
 
       {/* Tabla de transacciones */}
       <Card>

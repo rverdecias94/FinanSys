@@ -68,7 +68,7 @@ export function MovementList({
                 {isEntry ? 'Entrada' : 'Salida'}
               </Badge>
               <Badge variant="outline">
-                Stock: {m.resulting_stock !== undefined ? m.resulting_stock : (m.products?.stock ?? '-')}
+                Stock actual: {m.resulting_stock ?? m.products?.stock ?? '—'}
               </Badge>
             </div>
           </div>

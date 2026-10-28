@@ -22,6 +22,8 @@ export async function listProducts({ page = 1, pageSize = 10, search = '', categ
     .from('products')
     .select('*', { count: 'exact' })
     .eq('user_id', effectiveUserId) // Filtrar por el owner_id efectivo
+    // Lo recién creado primero (created_at); name como desempate estable.
+    .order('created_at', { ascending: false })
     .order('name', { ascending: true })
 
   // Filters
@@ -94,13 +96,40 @@ export async function createProduct(payload, userId, businessId) {
 
   return await withCrud({ action: 'create', table: 'products' }, async () => {
     const effectiveUserId = getEffectiveUserUuid(userId, businessId);
+    const initialStock = Number(payload?.stock) || 0
 
+    // Crear siempre en 0 y, si hay stock inicial, registrar una entrada atómica.
+    // Así el historial de movimientos refleja la apertura (no un stock "mágico").
     const { data, error } = await supabase
       .from('products')
-      .insert({ ...payload, user_id: effectiveUserId }) // Crear con el owner_id efectivo
+      .insert({ ...payload, stock: 0, user_id: effectiveUserId })
       .select()
       .single()
     if (error) throw error
+
+    if (initialStock > 0) {
+      try {
+        const moved = await registerMovement({
+          product_id: data.id,
+          qty: initialStock,
+          type: 'in',
+          userId
+        })
+        return { ...data, stock: moved?.resulting_stock ?? initialStock }
+      } catch (moveErr) {
+        // Sin permiso warehouse.move: deja el stock en el producto sin movimiento.
+        const { data: updated, error: updErr } = await supabase
+          .from('products')
+          .update({ stock: initialStock })
+          .eq('id', data.id)
+          .eq('user_id', effectiveUserId)
+          .select()
+          .single()
+        if (updErr) throw moveErr
+        return updated || { ...data, stock: initialStock }
+      }
+    }
+
     // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })
@@ -233,7 +262,7 @@ export async function listMovements({ page = 1, pageSize = 10, type = 'all', pro
     .from('movements')
     .select(`
       *,
-      products (name, category)
+      products (name, category, stock)
     `, { count: 'exact' })
     .eq('user_id', effectiveUserId) // Filtrar por owner_id efectivo
     .order('created_at', { ascending: false })

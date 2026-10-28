@@ -80,9 +80,11 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       }
 
       if (product) {
-        await updateProduct(product.id, payload, userId, businessId) // Pasar ambos IDs
+        // El stock no se edita aquí (solo vía movimientos).
+        const { stock: _stock, ...rest } = payload
+        await updateProduct(product.id, rest, userId, businessId)
       } else {
-        await createProduct(payload, userId, businessId) // Pasar ambos IDs
+        await createProduct(payload, userId, businessId)
       }
       onSuccess()
     } catch (error) {
@@ -187,14 +189,27 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label>Stock Actual</Label>
+              <Label>{product ? 'Stock Actual' : 'Stock inicial'}</Label>
               <Input
                 type="number"
+                min="0"
+                step="1"
                 value={formData.stock}
                 onChange={e => setFormData({ ...formData, stock: e.target.value })}
                 aria-invalid={!!errors.stock}
+                disabled={!!product}
               />
               {errors.stock && <p className="text-xs text-destructive">{errors.stock}</p>}
+              {!product && (
+                <p className="text-xs text-muted-foreground">
+                  Si indicas una cantidad, se registra como entrada inicial.
+                </p>
+              )}
+              {product && (
+                <p className="text-xs text-muted-foreground">
+                  El stock se ajusta con movimientos (Entrada/Salida), no desde aquí.
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Label>Stock Mínimo (Alerta)</Label>

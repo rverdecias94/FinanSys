@@ -80,4 +80,15 @@ describe('useOnboardingStatus', () => {
     // Inmediatamente needs:false por el flag local (no espera a la BD)
     expect(screen.getByText('needs:false')).toBeInTheDocument()
   })
+
+  it('con flag local done + tradeName, no reabre el wizard si falta moneda un momento', async () => {
+    useBusiness.mockReturnValue({ businessId: 'u1', isOwner: true })
+    // Refresh momentáneo: monedas vacías aunque el onboarding ya se completó
+    useCurrency.mockReturnValue({ businessCurrencies: [], loading: false })
+    getBusinessSettings.mockResolvedValue({ company: { tradeName: 'Tacos Vargas' } })
+    writeLocalCache('onboarding:done:u1', true)
+
+    renderProbe()
+    await waitFor(() => expect(screen.getByText('needs:false')).toBeInTheDocument())
+  })
 })

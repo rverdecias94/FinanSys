@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
-import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary } from '@/services/finanzas'
+import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary, getAgingReport } from '@/services/finanzas'
 import { getExchangeRates, consolidatePerCurrency } from '@/services/exchangeRates'
+import { buildPosition } from '@/utils/financials'
 import { useQuery } from '@tanstack/react-query'
 import { useCurrency } from '@/context/CurrencyContext'
 import {
@@ -134,11 +135,25 @@ export default function Dashboard() {
     ...dashboardQueryOptions
   })
 
+  // Antigüedad (CxC/CxP) para calcular la caja real del héroe del panel.
+  const agingReceivableQuery = useQuery({
+    queryKey: ['aging', 'receivable', businessId || userId],
+    queryFn: () => getAgingReport('receivable'),
+    ...dashboardQueryOptions
+  })
+  const agingPayableQuery = useQuery({
+    queryKey: ['aging', 'payable', businessId || userId],
+    queryFn: () => getAgingReport('payable'),
+    ...dashboardQueryOptions
+  })
+
   const stats = statsQuery.data || { balance: {}, income: { current: {}, change: {} }, expense: { current: {}, change: {} }}
   const rates = ratesQuery.data || {}
   const recentActivityCount = recentActivityQuery.data?.length ?? 0
   const financialDistribution = financialDistributionQuery.data ?? []
   const yearData = yearlySummaryQuery.data ?? {}
+  const agingReceivable = agingReceivableQuery.data ?? []
+  const agingPayable = agingPayableQuery.data ?? []
 
   const monthNames = useMemo(() => (["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]), [])
 
@@ -193,7 +208,20 @@ export default function Dashboard() {
   }, [financialDistribution])
 
   // --- Datos derivados de la moneda del panel ---
+  // Saldo registrado = DEVENGADO (incluye pendientes). La caja real descuenta
+  // por cobrar y suma por pagar: es lo que el usuario entiende como "disponible".
   const currentBalance = stats.balance[panelCurrency] || 0
+  const positionByCurrency = useMemo(() => {
+    const balances = Object.entries(stats.balance || {}).map(([currency_code, current_balance]) => ({
+      currency_code,
+      current_balance
+    }))
+    return buildPosition(balances, agingReceivable, agingPayable)
+  }, [stats.balance, agingReceivable, agingPayable])
+  const panelPosition = positionByCurrency.find((p) => p.currency === panelCurrency)
+  const availableCash = panelPosition?.caja ?? currentBalance
+  const porCobrar = panelPosition?.porCobrar || 0
+  const porPagar = panelPosition?.porPagar || 0
   const incomeMonth = stats.income.current[panelCurrency] || 0
   const expenseMonth = stats.expense.current[panelCurrency] || 0
   const netMonth = incomeMonth - expenseMonth
@@ -208,8 +236,15 @@ export default function Dashboard() {
   )
   const consolidated = useMemo(() => {
     if (!baseCode || businessCurrencies.length <= 1) return null
-    return consolidatePerCurrency(stats.balance, baseCode, rates)
-  }, [baseCode, businessCurrencies.length, stats.balance, rates])
+    const cashByCode = Object.fromEntries(
+      positionByCurrency.map((p) => [p.currency, p.caja])
+    )
+    // Si no hay posición (sin saldos ni CxC/CxP), cae al saldo registrado.
+    const source = Object.keys(cashByCode).length
+      ? { ...stats.balance, ...cashByCode }
+      : stats.balance
+    return consolidatePerCurrency(source, baseCode, rates)
+  }, [baseCode, businessCurrencies.length, stats.balance, rates, positionByCurrency])
 
   // Decisión de vista (ver src/utils/dashboardView.js): el asistente "3 pasos"
   // solo se muestra mientras NO haya moneda principal configurada. En cuanto hay
@@ -315,7 +350,7 @@ export default function Dashboard() {
       ) : (
         /* ---------- Panel con datos ---------- */
         <>
-          {/* Tarjeta héroe: el dinero disponible (la respuesta a "¿cómo voy?") */}
+          {/* Tarjeta héroe: caja real (efectivo hoy), no el saldo devengado */}
           <Card className="bg-primary text-primary-foreground shadow-md border-0">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2 text-primary-foreground/80">
@@ -327,11 +362,25 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
-                    {formatCurrency(currentBalance, panelCurrency)}
+                    {formatCurrency(availableCash, panelCurrency)}
                   </p>
+                  {(porCobrar > 0 || porPagar > 0 || availableCash !== currentBalance) && (
+                    <p className="mt-2 text-xs text-primary-foreground/80 leading-snug">
+                      Caja real hoy
+                      {porCobrar > 0 ? ` · te deben ${formatCurrency(porCobrar, panelCurrency)}` : ''}
+                      {porPagar > 0 ? ` · debes ${formatCurrency(porPagar, panelCurrency)}` : ''}
+                      {availableCash !== currentBalance
+                        ? ` · saldo registrado ${formatCurrency(currentBalance, panelCurrency)}`
+                        : ''}
+                    </p>
+                  )}
                   {otherBalances.length > 0 && (
                     <p className="mt-2 text-xs text-primary-foreground/80">
-                      {otherBalances.map(c => `${formatCurrency(stats.balance[c.code] || 0, c.code)}`).join('  ·  ')}
+                      {otherBalances.map((c) => {
+                        const other = positionByCurrency.find((p) => p.currency === c.code)
+                        const val = other?.caja ?? stats.balance[c.code] ?? 0
+                        return `${formatCurrency(val, c.code)}`
+                      }).join('  ·  ')}
                     </p>
                   )}
                   {consolidated && (

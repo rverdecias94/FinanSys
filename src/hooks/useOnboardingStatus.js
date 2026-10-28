@@ -45,6 +45,8 @@ export function useOnboardingStatus() {
   const hasMainCurrency = (businessCurrencies || []).some((c) => c.is_default)
   const dbNeedsOnboarding = !tradeName?.trim() || !hasMainCurrency
 
+  const cacheDone = cacheKey ? readLocalCache(cacheKey) === true : false
+
   // Persistir el resultado verificado contra BD en localStorage (por negocio).
   useEffect(() => {
     if (!cacheKey || !resolved) return
@@ -54,10 +56,19 @@ export function useOnboardingStatus() {
   if (!enabled) return { needsOnboarding: false, loading: false }
 
   // Verificado contra BD: fuente de verdad.
-  if (resolved) return { needsOnboarding: dbNeedsOnboarding, loading: false }
+  // Si este dispositivo ya completó el onboarding y el nombre comercial está
+  // presente, NO reabrir el wizard por un refresh momentáneo de monedas
+  // (businessCurrencies vacío / sin is_default unos frames). Eso evitaba el
+  // flash bloqueante visto al navegar a Inventario/Configuración.
+  if (resolved) {
+    if (cacheDone && tradeName?.trim()) {
+      return { needsOnboarding: false, loading: false }
+    }
+    return { needsOnboarding: dbNeedsOnboarding, loading: false }
+  }
 
   // Aún verificando: usar el flag local de este dispositivo para evitar parpadeo.
-  if (cacheKey && readLocalCache(cacheKey) === true) {
+  if (cacheDone) {
     return { needsOnboarding: false, loading: false }
   }
 

@@ -48,7 +48,7 @@ function FieldRequiredMark({ required }) {
     : <span className="text-muted-foreground ml-1">(Opcional)</span>
 }
 
-export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false }) {
+export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false, onConfigure }) {
   const queryClient = useQueryClient()
   const [values, setValues] = useState({})
   const [editingId, setEditingId] = useState(null)
@@ -208,13 +208,25 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
       {canShowForm && (
         <Card>
           <CardHeader>
-            <CardTitle>Formulario para {currentArea?.name}</CardTitle>
+            <CardTitle>
+              {editingId ? `Editar en ${currentArea?.name || 'el área'}` : `Registrar en ${currentArea?.name || 'el área'}`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loadingFields ? (
-              <div className="text-muted-foreground">Cargando formulario...</div>
+              <div className="text-muted-foreground">Cargando…</div>
             ) : fields.length === 0 ? (
-              <div className="text-muted-foreground">No hay campos configurados en esta área</div>
+              <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
+                <p className="text-sm font-medium text-foreground">Todavía no hay qué preguntar</p>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  Primero arma la lista de datos que quieres anotar (nombre, cantidad, etc.). Toma menos de un minuto.
+                </p>
+                {typeof onConfigure === 'function' && (
+                  <Button type="button" onClick={onConfigure}>
+                    Armar mi lista
+                  </Button>
+                )}
+              </div>
             ) : (
               <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {fields.map(f => {
@@ -342,7 +354,9 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
                       </Button>
                     )}
                     <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
-                      {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : (editingId ? 'Actualizar Item' : 'Guardar Item')}
+                      {createMutation.isPending || updateMutation.isPending
+                        ? 'Guardando…'
+                        : (editingId ? 'Guardar cambios' : 'Guardar artículo')}
                     </Button>
                   </div>
                 )}
@@ -355,7 +369,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
       {mode === 'full' && (
         <Card>
           <CardHeader>
-            <CardTitle>Artículos Registrados</CardTitle>
+            <CardTitle>Artículos guardados</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveListing
@@ -364,8 +378,8 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
               enabled={!!userId && !!areaId}
               getItemKey={(item) => item.id}
               renderItem={renderItem}
-              emptyMessage="No hay items registrados"
-              loadingMessage="Cargando items..."
+              emptyMessage="Aún no hay artículos. Completa el formulario de arriba y guárdalo."
+              loadingMessage="Cargando artículos…"
             />
           </CardContent>
         </Card>
