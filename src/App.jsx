@@ -30,6 +30,7 @@ const InventarioConfigFormulario = lazy(() => import('@/pages/InventarioConfigFo
 const Reportes = lazy(() => import('@/pages/Reportes'))
 const ConfiguracionMejorado = lazy(() => import('@/pages/ConfiguracionMejorado'))
 const LogsMejorado = lazy(() => import('@/pages/LogsMejorado'))
+const Herramientas = lazy(() => import('@/pages/Herramientas'))
 const AdminPlans = lazy(() => import('@/pages/AdminPlans'))
 const Terminos = lazy(() => import('@/pages/Terminos'))
 const Privacidad = lazy(() => import('@/pages/Privacidad'))
@@ -76,6 +77,9 @@ export default function App() {
                   </Route>
                   <Route path="/reportes" element={<ProtectedRoute requiredPermission="reports.view" />}>
                     <Route index element={<Reportes />} />
+                  </Route>
+                  <Route path="/herramientas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                    <Route index element={<Herramientas />} />
                   </Route>
                   <Route path="/configuracion" element={<ProtectedRoute requiredPermission="config.view" />}>
                     <Route index element={<ConfiguracionMejorado />} />

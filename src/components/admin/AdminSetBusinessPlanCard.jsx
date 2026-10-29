@@ -19,7 +19,7 @@ export function AdminSetBusinessPlanCard({ onSuccess }) {
     mutationFn: () => adminSetBusinessPlan({
       targetBusinessId: businessId.trim(),
       targetPlanId: planId,
-      months: planId === 'premium' ? Number(months) || 1 : null,
+      months: (planId === 'premium' || planId === 'ultra') ? Number(months) || 1 : null,
       adminNotes: notes
     }),
     onSuccess: () => {
@@ -45,6 +45,7 @@ export function AdminSetBusinessPlanCard({ onSuccess }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="ultra">Ultra</SelectItem>
               <SelectItem value="premium">Premium</SelectItem>
               <SelectItem value="free">Gratuito</SelectItem>
             </SelectContent>
@@ -57,7 +58,7 @@ export function AdminSetBusinessPlanCard({ onSuccess }) {
             min={1}
             value={months}
             onChange={(e) => setMonths(e.target.value)}
-            disabled={planId !== 'premium'}
+            disabled={planId !== 'premium' && planId !== 'ultra'}
           />
         </div>
         <div className="md:col-span-3">

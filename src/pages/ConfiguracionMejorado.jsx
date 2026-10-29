@@ -16,7 +16,7 @@ export default function ConfiguracionMejorado() {
   const { canView, isOwner, hasPermission } = usePermissionCheck()
   const { subscription } = useSubscription()
 
-  const isPremium = subscription?.plan_id === 'premium'
+  const isPremium = subscription?.plan_id === 'premium' || subscription?.plan_id === 'ultra'
   const canManageTeam = isOwner || hasPermission('team.manage')
   // Las pestañas Equipo/Roles se MUESTRAN aunque la cuenta sea gratis (para dar a
   // conocer la función); el contenido es la pantalla Premium si no es de pago.

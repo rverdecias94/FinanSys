@@ -8,32 +8,18 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { useSubscription } from '@/context/SubscriptionContext'
+import { useSubscription, isPaidPlanId } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
 import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog'
 import { PaymentHistory } from '@/components/config/PaymentHistory'
-import { Check, Crown, Loader2, Shield, Send } from 'lucide-react'
+import { Check, Crown, Loader2, Shield, Send, Sparkles } from 'lucide-react'
 
 export function PlansPanel() {
   const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS, nextPaymentDate, billingCycle, paymentState, pricing } = useSubscription()
   const { isOwner } = useBusiness()
 
-  const premiumPricing = pricing?.premium || {}
-  const cycleOptions = [
-    { id: 'monthly', label: 'Mensual', price: premiumPricing.monthly ?? 10, suffix: '/mes' },
-    { id: 'semiannual', label: 'Semestral', price: premiumPricing.semiannual ?? 57, suffix: '/6 meses', save: premiumPricing.semiannual_discount_pct ?? 5 },
-    { id: 'annual', label: 'Anual', price: premiumPricing.annual ?? 102, suffix: '/año', save: premiumPricing.annual_discount_pct ?? 15 }
-  ]
-
-  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }[cycle] || 'Mensual')
-  const formatDate = (value) => {
-    try {
-      return new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
-    } catch {
-      return ''
-    }
-  }
   const [requestOpen, setRequestOpen] = useState(false)
+  const [requestTarget, setRequestTarget] = useState('premium')
   const [downgradeOpen, setDowngradeOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submittingRequest, setSubmittingRequest] = useState(false)
@@ -46,17 +32,41 @@ export function PlansPanel() {
   })
 
   const currentPlan = subscription?.plan_id || 'free'
+  const planPricing = pricing?.[requestTarget] || pricing?.premium || {}
+
+  const cycleOptions = useMemo(() => {
+    const monthly = planPricing.monthly ?? (requestTarget === 'ultra' ? 20 : 10)
+    const semiannual = planPricing.semiannual ?? (requestTarget === 'ultra' ? 114 : 57)
+    const annual = planPricing.annual ?? (requestTarget === 'ultra' ? 204 : 102)
+    return [
+      { id: 'monthly', label: 'Mensual', price: monthly, suffix: '/mes' },
+      { id: 'semiannual', label: 'Semestral', price: semiannual, suffix: '/6 meses', save: planPricing.semiannual_discount_pct ?? 5 },
+      { id: 'annual', label: 'Anual', price: annual, suffix: '/año', save: planPricing.annual_discount_pct ?? 15 }
+    ]
+  }, [planPricing, requestTarget])
+
+  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }[cycle] || 'Mensual')
+  const formatDate = (value) => {
+    try {
+      return new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
+    } catch {
+      return ''
+    }
+  }
 
   const plans = useMemo(() => {
     const free = PLAN_LIMITS?.free || {}
     const premium = PLAN_LIMITS?.premium || {}
+    const ultra = PLAN_LIMITS?.ultra || {}
 
     const txFree = Number.isFinite(free.monthly_transactions) ? free.monthly_transactions : 40
     const prodFree = Number.isFinite(free.products) ? free.products : 40
     const areasFree = Number.isFinite(free.areas) ? free.areas : 5
     const partnersFree = Number.isFinite(free.partners) ? free.partners : 0
-
     const partnersPremium = premium.partners === Infinity ? 'Ilimitados' : (Number.isFinite(premium.partners) ? premium.partners : 5)
+    const partnersUltra = ultra.partners === Infinity ? 'Ilimitados' : (Number.isFinite(ultra.partners) ? ultra.partners : partnersPremium)
+    const docPages = Number.isFinite(ultra.ai_doc_pages) ? ultra.ai_doc_pages : 100
+    const calcQueries = Number.isFinite(ultra.ai_calc_queries) ? ultra.ai_calc_queries : 120
 
     return [
       {
@@ -85,21 +95,43 @@ export function PlansPanel() {
           'Múltiples Monedas',
           'Reportes Avanzados + Exportación',
           `Hasta ${partnersPremium} miembros de equipo`,
-          'Bitácora de actividad'
+          'Auditoría de actividad'
+        ]
+      },
+      {
+        id: 'ultra',
+        title: 'Plan Ultra',
+        subtitle: 'Premium + Radar de caja y Copiloto',
+        icon: <Sparkles className="h-5 w-5" />,
+        highlights: [
+          'Todo lo de Premium',
+          'Radar de caja: proyección 30/60/90 días y alertas',
+          'Copiloto: pregunta por finanzas, stock, CxC y auditoría',
+          'Importar comprobantes con foto (OCR en tu dispositivo)',
+          'Escenarios de caja, FX, margen y cobro',
+          `${docPages} páginas de importación / mes`,
+          `${calcQueries} consultas al Copiloto / mes`,
+          `Hasta ${partnersUltra} miembros de equipo`
         ]
       }
     ]
   }, [PLAN_LIMITS])
 
-  // Mostrar siempre el plan activo del negocio como la primera tarjeta.
   const orderedPlans = useMemo(
     () => [...plans].sort((a, b) => (b.id === currentPlan ? 1 : 0) - (a.id === currentPlan ? 1 : 0)),
     [plans, currentPlan]
   )
 
-  const handleRequestPremium = async () => {
+  const openRequest = (planId) => {
+    setRequestTarget(planId)
+    setRequestForm((prev) => ({ ...prev, billingCycle: 'monthly' }))
+    setRequestOpen(true)
+  }
+
+  const handleRequestPlan = async () => {
     setSubmittingRequest(true)
     const result = await requestPremium({
+      targetPlanId: requestTarget,
       billingCycle: requestForm.billingCycle,
       contactPhone: requestForm.contactPhone,
       paymentMethod: requestForm.paymentMethod,
@@ -111,11 +143,19 @@ export function PlansPanel() {
   }
 
   const handlePlanAction = (planId) => {
-    if (planId === 'premium') {
-      setRequestOpen(true)
+    if (isPaidPlanId(planId)) {
+      openRequest(planId)
       return
     }
     setDowngradeOpen(true)
+  }
+
+  const planActionLabel = (plan, isCurrent, hasPending) => {
+    if (isCurrent) return 'Plan actual'
+    if (hasPending) return 'Solicitud pendiente'
+    if (plan.id === 'ultra') return 'Solicitar Ultra'
+    if (plan.id === 'premium') return 'Solicitar Premium'
+    return 'Cambiar a Gratuito'
   }
 
   return (
@@ -129,7 +169,9 @@ export function PlansPanel() {
         <div className="rounded-md border bg-muted/30 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="font-medium">Solicitud Premium pendiente</div>
+              <div className="font-medium">
+                Solicitud {pendingPlanRequest.requested_plan_id === 'ultra' ? 'Ultra' : 'Premium'} pendiente
+              </div>
               <p className="text-sm text-muted-foreground">
                 Enviada el {new Date(pendingPlanRequest.created_at).toLocaleDateString('es-ES')}. Revisaremos la solicitud y te contactaremos para confirmar la activación.
               </p>
@@ -146,20 +188,20 @@ export function PlansPanel() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         {orderedPlans.map((plan) => {
           const isCurrent = currentPlan === plan.id
-          const isPremium = plan.id === 'premium'
-          const hasPendingPremium = isPremium && pendingPlanRequest
+          const paid = isPaidPlanId(plan.id)
+          const hasPending = paid && pendingPlanRequest
           return (
             <Card key={plan.id} className={isCurrent ? 'border-primary/40 bg-primary/5' : undefined}>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <CardTitle className="flex items-center gap-2">
-                      <span className={isPremium ? 'text-yellow-600' : 'text-primary'}>{plan.icon}</span>
+                    <CardTitle className="flex flex-wrap items-center gap-2">
+                      <span className={paid ? 'text-yellow-600' : 'text-primary'}>{plan.icon}</span>
                       {plan.title}
-                      {isCurrent && <Badge className="ml-2">Plan actual</Badge>}
+                      {isCurrent && <Badge className="ml-1">Plan actual</Badge>}
                     </CardTitle>
                     <CardDescription>{plan.subtitle}</CardDescription>
                   </div>
@@ -169,13 +211,13 @@ export function PlansPanel() {
                 <ul className="space-y-2">
                   {plan.highlights.map((h) => (
                     <li key={h} className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 mt-0.5 text-success" />
+                      <Check className="h-4 w-4 mt-0.5 text-success shrink-0" />
                       <span>{h}</span>
                     </li>
                   ))}
                 </ul>
 
-                {isCurrent && isPremium && nextPaymentDate && (
+                {isCurrent && paid && nextPaymentDate && (
                   <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-muted-foreground">Ciclo de pago</span>
@@ -192,11 +234,11 @@ export function PlansPanel() {
 
                 <div className="flex justify-end">
                   <Button
-                    variant={isCurrent ? 'secondary' : isPremium ? 'default' : 'outline'}
-                    disabled={loading || !isOwner || isCurrent || hasPendingPremium}
+                    variant={isCurrent ? 'secondary' : paid ? 'default' : 'outline'}
+                    disabled={loading || !isOwner || isCurrent || hasPending}
                     onClick={() => handlePlanAction(plan.id)}
                   >
-                    {isCurrent ? 'Plan actual' : hasPendingPremium ? 'Solicitud pendiente' : isPremium ? 'Solicitar Premium' : 'Cambiar a Gratuito'}
+                    {planActionLabel(plan, isCurrent, hasPending)}
                   </Button>
                 </div>
                 {!isOwner && (
@@ -210,12 +252,12 @@ export function PlansPanel() {
         })}
       </div>
 
-      <PaymentHistory alwaysShow={currentPlan === 'premium'} />
+      <PaymentHistory alwaysShow={isPaidPlanId(currentPlan)} />
 
       <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>Solicitar Premium</DialogTitle>
+            <DialogTitle>Solicitar {requestTarget === 'ultra' ? 'Ultra' : 'Premium'}</DialogTitle>
             <DialogDescription>
               Enviaremos tu solicitud para revisarla manualmente. La activación se confirma después del acuerdo o pago fuera de la aplicación.
             </DialogDescription>
@@ -301,7 +343,7 @@ export function PlansPanel() {
             <Button variant="outline" onClick={() => setRequestOpen(false)} disabled={submittingRequest}>
               Cancelar
             </Button>
-            <Button onClick={handleRequestPremium} disabled={submittingRequest}>
+            <Button onClick={handleRequestPlan} disabled={submittingRequest}>
               {submittingRequest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
               Enviar solicitud
             </Button>
@@ -322,8 +364,8 @@ export function PlansPanel() {
       <ConfirmDialog
         open={cancelOpen}
         onOpenChange={setCancelOpen}
-        title="Cancelar solicitud Premium"
-        description="Se cancelará la solicitud pendiente. Si quieres Premium después, tendrás que enviar una nueva solicitud."
+        title="Cancelar solicitud de plan"
+        description="Se cancelará la solicitud pendiente. Si quieres Premium u Ultra después, tendrás que enviar una nueva solicitud."
         confirmText="Cancelar solicitud"
         cancelText="Volver"
         tone="destructive"

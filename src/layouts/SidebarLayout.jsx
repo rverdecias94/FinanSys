@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText,
   ShieldAlert, Shield, ShieldCheck, Loader2, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
+  Sparkles, Crown, ChevronDown,
 } from 'lucide-react'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -18,20 +19,85 @@ import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner
 import { AccountGate } from '@/components/auth/AccountGate'
 import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { cn } from '@/lib/utils'
 
 const SIDEBAR_COLLAPSED_KEY = 'gestia.sidebarCollapsed'
+const SIDEBAR_GROUPS_KEY = 'gestia.sidebarGroupsOpen'
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Panel General', icon: ChartArea },
-  { to: '/finanzas', label: 'Finanzas', icon: Wallet, permission: 'finanzas.view' },
-  { to: '/contactos', label: 'Contactos', icon: Users, permission: 'finanzas.view' },
-  { to: '/cuentas', label: 'Por cobrar / pagar', icon: HandCoins, permission: 'finanzas.view' },
-  { to: '/almacen', label: 'Almacén', icon: Warehouse, permission: 'warehouse.view' },
-  { to: '/inventario', label: 'Inventario', icon: Layers, permission: 'inventory.view' },
-  { to: '/reportes', label: 'Reportes', icon: FileText, permission: 'reports.view' },
-  { to: '/logs', label: 'Bitácora', icon: ShieldAlert, permission: 'logs.view' },
-  { to: '/configuracion', label: 'Configuración', icon: Settings, permission: 'config.view' },
+/** Agrupación visual: categorías colapsables; rutas más discretas debajo. */
+const NAV_GROUPS = [
+  {
+    id: 'inicio',
+    label: null,
+    items: [
+      { to: '/', label: 'Panel General', icon: ChartArea },
+    ],
+  },
+  {
+    id: 'dinero',
+    label: 'Dinero',
+    items: [
+      { to: '/finanzas', label: 'Finanzas', icon: Wallet, permission: 'finanzas.view' },
+      { to: '/contactos', label: 'Contactos', icon: Users, permission: 'finanzas.view' },
+      { to: '/cuentas', label: 'Por cobrar / pagar', icon: HandCoins, permission: 'finanzas.view' },
+    ],
+  },
+  {
+    id: 'existencias',
+    label: 'Existencias',
+    items: [
+      { to: '/almacen', label: 'Almacén', icon: Warehouse, permission: 'warehouse.view' },
+      { to: '/inventario', label: 'Inventario', icon: Layers, permission: 'inventory.view' },
+    ],
+  },
+  {
+    id: 'analisis',
+    label: 'Análisis',
+    items: [
+      { to: '/reportes', label: 'Reportes', icon: FileText, permission: 'reports.view' },
+      { to: '/herramientas', label: 'Copiloto', icon: Sparkles, permission: 'finanzas.view' },
+    ],
+  },
+  {
+    id: 'cuenta',
+    label: 'Cuenta',
+    items: [
+      { to: '/logs', label: 'Auditoría', icon: ShieldAlert, permission: 'logs.view' },
+      { to: '/configuracion', label: 'Configuración', icon: Settings, permission: 'config.view' },
+    ],
+  },
 ]
+
+function pathMatches(pathname, to) {
+  if (to === '/') return pathname === '/'
+  return pathname === to || pathname.startsWith(`${to}/`)
+}
+
+function groupContainsPath(group, pathname) {
+  return (group.items || []).some((item) => pathMatches(pathname, item.to))
+}
+
+function readOpenGroups() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_GROUPS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function defaultOpenGroups(pathname) {
+  const open = {}
+  for (const g of NAV_GROUPS) {
+    if (!g.label) continue
+    open[g.id] = groupContainsPath(g, pathname)
+  }
+  // Si ninguna ruta de grupo coincide, abrir Dinero por defecto (flujo típico)
+  if (!Object.values(open).some(Boolean)) open.dinero = true
+  return open
+}
 
 function SidebarTooltip({ label, children }) {
   return (
@@ -49,13 +115,13 @@ function NavIconLink({ to, label, icon: Icon, end }) {
   // y deja el icono pegado arriba-izquierda.
   return (
     <SidebarTooltip label={label}>
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center">
         <NavLink
           to={to}
           end={end}
           aria-label={label}
           className={({ isActive }) =>
-            `flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+            `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
               isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -66,6 +132,30 @@ function NavIconLink({ to, label, icon: Icon, end }) {
         </NavLink>
       </div>
     </SidebarTooltip>
+  )
+}
+
+function PlanBadge({ planId }) {
+  if (planId === 'ultra') {
+    return (
+      <div className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-bold tracking-wide text-primary-foreground shadow-sm">
+        <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>Plan Ultra</span>
+      </div>
+    )
+  }
+  if (planId === 'premium') {
+    return (
+      <div className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-bold tracking-wide text-foreground dark:text-primary">
+        <Crown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+        <span>Plan Premium</span>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-center text-xs font-semibold text-muted-foreground">
+      Plan Gratuito
+    </div>
   )
 }
 
@@ -84,6 +174,12 @@ export default function SidebarLayout() {
       return false
     }
   })
+  const [openGroups, setOpenGroups] = useState(() => {
+    const saved = readOpenGroups()
+    const base = defaultOpenGroups(typeof window !== 'undefined' ? window.location.pathname : '/')
+    return saved ? { ...base, ...saved } : base
+  })
+  const [adminOpen, setAdminOpen] = useState(true)
 
   const isAdminQuery = useQuery({
     queryKey: ['isSystemAdmin'],
@@ -91,6 +187,17 @@ export default function SidebarLayout() {
     enabled: !!session,
     staleTime: 5 * 60 * 1000
   })
+
+  // Al navegar, forzar abierta la categoría de la ruta activa
+  useEffect(() => {
+    const activeId = NAV_GROUPS.find((g) => g.label && groupContainsPath(g, location.pathname))?.id
+    if (!activeId) return
+    setOpenGroups((prev) => {
+      if (prev[activeId]) return prev
+      return { ...prev, [activeId]: true }
+    })
+    if (location.pathname.startsWith('/admin')) setAdminOpen(true)
+  }, [location.pathname])
 
   useEffect(() => {
     setSidebarOpen(false)
@@ -104,31 +211,112 @@ export default function SidebarLayout() {
     }
   }, [collapsed])
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_GROUPS_KEY, JSON.stringify(openGroups))
+    } catch {
+      /* ignore */
+    }
+  }, [openGroups])
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
 
+  const toggleGroup = (id) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive ? 'bg-primary text-primary-foreground' : 'hover:bg-accent hover:text-accent-foreground text-muted-foreground'}`
+    cn(
+      'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-normal transition-colors',
+      isActive
+        ? 'bg-primary text-primary-foreground'
+        : 'text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+    )
+
+  const renderItem = (item, mode) => {
+    const link =
+      mode === 'icon' ? (
+        <NavIconLink key={item.to} to={item.to} label={item.label} icon={item.icon} end={item.to === '/'} />
+      ) : (
+        <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClass}>
+          <item.icon className="h-3.5 w-3.5 shrink-0 opacity-80" />
+          <span className="truncate">{item.label}</span>
+        </NavLink>
+      )
+
+    if (!item.permission) return link
+    return (
+      <PermissionGuard key={item.to} requiredPermission={item.permission}>
+        {link}
+      </PermissionGuard>
+    )
+  }
+
+  const categoryButtonClass = () =>
+    cn(
+      'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors',
+      'bg-transparent text-muted-foreground hover:text-foreground'
+    )
 
   const renderNavItems = (mode) => (
     <>
-      {NAV_ITEMS.map((item) => {
-        const link =
-          mode === 'icon' ? (
-            <NavIconLink key={item.to} to={item.to} label={item.label} icon={item.icon} end={item.to === '/'} />
-          ) : (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClass}>
-              <item.icon className="w-4 h-4 shrink-0" />
-              <span>{item.label}</span>
-            </NavLink>
-          )
+      {NAV_GROUPS.map((group) => {
+        const isOpen = !group.label || openGroups[group.id] !== false
 
-        if (!item.permission) return link
+        if (mode === 'icon') {
+          return (
+            <div key={group.id} className="flex flex-col items-center gap-1">
+              {group.label && (
+                <div className="my-0.5 h-px w-6 bg-border" aria-hidden="true" />
+              )}
+              {group.items.map((item) => renderItem(item, mode))}
+            </div>
+          )
+        }
+
+        // Grupo sin etiqueta (Panel General): siempre visible
+        if (!group.label) {
+          return (
+            <div key={group.id} className="space-y-0.5 pb-1">
+              {group.items.map((item) => renderItem(item, mode))}
+            </div>
+          )
+        }
+
         return (
-          <PermissionGuard key={item.to} requiredPermission={item.permission}>
-            {link}
-          </PermissionGuard>
+          <div key={group.id} className="mb-1.5">
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.id)}
+              className={categoryButtonClass()}
+              aria-expanded={isOpen}
+            >
+              <span className="text-sm font-normal">
+                {group.label}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
+                  isOpen ? 'rotate-0' : '-rotate-90'
+                )}
+                aria-hidden="true"
+              />
+            </button>
+            <div
+              className={cn(
+                'grid transition-[grid-template-rows] duration-200 ease-out',
+                isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              )}
+            >
+              <div className="overflow-hidden">
+                <div className="mt-0.5 space-y-0.5 border-l-2 border-border/80 ml-2 pl-1.5">
+                  {group.items.map((item) => renderItem(item, mode))}
+                </div>
+              </div>
+            </div>
+          </div>
         )
       })}
 
@@ -136,14 +324,44 @@ export default function SidebarLayout() {
         mode === 'icon' ? (
           <NavIconLink to="/admin/planes" label="Admin Planes" icon={ShieldCheck} />
         ) : (
-          <NavLink to="/admin/planes" className={linkClass}>
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>Admin Planes</span>
-          </NavLink>
+          <div className="mb-1.5 mt-1">
+            <button
+              type="button"
+              onClick={() => setAdminOpen((v) => !v)}
+              className={categoryButtonClass()}
+              aria-expanded={adminOpen}
+            >
+              <span className="text-sm font-normal">Sistema</span>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
+                  adminOpen ? 'rotate-0' : '-rotate-90'
+                )}
+                aria-hidden="true"
+              />
+            </button>
+            <div
+              className={cn(
+                'grid transition-[grid-template-rows] duration-200 ease-out',
+                adminOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              )}
+            >
+              <div className="overflow-hidden">
+                <div className="mt-0.5 space-y-0.5 border-l-2 border-border/80 ml-2 pl-1.5">
+                  <NavLink to="/admin/planes" className={linkClass}>
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                    <span>Admin Planes</span>
+                  </NavLink>
+                </div>
+              </div>
+            </div>
+          </div>
         )
       )}
     </>
   )
+
+  const planId = subscription?.plan_id
 
   return (
     <TooltipProvider>
@@ -164,7 +382,7 @@ export default function SidebarLayout() {
             sidebarOpen ? 'translate-x-0' : ''
           } ${collapsed ? 'lg:p-2' : ''}`}
         >
-          {/* Collapsed desktop rail: logo + abrir menú + iconos con tooltip */}
+          {/* Collapsed desktop rail */}
           <div className={`hidden ${collapsed ? 'lg:flex' : 'lg:hidden'} h-full min-h-0 w-full flex-col items-center gap-1`}>
             <div className="mb-1 flex flex-col items-center gap-1">
               <img src="/logo_ico.png" alt="Gestia" className="h-10 w-10 object-contain" />
@@ -200,11 +418,11 @@ export default function SidebarLayout() {
             </div>
           </div>
 
-          {/* Expanded content (móvil siempre; desktop si no está colapsado) */}
+          {/* Expanded content */}
           <div className={`flex h-full min-h-0 flex-col ${collapsed ? 'lg:hidden' : ''}`}>
-            <div className="mb-6 flex items-center justify-between gap-2">
+            <div className="mb-4 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center font-bold text-xl">
-                <img src="/logo.png" alt="Logo" className="h-20 w-40 object-contain" />
+                <img src="/logo.png" alt="Logo" className="h-16 w-36 object-contain" />
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button
@@ -228,49 +446,48 @@ export default function SidebarLayout() {
               </div>
             </div>
 
-            <nav className="space-y-1 flex-1 overflow-y-auto">
+            <nav className="flex-1 space-y-0.5 overflow-y-auto pr-0.5">
               {renderNavItems('full')}
             </nav>
 
-            <div className="mt-auto pt-4 border-t space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="text-sm font-medium truncate max-w-[120px]" title={email}>
-                    {email}
-                  </div>
+            <div className="mt-auto space-y-3 border-t pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 text-sm font-medium truncate" title={email}>
+                  {email}
                 </div>
-                <Button variant="ghost" size="icon" onClick={handleLogout} className="h-8 w-8">
+                <Button variant="ghost" size="icon" onClick={handleLogout} className="h-8 w-8 shrink-0">
                   <LogOut className="w-4 h-4" />
                 </Button>
               </div>
 
               {isOwner && (
                 <div className="flex flex-col gap-2">
-                  {subscription?.plan_id === 'premium' && (
-                    <div className="text-xs font-semibold px-2 py-1 rounded text-center bg-primary/10 text-primary">
-                      Plan Premium
-                    </div>
+                  <PlanBadge planId={planId} />
+                  {planId !== 'premium' && planId !== 'ultra' && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="w-full text-xs font-bold uppercase"
+                      onClick={() => navigate('/configuracion')}
+                    >
+                      MEJORAR PLAN
+                    </Button>
                   )}
-                  {subscription?.plan_id !== 'premium' && (
-                    <>
-                      <div className="text-xs font-semibold px-2 py-1 rounded text-center bg-muted text-muted-foreground">
-                        Plan Gratuito
-                      </div>
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="w-full text-xs font-bold uppercase"
-                        onClick={() => navigate('/configuracion')}
-                      >
-                        MEJORAR PLAN
-                      </Button>
-                    </>
+                  {planId === 'premium' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs font-bold uppercase"
+                      onClick={() => navigate('/configuracion')}
+                    >
+                      Subir a Ultra
+                    </Button>
                   )}
                 </div>
               )}
 
               {!isOwner && (roleName || roleId) && (
-                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded text-center bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-md text-center border border-blue-500/30 bg-blue-500/10 text-blue-800 dark:text-blue-200">
                   <Shield className="h-3.5 w-3.5 shrink-0" />
                   <span>{roleName || 'Miembro'}</span>
                 </div>

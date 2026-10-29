@@ -48,11 +48,21 @@ export default function Terminos() {
           roles/permisos.
         </li>
         <li>
-          <strong>Auditoría (Logs):</strong> registro de las acciones realizadas en la cuenta (qué se
-          hizo, quién y cuándo). El acceso al historial de auditoría es una función del Plan Premium.
+          <strong>Auditoría:</strong> registro de las acciones realizadas en la cuenta (qué se hizo,
+          quién y cuándo). El acceso es una función del Plan Premium (y superiores).
         </li>
         <li>
-          <strong>Planes Gratuito y Premium</strong> con distintos límites y funciones.
+          <strong>Copiloto (Plan Ultra):</strong> asistente sobre un resumen de tus datos del
+          negocio, importación de comprobantes (OCR en tu dispositivo) y escenarios de cálculo. Al
+          usarlo, aceptas que parte del contenido de esa acción se envíe a un proveedor de IA
+          externo, según la{' '}
+          <Link to="/privacidad" className="underline underline-offset-2">
+            Política de Privacidad
+          </Link>
+          .
+        </li>
+        <li>
+          <strong>Planes Gratuito, Premium y Ultra</strong> con distintos límites y funciones.
         </li>
       </ul>
       <p>
@@ -87,10 +97,11 @@ export default function Terminos() {
 
       <h2>4. Planes, límites y uso justo</h2>
       <p>
-        4.1. {LEGAL.producto} ofrece un <strong>Plan Gratuito</strong> y un <strong>Plan
-        Premium</strong>. Cada plan tiene límites de uso (por ejemplo: número de transacciones por
-        mes, productos, áreas de inventario, monedas activas y miembros de equipo) que se muestran de
-        forma actualizada dentro de la aplicación, en <strong>Configuración › Planes</strong>.
+        4.1. {LEGAL.producto} ofrece un <strong>Plan Gratuito</strong>, un <strong>Plan
+        Premium</strong> y un <strong>Plan Ultra</strong>. Cada plan tiene límites de uso (por
+        ejemplo: número de transacciones por mes, productos, áreas de inventario, monedas activas,
+        miembros de equipo y, en Ultra, cupos mensuales de Copiloto) que se muestran de forma
+        actualizada dentro de la aplicación, en <strong>Configuración › Planes</strong>.
       </p>
       <p>
         4.2. A título informativo, el Plan Gratuito actualmente contempla límites como: 40
@@ -213,8 +224,10 @@ export default function Terminos() {
       <p>
         9.2. <strong>Licencia limitada.</strong> Nos otorgas una licencia limitada para alojar,
         almacenar y procesar tu información con el <strong>único fin de operar y prestarte el
-        Servicio</strong> (incluido mostrarla, generar reportes y realizar copias de seguridad
-        técnicas).
+        Servicio</strong> (incluido mostrarla, generar reportes, realizar copias de seguridad
+        técnicas y, si usas Copiloto Ultra, enviar a un proveedor de IA el contenido puntual de
+        esa acción junto con un resumen acotado necesario para responderte, según la Política de
+        Privacidad).
       </p>
       <p>
         9.3. <strong>Datos de terceros.</strong> Si introduces datos personales de terceros (por
@@ -248,10 +261,10 @@ export default function Terminos() {
       <p>
         {LEGAL.producto} es una <strong>herramienta de apoyo</strong> a la gestión y el registro de la
         información de tu negocio. <strong>No constituye asesoría contable, fiscal, financiera ni
-        legal.</strong> Los cálculos, reportes e indicadores que ofrece la Plataforma son orientativos
-        y dependen de la información que tú introduces. Eres responsable de verificar tu información, de
-        tus declaraciones y obligaciones fiscales, y de consultar a un profesional cualificado cuando
-        lo necesites.
+        legal.</strong> Los cálculos, reportes, indicadores y las respuestas del Copiloto son
+        orientativos y dependen de la información que tú introduces y del resumen disponible en ese
+        momento. Eres responsable de verificar tu información, de tus declaraciones y obligaciones
+        fiscales, y de consultar a un profesional cualificado cuando lo necesites.
       </p>
 
       <h2>12. Disponibilidad del Servicio</h2>

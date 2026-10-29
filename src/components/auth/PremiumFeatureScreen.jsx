@@ -12,7 +12,9 @@ import { Card, CardContent } from '@/components/ui/card'
 export function PremiumFeatureScreen({
   title = 'Función Premium',
   description = 'Esta sección está disponible en el plan Premium.',
-  icon: Icon = Lock
+  icon: Icon = Lock,
+  ctaHint = 'Mejora a Premium para desbloquear esta función y muchas más.',
+  ctaLabel = 'Mejorar Plan'
 }) {
   const navigate = useNavigate()
 
@@ -31,12 +33,12 @@ export function PremiumFeatureScreen({
             <div className="flex items-start gap-2">
               <Crown className="mt-0.5 h-4 w-4 text-warning" />
               <p className="text-sm text-muted-foreground">
-                Mejora a Premium para desbloquear esta función y muchas más.
+                {ctaHint}
               </p>
             </div>
           </div>
           <Button onClick={() => navigate('/configuracion')} className="w-full">
-            Mejorar Plan
+            {ctaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </CardContent>

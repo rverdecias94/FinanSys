@@ -25,7 +25,8 @@ Para que lo tengas claro desde el principio:
 - ✅ Cada negocio está **aislado** del resto mediante seguridad a nivel de base de datos.
 - ❌ **No vendemos** tus datos.
 - ❌ **No mostramos publicidad** ni usamos rastreadores publicitarios de terceros.
-- ❌ **No usamos herramientas de analítica de terceros** (como Google Analytics) ni inteligencia artificial sobre tus datos.
+- ❌ **No usamos herramientas de analítica de terceros** (como Google Analytics).
+- ✅ En el **plan Ultra**, solo cuando usas Copiloto enviamos a un proveedor de IA la pregunta o el texto del comprobante que tú eliges, junto con un resumen acotado de tu negocio. El OCR de fotos se hace en tu dispositivo; no enviamos la imagen.
 - ❌ **No recogemos ni almacenamos datos de tarjetas de crédito o débito.**
 
 ---
@@ -53,8 +54,9 @@ En la configuración puedes añadir: nombre comercial, nombre legal, identificac
 - **No recogemos** el tipo de navegador/dispositivo (*user-agent*) ni tu geolocalización.
 
 ### 3.5. Datos de suscripción y pagos
-- Tu plan (Gratuito/Premium), ciclo, estado y fechas.
-- En las solicitudes de Premium: el ciclo deseado, el medio de pago que declares, un teléfono y correo de contacto, notas y una **referencia de pago en texto**.
+- Tu plan (Gratuito/Premium/Ultra), ciclo, estado y fechas.
+- En las solicitudes de Premium u Ultra: el ciclo deseado, el medio de pago que declares, un teléfono y correo de contacto, notas y una **referencia de pago en texto**.
+- En Ultra: contadores de uso mensual de Copiloto (páginas de importación y consultas al asistente).
 - Historial de pagos: importe, ciclo, periodo, fecha, método y referencia.
 - **No recogemos ni almacenamos números de tarjeta, CVV ni credenciales bancarias.** El pago se realiza por transferencia u otro medio acordado, fuera de la Plataforma.
 
@@ -64,6 +66,7 @@ En la configuración puedes añadir: nombre comercial, nombre legal, identificac
 
 - **Prestar y mantener el Servicio:** autenticarte, mostrar y procesar tu información, generar reportes.
 - **Gestionar tu suscripción:** procesar solicitudes de plan y registrar pagos.
+- **Copiloto Ultra (si contratas Ultra):** responder preguntas sobre tus datos (finanzas, almacén, CxC, auditoría) con un resumen acotado generado en el momento, y extraer filas de un comprobante (foto con OCR local o texto pegado) enviando solo ese contenido al proveedor de IA. Las conversaciones se guardan en tu cuenta; puedes borrarlas desde Historial.
 - **Seguridad y trazabilidad:** registros de auditoría, prevención de accesos no autorizados y de abusos.
 - **Soporte:** atender tus consultas e incidencias.
 - **Cumplimiento legal:** atender obligaciones que nos resulten aplicables.
@@ -92,9 +95,10 @@ No vendemos tus datos. Para operar el Servicio nos apoyamos en **proveedores (su
 
 | Proveedor | Para qué | Dónde |
 |-----------|----------|-------|
-| **Supabase** (Supabase Inc.) | Base de datos, autenticación, almacenamiento de archivos y envío de correos del sistema (confirmación de cuenta y recuperación de contraseña). | EE. UU. |
+| **Supabase** (Supabase Inc.) | Base de datos, autenticación, almacenamiento de archivos, funciones servidor y envío de correos del sistema (confirmación de cuenta y recuperación de contraseña). | EE. UU. |
 | **Netlify** (Netlify Inc.) | Alojamiento (*hosting*) y distribución de la aplicación. | EE. UU. |
 | **ipify** (api.ipify.org) | Obtención de la dirección IP pública para los registros de auditoría. | Internet |
+| **OpenRouter** (OpenRouter, Inc.) | Solo plan Ultra y bajo tu acción: enruta la pregunta o el texto del comprobante (más un resumen acotado del negocio) a un modelo de lenguaje. No enviamos fotos ni archivos completos; el OCR corre en tu navegador. No usamos esos datos para publicidad. | EE. UU. / según el modelo |
 
 Además, podremos divulgar datos si la ley nos obliga o para proteger derechos, la seguridad o la integridad del Servicio.
 

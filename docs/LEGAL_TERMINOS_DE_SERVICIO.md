@@ -25,8 +25,9 @@ El Servicio incluye, entre otras, las siguientes funcionalidades:
 - **Inventario:** áreas o depósitos configurables con campos personalizados.
 - **Reportes:** flujo de efectivo, antigüedad de saldos, posición financiera y otros informes, con exportación a PDF, Excel y Word.
 - **Configuración:** datos del negocio, monedas, equipo de trabajo y roles/permisos.
-- **Auditoría (Logs):** registro de las acciones realizadas en la cuenta (qué se hizo, quién y cuándo).
-- **Planes Gratuito y Premium** con distintos límites y funciones.
+- **Auditoría:** registro de las acciones realizadas en la cuenta (qué se hizo, quién y cuándo). Acceso en Plan Premium (y superiores).
+- **Copiloto (Plan Ultra):** asistente sobre un resumen de tus datos, importación de comprobantes (OCR en tu dispositivo) y escenarios. Al usarlo, parte del contenido de esa acción se envía a un proveedor de IA externo (ver Política de Privacidad).
+- **Planes Gratuito, Premium y Ultra** con distintos límites y funciones.
 
 Podemos modificar, añadir, suspender o discontinuar funciones del Servicio en cualquier momento. Cuando un cambio sea relevante, procuraremos avisarte con antelación razonable.
 
@@ -48,7 +49,7 @@ Podemos modificar, añadir, suspender o discontinuar funciones del Servicio en c
 
 ## 4. Planes, límites y uso justo
 
-4.1. GESTIA ofrece un **Plan Gratuito** y un **Plan Premium**. Cada plan tiene límites de uso (por ejemplo: número de transacciones por mes, productos, áreas de inventario, monedas activas y miembros de equipo) que se muestran de forma actualizada dentro de la aplicación, en **Configuración › Planes**.
+4.1. GESTIA ofrece un **Plan Gratuito**, un **Plan Premium** y un **Plan Ultra**. Cada plan tiene límites de uso (por ejemplo: número de transacciones por mes, productos, áreas de inventario, monedas activas, miembros de equipo y, en Ultra, cupos mensuales de Copiloto) que se muestran de forma actualizada dentro de la aplicación, en **Configuración › Planes**.
 
 4.2. A título informativo, el Plan Gratuito actualmente contempla límites como: 40 transacciones por mes, 40 productos, 5 áreas de inventario, 1 moneda activa y sin miembros de equipo adicionales. El Plan Premium amplía o elimina estos límites (por ejemplo, hasta 5 miembros de equipo). **Los valores vigentes son siempre los indicados dentro de la aplicación** y pueden variar.
 
@@ -128,7 +129,7 @@ El software, la marca "GESTIA", el diseño, la interfaz y el resto de elementos 
 
 ## 11. La herramienta no sustituye la asesoría profesional
 
-GESTIA es una **herramienta de apoyo** a la gestión y el registro de la información de tu negocio. **No constituye asesoría contable, fiscal, financiera ni legal.** Los cálculos, reportes e indicadores que ofrece la Plataforma son orientativos y dependen de la información que tú introduces. Eres responsable de verificar tu información, de tus declaraciones y obligaciones fiscales, y de consultar a un profesional cualificado cuando lo necesites.
+GESTIA es una **herramienta de apoyo** a la gestión y el registro de la información de tu negocio. **No constituye asesoría contable, fiscal, financiera ni legal.** Los cálculos, reportes, indicadores y las respuestas del Copiloto son orientativos y dependen de la información que tú introduces y del resumen disponible en ese momento. Eres responsable de verificar tu información, de tus declaraciones y obligaciones fiscales, y de consultar a un profesional cualificado cuando lo necesites.
 
 ---
 

@@ -26,14 +26,14 @@ export function BusinessesTable({ search, plan, paymentState, onMeta, onView, on
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate font-medium">{b.email || b.business_id}</span>
-                <Badge variant={b.plan_id === 'premium' ? 'default' : 'secondary'}>{b.plan_id}</Badge>
+                <Badge variant={b.plan_id === 'premium' || b.plan_id === 'ultra' ? 'default' : 'secondary'}>{b.plan_id}</Badge>
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${ps.cls || ''}`}>{ps.label || b.payment_state}</span>
                 {b.account_status && b.account_status !== 'active' && (
                   <span className={`rounded px-2 py-0.5 text-xs font-medium ${acc.cls || ''}`}>{acc.label || b.account_status}</span>
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {b.plan_id === 'premium'
+                {b.plan_id === 'premium' || b.plan_id === 'ultra'
                   ? `Ciclo ${CYCLE_LABEL[b.billing_cycle] || b.billing_cycle} · Vence ${b.current_period_end ? fmt(b.current_period_end) : '—'}`
                   : 'Plan gratuito'}
                 {` · ${b.members} miembro(s)`}

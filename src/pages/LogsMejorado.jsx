@@ -324,7 +324,7 @@ export default function LogsMejorado() {
       }))
 
       exportToExcel(
-        'Bitácora de actividad',
+        'Auditoría',
         exportData,
         `audit_logs_${format(new Date(), 'yyyyMMdd_HHmm', { locale: es })}`
       )
@@ -348,7 +348,7 @@ export default function LogsMejorado() {
             <div>
               <h3 className="text-lg font-semibold mb-2">Acceso Restringido</h3>
               <p className="text-muted-foreground mb-4">
-                No tienes permisos para acceder al módulo de Bitácora.
+                No tienes permisos para acceder al módulo de Auditoría.
               </p>
               <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="flex items-start gap-2">
@@ -374,7 +374,7 @@ export default function LogsMejorado() {
   if (!subLoading && !canAccessFeature('audit_logs')) {
     return (
       <PremiumFeatureScreen
-        title="La Bitácora de actividad es una función Premium"
+        title="La Auditoría es una función Premium"
         description="Lleva el registro de quién hizo qué y cuándo en tu negocio. Disponible al mejorar tu plan."
       />
     )
@@ -388,7 +388,7 @@ export default function LogsMejorado() {
           <div className="p-2 bg-primary/10 rounded-lg">
             <History className="w-8 h-8 text-primary" />
           </div>
-          Bitácora de actividad
+          Auditoría
         </h1>
 
         {/* Resumen de permisos actual */}

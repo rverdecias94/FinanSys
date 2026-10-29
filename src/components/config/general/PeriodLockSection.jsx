@@ -12,7 +12,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 // S5 (Q17): cierre de período. Bloquea crear/editar/eliminar movimientos con fecha
-// <= la fecha de cierre (los cobros/pagos siguen permitidos). Reabrir queda en la Bitácora.
+// <= la fecha de cierre (los cobros/pagos siguen permitidos). Reabrir queda en Auditoría.
 export function PeriodLockSection({ isOwner }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
@@ -46,7 +46,7 @@ export function PeriodLockSection({ isOwner }) {
         </CardTitle>
         <CardDescription>
           Bloquea fechas pasadas: no podrás crear ni editar movimientos con fecha igual o anterior a la de cierre.
-          Los cobros y pagos sobre cuentas antiguas siguen permitidos. Reabrir queda registrado en la Bitácora.
+          Los cobros y pagos sobre cuentas antiguas siguen permitidos. Reabrir queda registrado en Auditoría.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

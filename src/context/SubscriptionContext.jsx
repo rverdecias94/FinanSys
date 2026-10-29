@@ -15,8 +15,12 @@ export const useSubscription = () => useContext(SubscriptionContext)
 // P1.10: una suscripción premium con periodo vencido se trata como 'free' a nivel de lectura, para que
 // TODA la app (canAccessFeature, checkLimit, getPlanType y los checks directos de plan_id) honre el
 // vencimiento de inmediato, sin esperar al job diario de pg_cron que persiste el cambio en la BD.
+export function isPaidPlanId(planId) {
+  return planId === 'premium' || planId === 'ultra'
+}
+
 export function normalizeExpiredPremium(sub) {
-  if (sub && sub.plan_id === 'premium' && sub.status === 'active' &&
+  if (sub && isPaidPlanId(sub.plan_id) && sub.status === 'active' &&
       sub.current_period_end && new Date(sub.current_period_end).getTime() <= Date.now()) {
     return { ...sub, plan_id: 'free' }
   }
@@ -63,7 +67,10 @@ export const SubscriptionProvider = ({ children }) => {
       reports_export: false,
       audit_logs: false,
       partners: 0,
-      watermark: true
+      watermark: true,
+      ai_tools: false,
+      ai_doc_pages: 0,
+      ai_calc_queries: 0
     },
     premium: {
       monthly_transactions: Infinity,
@@ -72,7 +79,22 @@ export const SubscriptionProvider = ({ children }) => {
       reports_export: true,
       audit_logs: true,
       partners: 5,
-      watermark: false
+      watermark: false,
+      ai_tools: false,
+      ai_doc_pages: 0,
+      ai_calc_queries: 0
+    },
+    ultra: {
+      monthly_transactions: Infinity,
+      products: Infinity,
+      areas: Infinity,
+      reports_export: true,
+      audit_logs: true,
+      partners: 5,
+      watermark: false,
+      ai_tools: true,
+      ai_doc_pages: 100,
+      ai_calc_queries: 120
     }
   }
 
@@ -380,6 +402,7 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const requestPremium = async ({
+    targetPlanId = 'premium',
     requestedMonths = 1,
     billingCycle = 'monthly',
     contactPhone = '',
@@ -387,20 +410,26 @@ export const SubscriptionProvider = ({ children }) => {
     paymentReference = '',
     userNotes = ''
   } = {}) => {
+    const planLabel = targetPlanId === 'ultra' ? 'Ultra' : 'Premium'
     if (!isOwner) {
-      toast.error('Solo el propietario puede solicitar Premium.')
+      toast.error(`Solo el propietario puede solicitar ${planLabel}.`)
       return null
     }
 
     if (pendingPlanRequest) {
-      toast.info('Ya tienes una solicitud Premium pendiente.')
+      toast.info('Ya tienes una solicitud de plan pendiente.')
       return pendingPlanRequest
+    }
+
+    if (!isPaidPlanId(targetPlanId)) {
+      toast.error('Plan de solicitud inválido.')
+      return null
     }
 
     try {
       setLoading(true)
       const result = await requestPlanChange({
-        targetPlanId: 'premium',
+        targetPlanId,
         requestedMonths,
         billingCycle,
         contactPhone,
@@ -411,14 +440,14 @@ export const SubscriptionProvider = ({ children }) => {
 
       await fetchPendingPlanRequest()
 
-      toast.success('Solicitud Premium enviada', {
+      toast.success(`Solicitud ${planLabel} enviada`, {
         description: 'Revisaremos tu solicitud y te contactaremos para confirmar la activación.'
       })
 
       return result
     } catch (error) {
-      const msg = error?.message || 'No se pudo enviar la solicitud Premium.'
-      toast.error('Error al solicitar Premium', { description: msg })
+      const msg = error?.message || `No se pudo enviar la solicitud ${planLabel}.`
+      toast.error(`Error al solicitar ${planLabel}`, { description: msg })
       return null
     } finally {
       setLoading(false)
@@ -471,17 +500,13 @@ export const SubscriptionProvider = ({ children }) => {
   }
 
   const isPremium = () => {
-    // Con estado de facturación del servidor (Fase 2): premium sigue activo en
-    // 'ok'/'due_soon'/'grace' y solo deja de serlo en 'blocked'. Durante la gracia
-    // el negocio conserva Premium aunque el periodo ya venció.
+    // Planes de pago (premium|ultra): activos en ok/due_soon/grace; blocked → free.
     if (billingState?.payment_state) {
-      return billingState.plan_id === 'premium' && billingState.payment_state !== 'blocked'
+      return isPaidPlanId(billingState.plan_id) && billingState.payment_state !== 'blocked'
     }
-    // Fallback offline (sin estado del servidor): lógica previa basada en fechas.
     if (!subscription) return false
-    if (subscription.plan_id !== 'premium') return false
+    if (!isPaidPlanId(subscription.plan_id)) return false
     if (subscription.status === 'active') {
-      // P1.10: un periodo vencido NO debe seguir considerándose premium aunque el status siga 'active'.
       if (subscription.current_period_end &&
           new Date(subscription.current_period_end).getTime() <= Date.now()) {
         return false

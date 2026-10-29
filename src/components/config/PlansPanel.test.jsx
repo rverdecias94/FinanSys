@@ -7,7 +7,8 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
 
 vi.mock('@/context/SubscriptionContext', () => ({
-  useSubscription: vi.fn()
+  useSubscription: vi.fn(),
+  isPaidPlanId: (planId) => planId === 'premium' || planId === 'ultra'
 }))
 
 vi.mock('@/context/BusinessContext', () => ({
@@ -56,7 +57,7 @@ describe('PlansPanel', () => {
     renderPanel(<PlansPanel />)
     expect(screen.getByText(/Solicitud Premium pendiente/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(screen.getByText('Cancelar solicitud Premium')).toBeInTheDocument()
+    expect(screen.getByText('Cancelar solicitud de plan')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Cancelar solicitud' }))
     expect(cancelPendingPremiumRequest).toHaveBeenCalledTimes(1)
   })
@@ -87,6 +88,7 @@ describe('PlansPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
 
     expect(requestPremium).toHaveBeenCalledWith(expect.objectContaining({
+      targetPlanId: 'premium',
       billingCycle: 'monthly',
       contactPhone: '',
       paymentMethod: 'transferencia',

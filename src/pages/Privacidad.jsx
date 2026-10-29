@@ -10,7 +10,8 @@ const resumen = [
   { ok: true, text: 'Cada negocio está aislado del resto mediante seguridad a nivel de base de datos.' },
   { ok: false, text: 'No vendemos tus datos.' },
   { ok: false, text: 'No mostramos publicidad ni usamos rastreadores publicitarios de terceros.' },
-  { ok: false, text: 'No usamos herramientas de analítica de terceros (como Google Analytics) ni inteligencia artificial sobre tus datos.' },
+  { ok: false, text: 'No usamos herramientas de analítica de terceros (como Google Analytics).' },
+  { ok: true, text: 'En el plan Ultra, solo cuando usas Copiloto enviamos a un proveedor de IA la pregunta o el texto del comprobante que tú eliges, junto con un resumen acotado de tu negocio (saldos, totales, stock bajo, etc.). El OCR de fotos se hace en tu dispositivo; no enviamos la imagen.' },
   { ok: false, text: 'No recogemos ni almacenamos datos de tarjetas de crédito o débito.' },
 ]
 
@@ -29,6 +30,11 @@ const subprocesadores = [
     nombre: 'ipify (api.ipify.org)',
     uso: 'Obtención de la dirección IP pública para los registros de auditoría.',
     lugar: 'Internet',
+  },
+  {
+    nombre: 'OpenRouter (OpenRouter, Inc.)',
+    uso: 'Solo plan Ultra y solo bajo tu acción: enruta la pregunta o el texto del comprobante (más un resumen acotado del negocio) a un modelo de lenguaje. No enviamos fotos ni archivos completos; el OCR corre en tu navegador. No usamos esos datos para publicidad.',
+    lugar: 'EE. UU. / según el modelo que atienda la petición',
   },
 ]
 
@@ -136,11 +142,12 @@ export default function Privacidad() {
 
       <h3>3.5. Datos de suscripción y pagos</h3>
       <ul>
-        <li>Tu plan (Gratuito/Premium), ciclo, estado y fechas.</li>
+        <li>Tu plan (Gratuito/Premium/Ultra), ciclo, estado y fechas.</li>
         <li>
-          En las solicitudes de Premium: el ciclo deseado, el medio de pago que declares, un teléfono y
+          En las solicitudes de Premium u Ultra: el ciclo deseado, el medio de pago que declares, un teléfono y
           correo de contacto, notas y una referencia de pago en texto.
         </li>
+        <li>En Ultra: contadores de uso mensual de Copiloto (páginas de importación y consultas al asistente).</li>
         <li>Historial de pagos: importe, ciclo, periodo, fecha, método y referencia.</li>
         <li>
           <strong>No recogemos ni almacenamos números de tarjeta, CVV ni credenciales bancarias.</strong>{' '}
@@ -156,6 +163,13 @@ export default function Privacidad() {
         </li>
         <li>
           <strong>Gestionar tu suscripción:</strong> procesar solicitudes de plan y registrar pagos.
+        </li>
+        <li>
+          <strong>Copiloto Ultra (si contratas Ultra):</strong> responder preguntas sobre tus datos
+          (finanzas, almacén, CxC, auditoría) con un resumen acotado generado en el momento, y extraer
+          filas de un comprobante (foto con OCR local o texto pegado) enviando solo ese contenido al
+          proveedor de IA. Las conversaciones del Asistente se guardan en tu cuenta para que puedas
+          revisarlas; puedes borrarlas desde Historial.
         </li>
         <li>
           <strong>Seguridad y trazabilidad:</strong> registros de auditoría, prevención de accesos no

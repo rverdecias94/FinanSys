@@ -30,7 +30,7 @@ export const logAction = async ({ action, resource, details, area }) => {
 
     // Only log for premium users, EXCEPT for some critical configuration changes (like currencies)
     const isCriticalConfig = area === 'Configuración' && resource === 'Moneda';
-    if (subscription?.plan_id !== 'premium' && !isCriticalConfig) return
+    if (subscription?.plan_id !== 'premium' && subscription?.plan_id !== 'ultra' && !isCriticalConfig) return
 
     // Get IP address
     let ip_address = null
