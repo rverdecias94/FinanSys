@@ -107,7 +107,7 @@ export function scheduleOpenAccounts(accounts, startDate, direction) {
  * @param {object} input
  * @param {Record<string, number>} input.balances
  * @param {string} input.baseCurrency
- * @param {number} input.horizonDays - 30 | 60 | 90
+ * @param {number} input.horizonDays - 15 | 30 | 60 | 90
  * @param {Array} input.recurring
  * @param {Array} input.receivables
  * @param {Array} input.payables
@@ -122,7 +122,7 @@ export function buildCashRadar(input) {
         return new Date(n.getFullYear(), n.getMonth(), n.getDate())
       })()
 
-  const horizonDays = [30, 60, 90].includes(Number(input.horizonDays))
+  const horizonDays = [15, 30, 60, 90].includes(Number(input.horizonDays))
     ? Number(input.horizonDays)
     : 30
   const endDate = addDays(today, horizonDays)

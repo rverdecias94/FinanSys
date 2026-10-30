@@ -140,7 +140,7 @@ function PlanBadge({ planId }) {
     return (
       <div className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 text-xs font-bold tracking-wide text-primary-foreground shadow-sm">
         <Sparkles className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span>Plan Ultra</span>
+        <span>Plan Élite</span>
       </div>
     )
   }
@@ -148,13 +148,13 @@ function PlanBadge({ planId }) {
     return (
       <div className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-bold tracking-wide text-foreground dark:text-primary">
         <Crown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
-        <span>Plan Premium</span>
+        <span>Plan Negocio</span>
       </div>
     )
   }
   return (
     <div className="rounded-md border border-border bg-muted px-2.5 py-1.5 text-center text-xs font-semibold text-muted-foreground">
-      Plan Gratuito
+      Plan Inicial
     </div>
   )
 }
@@ -480,7 +480,7 @@ export default function SidebarLayout() {
                       className="w-full text-xs font-bold uppercase"
                       onClick={() => navigate('/configuracion')}
                     >
-                      Subir a Ultra
+                      Subir a Élite
                     </Button>
                   )}
                 </div>

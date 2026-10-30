@@ -7,7 +7,7 @@ export function DowngradeAreasStep({ sortedAreas, areasLimit, keepAreaIds, toggl
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        El Plan Gratuito permite editar hasta {areasLimit} áreas de inventario. Elige las áreas que seguirán disponibles para crear y editar formularios. Las demás quedarán en solo lectura.
+        El Plan Inicial permite editar hasta {areasLimit} áreas de inventario. Elige las áreas que seguirán disponibles para crear y editar formularios. Las demás quedarán en solo lectura.
       </p>
 
       <div className="flex items-center justify-between">

@@ -5,7 +5,7 @@ export function DowngradeFinalStep({ preview, selectedCurrencyCode, selectedArea
   return (
     <div className="space-y-4">
       <div className="rounded-md border p-4">
-        <div className="text-sm font-medium">Resumen antes de cambiar a Gratuito</div>
+        <div className="text-sm font-medium">Resumen antes de cambiar a Inicial</div>
 
         <div className="mt-3 space-y-3 text-sm">
           <div>
@@ -41,7 +41,7 @@ export function DowngradeFinalStep({ preview, selectedCurrencyCode, selectedArea
       <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3">
         <Checkbox checked={finalConfirm} onCheckedChange={(v) => setFinalConfirm(Boolean(v))} />
         <div className="text-sm">
-          <div className="font-medium">Entiendo los cambios y quiero cambiar a Plan Gratuito</div>
+          <div className="font-medium">Entiendo los cambios y quiero cambiar a Plan Inicial</div>
           <div className="text-muted-foreground">El downgrade aplicará límites sin borrar tus datos.</div>
         </div>
       </div>

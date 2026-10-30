@@ -12,6 +12,7 @@ import { DowngradeTeamStep } from '@/components/config/downgrade/DowngradeTeamSt
 import { DowngradeAreasStep } from '@/components/config/downgrade/DowngradeAreasStep'
 import { DowngradeFinalStep } from '@/components/config/downgrade/DowngradeFinalStep'
 import { useDowngradeWizard } from '@/components/config/downgrade/useDowngradeWizard'
+import { canDowngradeToFree, downgradePlanBadgeLabel } from '@/components/config/downgrade/downgradeImpact'
 
 export function DowngradeToFreeDialog({ open, onOpenChange, onSuccess }) {
   const { businessId } = useBusiness()
@@ -60,12 +61,12 @@ export function DowngradeToFreeDialog({ open, onOpenChange, onSuccess }) {
   })
 
   const content = () => {
-    if (currentPlan !== 'premium') {
+    if (!canDowngradeToFree(currentPlan)) {
       return (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <span>El downgrade solo aplica cuando el plan actual es Premium.</span>
+            <span>El downgrade solo aplica cuando el plan actual es Negocio o Élite.</span>
           </div>
         </div>
       )
@@ -89,6 +90,7 @@ export function DowngradeToFreeDialog({ open, onOpenChange, onSuccess }) {
           areasLimit={areasLimit}
           monthlyTxLimit={monthlyTxLimit}
           productsLimit={productsLimit}
+          currentPlan={currentPlan}
         />
       )
     }
@@ -132,39 +134,50 @@ export function DowngradeToFreeDialog({ open, onOpenChange, onSuccess }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[720px]">
-        <DialogHeader>
-          <DialogTitle>Cambiar a Plan Gratuito</DialogTitle>
-          <DialogDescription>
-            Asistente de downgrade Premium → Gratis
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[min(90dvh,900px)] w-[calc(100%-1.5rem)] max-w-[720px] flex-col gap-0 overflow-hidden p-0 sm:w-full">
+        <div className="shrink-0 space-y-3 border-b px-4 pb-3 pt-5 sm:px-6 sm:pt-6">
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle>Cambiar a Plan Inicial</DialogTitle>
+            <DialogDescription>
+              Asistente de downgrade a Plan Inicial
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-muted-foreground">
-            Paso {Math.min(stepIndex + 1, steps.length)} de {steps.length}: {steps[stepIndex]?.title}
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              Paso {Math.min(stepIndex + 1, steps.length)} de {steps.length}: {steps[stepIndex]?.title}
+            </div>
+            <Badge variant="secondary">{downgradePlanBadgeLabel(currentPlan)}</Badge>
           </div>
-          <Badge variant="secondary">{currentPlan}</Badge>
         </div>
 
-        {content()}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
+          {content()}
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <div className="flex w-full items-center justify-between gap-2">
+        <DialogFooter className="shrink-0 gap-2 border-t bg-background px-4 py-3 sm:gap-0 sm:px-6 sm:space-x-0">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Button variant="outline" onClick={() => onOpenChange?.(false)} disabled={loading || applying}>
               Cancelar
             </Button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-end gap-2">
               <Button variant="outline" onClick={goBack} disabled={stepIndex === 0 || loading || applying}>
                 Atrás
               </Button>
               {stepKey === 'final' ? (
-                <Button onClick={handleApply} disabled={!canContinue || applying || loading} className="min-w-[160px]">
+                <Button
+                  onClick={handleApply}
+                  disabled={!canContinue || applying || loading || !canDowngradeToFree(currentPlan)}
+                  className="min-w-[140px]"
+                >
                   {applying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Cambiar a Gratuito
+                  Cambiar a Inicial
                 </Button>
               ) : (
-                <Button onClick={goNext} disabled={!canContinue || loading || applying}>
+                <Button
+                  onClick={goNext}
+                  disabled={!canContinue || loading || applying || !canDowngradeToFree(currentPlan)}
+                >
                   Continuar
                 </Button>
               )}

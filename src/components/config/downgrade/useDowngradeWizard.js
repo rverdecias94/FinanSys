@@ -5,6 +5,7 @@ import { getInventoryAreas } from '@/services/dynamicInventory'
 import { getTeamMembers } from '@/services/team'
 import { getSupabaseErrorMessage } from '@/services/notifications'
 import { clampNonNegativeInt } from '@/components/config/downgrade/downgradeUtils'
+import { canDowngradeToFree } from '@/components/config/downgrade/downgradeImpact'
 
 export function useDowngradeWizard({
   open,
@@ -41,9 +42,9 @@ export function useDowngradeWizard({
   }, [areas])
 
   const freeLimits = preview?.free_limits || {}
-  const areasLimit = clampNonNegativeInt(freeLimits.areas, 5)
-  const monthlyTxLimit = clampNonNegativeInt(freeLimits.monthly_transactions, 40)
-  const productsLimit = clampNonNegativeInt(freeLimits.products, 40)
+  const areasLimit = clampNonNegativeInt(freeLimits.areas, 1)
+  const monthlyTxLimit = clampNonNegativeInt(freeLimits.monthly_transactions, 150)
+  const productsLimit = clampNonNegativeInt(freeLimits.products, 50)
 
   const usage = preview?.usage || {}
   const partnersCount = clampNonNegativeInt(usage.partners, 0)
@@ -84,7 +85,7 @@ export function useDowngradeWizard({
 
   const loadAll = useCallback(async () => {
     if (!open) return
-    if (currentPlan !== 'premium') {
+    if (!canDowngradeToFree(currentPlan)) {
       setPreview(null)
       return
     }
@@ -168,8 +169,8 @@ export function useDowngradeWizard({
         refreshCurrencies?.()
       ])
 
-      toast.success('Plan actualizado a Gratuito', {
-        description: 'Se aplicaron tus selecciones y los límites del plan.'
+      toast.success('Plan actualizado a Inicial', {
+        description: 'Se aplicaron tus selecciones y los límites del plan. Tus datos se conservan.'
       })
 
       onOpenChange?.(false)

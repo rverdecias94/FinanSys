@@ -48,6 +48,20 @@ describe('cashRadar', () => {
     expect(scheduled[0].type).toBe('income')
   })
 
+  it('acepta horizonte de 15 días (plan Negocio)', () => {
+    const radar = buildCashRadar({
+      today,
+      baseCurrency: 'USD',
+      horizonDays: 15,
+      balances: { USD: 100 },
+      recurring: [],
+      receivables: [],
+      payables: [],
+    })
+    expect(radar.horizonDays).toBe(15)
+    expect(radar.series).toHaveLength(16)
+  })
+
   it('proyecta saldo y detecta primer día negativo', () => {
     const radar = buildCashRadar({
       today,

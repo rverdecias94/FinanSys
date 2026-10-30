@@ -5,7 +5,7 @@ export function DowngradeCurrencyStep({ activeCurrencies, keepCurrencyId, setKee
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        El Plan Gratuito permite una sola moneda activa. Elige la moneda que seguirá como principal para tus balances y nuevas operaciones.
+        El Plan Inicial permite una sola moneda activa. Elige la moneda que seguirá como principal para tus balances y nuevas operaciones.
       </p>
 
       <div className="space-y-2">

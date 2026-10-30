@@ -5,9 +5,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ANNUAL_DISCOUNT_PCT, planLabel, resolvePlanPrice } from '@/lib/plans'
 
-const CYCLE_MONTHS = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 }
-const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
+const CYCLE_MONTHS = { monthly: 1, annual: 12 }
+const CYCLE_LABEL = { monthly: 'Mensual', annual: 'Anual' }
 
 export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitting, onApprove }) {
   const [billingCycle, setBillingCycle] = useState('monthly')
@@ -15,13 +16,17 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
 
   useEffect(() => {
     if (!open) return
-    setBillingCycle(request?.billing_cycle || 'monthly')
+    const cycle = request?.billing_cycle === 'annual' ? 'annual' : 'monthly'
+    setBillingCycle(cycle)
     setAdminNotes('')
   }, [open, request])
 
+  const planId = request?.requested_plan_id || 'premium'
+  const amount = useMemo(() => resolvePlanPrice(null, billingCycle, planId), [billingCycle, planId])
   const months = CYCLE_MONTHS[billingCycle] || 1
   const previewEnd = useMemo(() => addMonths(new Date(), months), [months])
   const canSubmit = !!request?.id
+  const label = planLabel(planId)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -29,19 +34,31 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
         <DialogHeader>
           <DialogTitle>Aprobar solicitud</DialogTitle>
           <DialogDescription>
-            Se activará Premium para el negocio durante el período aprobado y se registrará el pago.
+            Se activará {label} para el negocio durante el período aprobado y se registrará el pago.
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
-          {request?.requested_amount != null && (
-            <div className="rounded-md border bg-muted/30 p-3 text-sm">
-              <span className="text-muted-foreground">Solicitado: </span>
-              <span className="font-medium">{CYCLE_LABEL[request?.billing_cycle] || '-'}</span>
-              <span className="text-muted-foreground"> · </span>
-              <span className="font-medium">${request?.requested_amount}</span>
+          <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+            <div>
+              <span className="text-muted-foreground">Plan: </span>
+              <span className="font-medium">{label}</span>
             </div>
-          )}
+            {request?.contact_name && (
+              <div>
+                <span className="text-muted-foreground">Cliente: </span>
+                <span className="font-medium">{request.contact_name}</span>
+              </div>
+            )}
+            {request?.requested_amount != null && (
+              <div>
+                <span className="text-muted-foreground">Solicitado: </span>
+                <span className="font-medium">{CYCLE_LABEL[request?.billing_cycle] || '-'}</span>
+                <span className="text-muted-foreground"> · </span>
+                <span className="font-medium">${request?.requested_amount}</span>
+              </div>
+            )}
+          </div>
 
           <div className="grid gap-2">
             <Label>Ciclo a aprobar</Label>
@@ -51,15 +68,25 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="monthly">Mensual (1 mes)</SelectItem>
-                <SelectItem value="semiannual">Semestral (6 meses)</SelectItem>
-                <SelectItem value="annual">Anual (12 meses)</SelectItem>
+                <SelectItem value="annual">Anual (12 meses, −{ANNUAL_DISCOUNT_PCT}%)</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid gap-1 text-sm">
-            <div className="text-muted-foreground">Vence:</div>
-            <div className="font-medium">{previewEnd.toLocaleDateString('es-ES')}</div>
+          <div className="grid gap-1 text-sm rounded-md border p-3 bg-primary/5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Importe a registrar</span>
+              <span className="text-lg font-bold">${amount} USD</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Vence</span>
+              <span className="font-medium">{previewEnd.toLocaleDateString('es-ES')}</span>
+            </div>
+            {billingCycle === 'annual' && (
+              <p className="text-xs text-success pt-1">
+                Incluye {ANNUAL_DISCOUNT_PCT}% de descuento frente a 12 meses sueltos.
+              </p>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -81,7 +108,7 @@ export function ApprovePlanRequestDialog({ open, onOpenChange, request, submitti
             loading={submitting}
             disabled={!canSubmit}
           >
-            Aprobar Premium
+            Aprobar {label}
           </Button>
         </DialogFooter>
       </DialogContent>

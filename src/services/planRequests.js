@@ -4,6 +4,7 @@ export async function requestPlanChange({
   targetPlanId = 'premium',
   requestedMonths = 1,
   billingCycle = null,
+  contactName = '',
   contactPhone = '',
   paymentMethod = '',
   paymentReference = '',
@@ -13,10 +14,11 @@ export async function requestPlanChange({
     target_plan_id: targetPlanId,
     requested_months: Number(requestedMonths) || 1,
     billing_cycle: billingCycle || null,
+    contact_name: contactName,
     contact_phone: contactPhone,
     payment_method: paymentMethod,
-    payment_reference: paymentReference,
-    user_notes: userNotes
+    payment_reference: paymentReference || null,
+    user_notes: userNotes || null
   })
 
   if (error) throw error

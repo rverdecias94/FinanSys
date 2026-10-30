@@ -65,6 +65,16 @@ export function PlanRequestDetailsDialog({ open, onOpenChange, request }) {
             </div>
 
             <div className="grid gap-1">
+              <div className="text-xs text-muted-foreground">Nombre del cliente</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="truncate">{r?.contact_name || '-'}</div>
+                <Button variant="outline" size="icon" onClick={() => copyText(r?.contact_name)}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-1">
               <div className="text-xs text-muted-foreground">Teléfono</div>
               <div className="flex items-center justify-between gap-2">
                 <div className="truncate">{r?.contact_phone || '-'}</div>

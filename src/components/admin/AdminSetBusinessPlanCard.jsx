@@ -45,9 +45,9 @@ export function AdminSetBusinessPlanCard({ onSuccess }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ultra">Ultra</SelectItem>
-              <SelectItem value="premium">Premium</SelectItem>
-              <SelectItem value="free">Gratuito</SelectItem>
+              <SelectItem value="ultra">Élite</SelectItem>
+              <SelectItem value="premium">Negocio</SelectItem>
+              <SelectItem value="free">Inicial</SelectItem>
             </SelectContent>
           </Select>
         </div>

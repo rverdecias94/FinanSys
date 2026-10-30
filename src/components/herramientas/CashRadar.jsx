@@ -30,9 +30,10 @@ import { getCashRadar } from '@/services/cashRadar'
 import { cn } from '@/lib/utils'
 
 const HORIZONS = [
-  { days: 30, label: '30 días' },
-  { days: 60, label: '60 días' },
-  { days: 90, label: '90 días' },
+  { days: 15, label: '15 días', eliteOnly: false },
+  { days: 30, label: '30 días', eliteOnly: true },
+  { days: 60, label: '60 días', eliteOnly: true },
+  { days: 90, label: '90 días', eliteOnly: true },
 ]
 
 function severityStyles(severity) {
@@ -48,12 +49,13 @@ function ActionIcon({ kind }) {
   return <AlertTriangle className="h-4 w-4 text-destructive" />
 }
 
-export function CashRadar() {
+export function CashRadar({ isElite = false }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const userId = session?.user?.id
-  const [horizonDays, setHorizonDays] = useState(30)
+  const [horizonDays, setHorizonDays] = useState(isElite ? 30 : 15)
+  const [eliteHint, setEliteHint] = useState(null)
 
   const baseCurrency = useMemo(
     () => businessCurrencies?.find((c) => c.is_default)?.code || businessCurrencies?.[0]?.code || 'USD',
@@ -99,20 +101,47 @@ export function CashRadar() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Horizonte">
-              {HORIZONS.map((h) => (
-                <Button
-                  key={h.days}
-                  type="button"
-                  size="sm"
-                  variant={horizonDays === h.days ? 'default' : 'outline'}
-                  className="h-8 text-xs"
-                  onClick={() => setHorizonDays(h.days)}
-                >
-                  {h.label}
-                </Button>
-              ))}
+              {HORIZONS.map((h) => {
+                const locked = h.eliteOnly && !isElite
+                const active = horizonDays === h.days && !locked
+                return (
+                  <Button
+                    key={h.days}
+                    type="button"
+                    size="sm"
+                    variant={active ? 'default' : 'outline'}
+                    className={cn(
+                      'h-8 text-xs',
+                      locked && 'opacity-70 border-dashed'
+                    )}
+                    aria-disabled={locked}
+                    title={locked ? 'Función del plan Élite' : undefined}
+                    onClick={() => {
+                      if (locked) {
+                        setEliteHint(h.days)
+                        return
+                      }
+                      setEliteHint(null)
+                      setHorizonDays(h.days)
+                    }}
+                  >
+                    {h.label}
+                    {locked ? <span className="ml-1 text-[10px] font-semibold text-primary">Élite</span> : null}
+                  </Button>
+                )
+              })}
             </div>
           </div>
+          {eliteHint != null && !isElite && (
+            <p className="rounded-md border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-foreground">
+              La proyección a <strong>{eliteHint} días</strong> es una función del{' '}
+              <strong>plan Élite</strong>. Con Negocio puedes ver{' '}
+              <strong>15 días</strong>.{' '}
+              <Link to="/configuracion" className="font-semibold text-primary underline-offset-2 hover:underline">
+                Ver plan Élite
+              </Link>
+            </p>
+          )}
         </CardHeader>
 
         <CardContent className="space-y-4">

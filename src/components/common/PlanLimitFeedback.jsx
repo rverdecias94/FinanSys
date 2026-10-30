@@ -3,34 +3,29 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import { cn } from '@/lib/utils'
 
 /**
- * Feedback de límites de la cuenta gratuita, reutilizable en cualquier área.
- * Muestra "{label} restantes: {restantes} / {límite}" SOLO para cuentas free
- * (premium es ilimitado en estas métricas → no renderiza nada).
- *
- * @param {string} metric - clave del límite en PLAN_LIMITS (ej. 'monthly_transactions', 'products', 'areas')
- * @param {string} label - etiqueta visible (ej. 'Transacciones', 'Productos', 'Áreas')
- * @param {number|null} currentCount - conteo actual en pantalla; si se provee, se
- *        usa para calcular lo restante (más exacto que el usage del contexto).
- * @param {number|null} fallbackLimit - límite por defecto si PLAN_LIMITS no lo define.
- * @param {string} className - clases extra de posicionamiento.
+ * Muestra consumo vs límite del plan activo.
+ * Formato: "{label}: {usado} / {límite}" o "{label}: Ilimitado".
  */
 export function PlanLimitFeedback({ metric, label, currentCount = null, fallbackLimit = null, className }) {
-  const { subscription, PLAN_LIMITS, getRemainingUsage } = useSubscription()
-  const plan = subscription?.plan_id || 'free'
+  const { subscription, PLAN_LIMITS, usage } = useSubscription()
+  const planId = subscription?.plan_id || 'free'
+  const limit = PLAN_LIMITS?.[planId]?.[metric] ?? fallbackLimit
 
-  // Solo aplica a cuentas free.
-  if (plan !== 'free') return null
+  if (limit == null) return null
 
-  const limit = PLAN_LIMITS?.[plan]?.[metric] ?? fallbackLimit
-  if (limit == null || limit === Infinity) return null
+  if (limit === Infinity) {
+    return (
+      <div className={cn('text-xs font-normal text-muted-foreground', className)}>
+        {label}: Ilimitado
+      </div>
+    )
+  }
 
-  const remaining = currentCount != null
-    ? Math.max(0, limit - currentCount)
-    : getRemainingUsage(metric)
+  const used = currentCount != null ? currentCount : (usage?.[metric] ?? 0)
 
   return (
     <div className={cn('text-xs font-normal text-muted-foreground', className)}>
-      {label} restantes: {remaining} / {limit}
+      {label}: {used} / {limit}
     </div>
   )
 }

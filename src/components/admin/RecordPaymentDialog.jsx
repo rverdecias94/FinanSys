@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-// Importes por defecto (solo prefijado editable; la fuente real es plans.pricing en backend).
-const CYCLE_DEFAULT_AMOUNT = { monthly: 10, semiannual: 57, annual: 102 }
+// Importes por defecto Negocio (editable; fuente real: plans.pricing). Anual = −20%.
+const CYCLE_DEFAULT_AMOUNT = { monthly: 10, annual: 96 }
 
 export function RecordPaymentDialog({ open, onOpenChange, business, submitting, onConfirm }) {
   const [form, setForm] = useState({ billingCycle: 'monthly', amount: '10', method: 'transferencia', reference: '', notes: '' })
@@ -37,8 +37,7 @@ export function RecordPaymentDialog({ open, onOpenChange, business, submitting, 
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="monthly">Mensual</SelectItem>
-                <SelectItem value="semiannual">Semestral</SelectItem>
-                <SelectItem value="annual">Anual</SelectItem>
+                <SelectItem value="annual">Anual (−20%)</SelectItem>
               </SelectContent>
             </Select>
           </div>

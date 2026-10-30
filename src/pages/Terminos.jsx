@@ -62,7 +62,7 @@ export default function Terminos() {
           .
         </li>
         <li>
-          <strong>Planes Gratuito, Premium y Ultra</strong> con distintos límites y funciones.
+          <strong>Planes Inicial, Negocio y Élite</strong> con distintos límites y funciones.
         </li>
       </ul>
       <p>
@@ -97,18 +97,19 @@ export default function Terminos() {
 
       <h2>4. Planes, límites y uso justo</h2>
       <p>
-        4.1. {LEGAL.producto} ofrece un <strong>Plan Gratuito</strong>, un <strong>Plan
-        Premium</strong> y un <strong>Plan Ultra</strong>. Cada plan tiene límites de uso (por
+        4.1. {LEGAL.producto} ofrece un <strong>Plan Inicial</strong>, un <strong>Plan
+        Negocio</strong> y un <strong>Plan Élite</strong>. Cada plan tiene límites de uso (por
         ejemplo: número de transacciones por mes, productos, áreas de inventario, monedas activas,
-        miembros de equipo y, en Ultra, cupos mensuales de Copiloto) que se muestran de forma
+        miembros de equipo y cupos mensuales de Copiloto/OCR) que se muestran de forma
         actualizada dentro de la aplicación, en <strong>Configuración › Planes</strong>.
       </p>
       <p>
-        4.2. A título informativo, el Plan Gratuito actualmente contempla límites como: 40
-        transacciones por mes, 40 productos, 5 áreas de inventario, 1 moneda activa y sin miembros de
-        equipo adicionales. El Plan Premium amplía o elimina estos límites (por ejemplo, hasta 5
-        miembros de equipo). <strong>Los valores vigentes son siempre los indicados dentro de la
-        aplicación</strong> y pueden variar.
+        4.2. A título informativo, el Plan Inicial actualmente contempla límites como: 150
+        transacciones por mes, 50 productos, 1 área de inventario, 1 moneda activa y sin miembros de
+        equipo adicionales. El Plan Negocio amplía estos límites (por ejemplo, monedas ilimitadas,
+        hasta 5 miembros, Radar a 15 días y cupos limitados de Copiloto/OCR) y el Plan Élite ofrece
+        topes más altos o ilimitados según la métrica. <strong>Los valores vigentes son siempre los
+        indicados dentro de la aplicación</strong> y pueden variar.
       </p>
       <p>
         4.3. Al alcanzar los límites de tu plan, el Servicio puede impedir crear nuevos registros
@@ -117,7 +118,7 @@ export default function Terminos() {
         automatizado.
       </p>
 
-      <h2>5. Pago, activación y renovación del Plan Premium</h2>
+      <h2>5. Pago, activación y renovación de planes de pago</h2>
       <p>
         <strong>{LEGAL.producto} no procesa pagos en línea ni almacena datos de tarjetas.</strong>
       </p>

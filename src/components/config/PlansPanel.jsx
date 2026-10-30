@@ -6,18 +6,70 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { useSubscription, isPaidPlanId } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
 import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog'
 import { PaymentHistory } from '@/components/config/PaymentHistory'
-import { Check, Crown, Loader2, Shield, Send, Sparkles } from 'lucide-react'
+import {
+  ANNUAL_DISCOUNT_PCT,
+  annualMonthlyEquivalent,
+  planLabel,
+  resolvePlanPrice,
+} from '@/lib/plans'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Check, Crown, Info, Loader2, Shield, Send, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
+
+const FEATURE_TIPS = {
+  ocr: 'OCR: digitalización de facturas, recibos y comprobantes.',
+  copiloto: 'Copiloto IA: asistente inteligente para consultar y analizar la información del negocio.',
+  radar: 'Radar de caja: proyección del efectivo. Negocio: 15 días. Élite: 30, 60 y 90 días (+ escenarios).',
+  auditoria: 'Auditoría: seguimiento y revisión de operaciones registradas.',
+}
+
+function FeatureRow({ text, tipKey }) {
+  return (
+    <li className="flex items-start gap-2 text-sm min-h-[1.5rem]">
+      <Check className="h-4 w-4 mt-0.5 text-success shrink-0" />
+      <span className="flex-1 leading-snug">{text}</span>
+      {tipKey && FEATURE_TIPS[tipKey] && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="mt-0.5 shrink-0 rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={FEATURE_TIPS[tipKey]}
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[240px] text-xs">
+            {FEATURE_TIPS[tipKey]}
+          </TooltipContent>
+        </Tooltip>
+      )}
+    </li>
+  )
+}
 
 export function PlansPanel() {
-  const { subscription, loading, requestPremium, cancelPendingPremiumRequest, pendingPlanRequest, PLAN_LIMITS, nextPaymentDate, billingCycle, paymentState, pricing } = useSubscription()
+  const {
+    subscription,
+    loading,
+    requestPremium,
+    cancelPendingPremiumRequest,
+    pendingPlanRequest,
+    PLAN_LIMITS,
+    nextPaymentDate,
+    billingCycle,
+    paymentState,
+    pricing,
+  } = useSubscription()
   const { isOwner } = useBusiness()
 
+  const [billingPeriod, setBillingPeriod] = useState('monthly')
   const [requestOpen, setRequestOpen] = useState(false)
   const [requestTarget, setRequestTarget] = useState('premium')
   const [downgradeOpen, setDowngradeOpen] = useState(false)
@@ -25,27 +77,22 @@ export function PlansPanel() {
   const [submittingRequest, setSubmittingRequest] = useState(false)
   const [requestForm, setRequestForm] = useState({
     billingCycle: 'monthly',
+    contactName: '',
     contactPhone: '',
     paymentMethod: 'transferencia',
-    paymentReference: '',
-    userNotes: ''
   })
 
   const currentPlan = subscription?.plan_id || 'free'
-  const planPricing = pricing?.[requestTarget] || pricing?.premium || {}
+  const isAnnual = billingPeriod === 'annual'
 
-  const cycleOptions = useMemo(() => {
-    const monthly = planPricing.monthly ?? (requestTarget === 'ultra' ? 20 : 10)
-    const semiannual = planPricing.semiannual ?? (requestTarget === 'ultra' ? 114 : 57)
-    const annual = planPricing.annual ?? (requestTarget === 'ultra' ? 204 : 102)
-    return [
-      { id: 'monthly', label: 'Mensual', price: monthly, suffix: '/mes' },
-      { id: 'semiannual', label: 'Semestral', price: semiannual, suffix: '/6 meses', save: planPricing.semiannual_discount_pct ?? 5 },
-      { id: 'annual', label: 'Anual', price: annual, suffix: '/año', save: planPricing.annual_discount_pct ?? 15 }
-    ]
-  }, [planPricing, requestTarget])
+  const priceFor = (planId) => {
+    const row = pricing?.[planId] || {}
+    const monthly = resolvePlanPrice(row, 'monthly', planId)
+    const annual = resolvePlanPrice(row, 'annual', planId)
+    return { monthly, annual, equiv: annualMonthlyEquivalent(monthly) }
+  }
 
-  const cycleLabel = (cycle) => ({ monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }[cycle] || 'Mensual')
+  const cycleLabel = (cycle) => ({ monthly: 'Mensual', annual: 'Anual' }[cycle] || 'Mensual')
   const formatDate = (value) => {
     try {
       return new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -59,84 +106,125 @@ export function PlansPanel() {
     const premium = PLAN_LIMITS?.premium || {}
     const ultra = PLAN_LIMITS?.ultra || {}
 
-    const txFree = Number.isFinite(free.monthly_transactions) ? free.monthly_transactions : 40
-    const prodFree = Number.isFinite(free.products) ? free.products : 40
-    const areasFree = Number.isFinite(free.areas) ? free.areas : 5
-    const partnersFree = Number.isFinite(free.partners) ? free.partners : 0
-    const partnersPremium = premium.partners === Infinity ? 'Ilimitados' : (Number.isFinite(premium.partners) ? premium.partners : 5)
-    const partnersUltra = ultra.partners === Infinity ? 'Ilimitados' : (Number.isFinite(ultra.partners) ? ultra.partners : partnersPremium)
-    const docPages = Number.isFinite(ultra.ai_doc_pages) ? ultra.ai_doc_pages : 100
-    const calcQueries = Number.isFinite(ultra.ai_calc_queries) ? ultra.ai_calc_queries : 120
+    const n = (obj, key, fallback) => (Number.isFinite(obj[key]) ? obj[key] : fallback)
+    const partnersOf = (obj, fallback) => (
+      obj.partners === Infinity ? 'Ilimitados' : (Number.isFinite(obj.partners) ? obj.partners : fallback)
+    )
 
+    const txFree = n(free, 'monthly_transactions', 150)
+    const prodFree = n(free, 'products', 50)
+    const areasFree = n(free, 'areas', 1)
+    const currFree = n(free, 'currencies', 1)
+
+    const txPrem = n(premium, 'monthly_transactions', 1500)
+    const prodPrem = n(premium, 'products', 200)
+    const areasPrem = n(premium, 'areas', 10)
+    const currPrem = premium.currencies === Infinity ? null : n(premium, 'currencies', null)
+    const partnersPrem = partnersOf(premium, 5)
+    const docPrem = n(premium, 'ai_doc_pages', 20)
+    const calcPrem = n(premium, 'ai_calc_queries', 15)
+
+    const partnersUltra = partnersOf(ultra, 10)
+    const docUltra = n(ultra, 'ai_doc_pages', 100)
+    const calcUltra = n(ultra, 'ai_calc_queries', 50)
+
+    // Mismo orden de filas en los 3 planes para comparar en vertical
     return [
       {
         id: 'free',
-        title: 'Plan Gratuito',
-        subtitle: 'Ideal para empezar',
+        title: 'Plan Inicial',
+        subtitle: 'Ideal para emprendedores que están comenzando',
         icon: <Shield className="h-5 w-5" />,
         highlights: [
-          `${txFree} Transacciones / mes`,
-          `${prodFree} Productos`,
-          `${areasFree} Áreas de Inventario`,
-          '1 Moneda Activa',
-          'Reportes Básicos (Solo lectura)',
-          partnersFree ? `Hasta ${partnersFree} miembros de equipo` : 'Sin miembros de equipo'
-        ]
+          { text: `${currFree} moneda activa` },
+          { text: `${txFree.toLocaleString('es-ES')} transacciones / mes` },
+          { text: `${prodFree} productos` },
+          { text: `${areasFree} área de inventario` },
+          { text: 'Sin miembros adicionales de equipo' },
+          { text: 'Sin procesamiento OCR', tipKey: 'ocr' },
+          { text: 'Sin acceso al Copiloto IA', tipKey: 'copiloto' },
+          { text: 'Sin Radar de caja', tipKey: 'radar' },
+          { text: 'Reportes básicos' },
+        ],
       },
       {
         id: 'premium',
-        title: 'Plan Premium',
-        subtitle: 'Para operaciones completas',
+        title: 'Plan Negocio',
+        subtitle: 'Más capacidad y control para tu negocio',
         icon: <Crown className="h-5 w-5" />,
         highlights: [
-          'Transacciones Ilimitadas',
-          'Productos Ilimitados',
-          'Áreas Ilimitadas',
-          'Múltiples Monedas',
-          'Reportes Avanzados + Exportación',
-          `Hasta ${partnersPremium} miembros de equipo`,
-          'Auditoría de actividad'
-        ]
+          { text: currPrem == null ? 'Monedas ilimitadas' : `${currPrem} monedas activas` },
+          { text: `${txPrem.toLocaleString('es-ES')} transacciones / mes` },
+          { text: `${prodPrem} productos` },
+          { text: `${areasPrem} áreas de inventario` },
+          { text: `Hasta ${partnersPrem} miembros de equipo` },
+          { text: `${docPrem} páginas OCR / mes`, tipKey: 'ocr' },
+          { text: `${calcPrem} consultas Copiloto IA / mes`, tipKey: 'copiloto' },
+          { text: 'Radar de caja a 15 días (30/60/90 en Élite)', tipKey: 'radar' },
+          { text: 'Reportes avanzados y auditoría', tipKey: 'auditoria' },
+        ],
       },
       {
         id: 'ultra',
-        title: 'Plan Ultra',
-        subtitle: 'Premium + Radar de caja y Copiloto',
+        title: 'Plan Élite',
+        subtitle: 'Sin límites operativos + Copiloto completo',
         icon: <Sparkles className="h-5 w-5" />,
         highlights: [
-          'Todo lo de Premium',
-          'Radar de caja: proyección 30/60/90 días y alertas',
-          'Copiloto: pregunta por finanzas, stock, CxC y auditoría',
-          'Importar comprobantes con foto (OCR en tu dispositivo)',
-          'Escenarios de caja, FX, margen y cobro',
-          `${docPages} páginas de importación / mes`,
-          `${calcQueries} consultas al Copiloto / mes`,
-          `Hasta ${partnersUltra} miembros de equipo`
-        ]
-      }
+          { text: 'Monedas ilimitadas' },
+          { text: 'Transacciones ilimitadas' },
+          { text: 'Productos ilimitados' },
+          { text: 'Áreas de inventario ilimitadas' },
+          { text: `Hasta ${partnersUltra} miembros de equipo` },
+          { text: `${docUltra} páginas OCR / mes`, tipKey: 'ocr' },
+          { text: `${calcUltra} consultas Copiloto IA / mes`, tipKey: 'copiloto' },
+          { text: 'Radar de caja 30/60/90 + escenarios', tipKey: 'radar' },
+          { text: 'Reportes avanzados y auditoría', tipKey: 'auditoria' },
+        ],
+      },
     ]
   }, [PLAN_LIMITS])
 
-  const orderedPlans = useMemo(
-    () => [...plans].sort((a, b) => (b.id === currentPlan ? 1 : 0) - (a.id === currentPlan ? 1 : 0)),
-    [plans, currentPlan]
-  )
+  // Orden comercial fijo: Inicial → Negocio → Élite (nunca reordenar por plan actual)
+  const orderedPlans = useMemo(() => {
+    const order = { free: 0, premium: 1, ultra: 2 }
+    return [...plans].sort((a, b) => (order[a.id] ?? 99) - (order[b.id] ?? 99))
+  }, [plans])
 
   const openRequest = (planId) => {
     setRequestTarget(planId)
-    setRequestForm((prev) => ({ ...prev, billingCycle: 'monthly' }))
+    setRequestForm((prev) => ({
+      ...prev,
+      billingCycle: billingPeriod,
+      contactName: '',
+      contactPhone: '',
+      paymentMethod: 'transferencia',
+    }))
     setRequestOpen(true)
   }
 
   const handleRequestPlan = async () => {
+    const name = requestForm.contactName.trim()
+    const phone = requestForm.contactPhone.trim()
+    if (!name) {
+      toast.error('Indica el nombre del cliente')
+      return
+    }
+    if (!phone) {
+      toast.error('Indica el teléfono o WhatsApp')
+      return
+    }
+    if (!requestForm.paymentMethod) {
+      toast.error('Elige la forma de pago')
+      return
+    }
+
     setSubmittingRequest(true)
     const result = await requestPremium({
       targetPlanId: requestTarget,
       billingCycle: requestForm.billingCycle,
-      contactPhone: requestForm.contactPhone,
+      contactName: name,
+      contactPhone: phone,
       paymentMethod: requestForm.paymentMethod,
-      paymentReference: requestForm.paymentReference,
-      userNotes: requestForm.userNotes
     })
     setSubmittingRequest(false)
     if (result) setRequestOpen(false)
@@ -153,16 +241,45 @@ export function PlansPanel() {
   const planActionLabel = (plan, isCurrent, hasPending) => {
     if (isCurrent) return 'Plan actual'
     if (hasPending) return 'Solicitud pendiente'
-    if (plan.id === 'ultra') return 'Solicitar Ultra'
-    if (plan.id === 'premium') return 'Solicitar Premium'
-    return 'Cambiar a Gratuito'
+    if (isPaidPlanId(plan.id)) return `Solicitar ${planLabel(plan.id)}`
+    return 'Cambiar a Inicial'
   }
 
+  const requestPrice = priceFor(requestTarget)
+
+  const billingCurrency = pricing?.premium?.currency || pricing?.ultra?.currency || 'USD'
+
   return (
+    <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium">Planes</h3>
-        <p className="text-sm text-muted-foreground">Compara los planes y revisa el plan actual del negocio.</p>
+        <p className="text-sm text-muted-foreground">
+          Compara Inicial, Negocio y Élite. Precios en {billingCurrency}; el pago se confirma fuera de la app.
+        </p>
+      </div>
+
+      <div className="flex flex-col items-center gap-2">
+        <div className="inline-flex items-center gap-3 rounded-full border border-border bg-background px-4 py-2 shadow-sm">
+          <span className={`text-sm font-semibold ${!isAnnual ? 'text-foreground' : 'text-muted-foreground'}`}>
+            Mensual
+          </span>
+          <Switch
+            checked={isAnnual}
+            onCheckedChange={(checked) => setBillingPeriod(checked ? 'annual' : 'monthly')}
+            aria-label="Alternar pago anual"
+            className="border border-border data-[state=unchecked]:bg-muted-foreground/35 data-[state=checked]:bg-primary"
+          />
+          <span className={`text-sm font-semibold ${isAnnual ? 'text-foreground' : 'text-muted-foreground'}`}>
+            Anual
+          </span>
+          <Badge variant="secondary" className="ml-1 bg-success/15 text-success border-success/30">
+            Ahorra {ANNUAL_DISCOUNT_PCT}%
+          </Badge>
+        </div>
+        <p className="text-xs text-muted-foreground text-center max-w-sm">
+          En anual ves el equivalente mensual; se factura el total del año con descuento.
+        </p>
       </div>
 
       {pendingPlanRequest && (
@@ -170,10 +287,11 @@ export function PlansPanel() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="font-medium">
-                Solicitud {pendingPlanRequest.requested_plan_id === 'ultra' ? 'Ultra' : 'Premium'} pendiente
+                Solicitud {planLabel(pendingPlanRequest.requested_plan_id)} pendiente
               </div>
               <p className="text-sm text-muted-foreground">
-                Enviada el {new Date(pendingPlanRequest.created_at).toLocaleDateString('es-ES')}. Revisaremos la solicitud y te contactaremos para confirmar la activación.
+                Enviada el {new Date(pendingPlanRequest.created_at).toLocaleDateString('es-ES')}.
+                Revisaremos la solicitud y te contactaremos para confirmar la activación.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -188,14 +306,17 @@ export function PlansPanel() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 items-stretch lg:grid-cols-3">
         {orderedPlans.map((plan) => {
           const isCurrent = currentPlan === plan.id
           const paid = isPaidPlanId(plan.id)
           const hasPending = paid && pendingPlanRequest
+          const prices = priceFor(plan.id)
+          const showBilling = isCurrent && paid && nextPaymentDate
+
           return (
-            <Card key={plan.id} className={isCurrent ? 'border-primary/40 bg-primary/5' : undefined}>
-              <CardHeader>
+            <Card key={plan.id} className={`flex flex-col ${isCurrent ? 'border-primary/40 bg-primary/5' : ''}`}>
+              <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <CardTitle className="flex flex-wrap items-center gap-2">
@@ -206,46 +327,74 @@ export function PlansPanel() {
                     <CardDescription>{plan.subtitle}</CardDescription>
                   </div>
                 </div>
+                <div className="pt-3 min-h-[4.5rem]">
+                  {paid ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-baseline gap-1.5 flex-wrap">
+                        <span className="text-3xl font-bold tracking-tight">
+                          ${isAnnual ? prices.equiv : prices.monthly}
+                        </span>
+                        <span className="text-sm text-muted-foreground">{billingCurrency}/mes</span>
+                      </div>
+                      {isAnnual ? (
+                        <p className="text-sm font-semibold text-foreground">
+                          Factura anual:{' '}
+                          <span className="text-success">${prices.annual} {billingCurrency}</span>
+                          <span className="font-medium text-muted-foreground"> /año</span>
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-3xl font-bold tracking-tight">$0</span>
+                        <span className="text-sm text-muted-foreground">{billingCurrency}/mes</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2">
+              <CardContent className="flex flex-1 flex-col gap-4 pt-0">
+                <ul className="space-y-2 flex-1">
                   {plan.highlights.map((h) => (
-                    <li key={h} className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 mt-0.5 text-success shrink-0" />
-                      <span>{h}</span>
-                    </li>
+                    <FeatureRow key={h.text} text={h.text} tipKey={h.tipKey} />
                   ))}
                 </ul>
 
-                {isCurrent && paid && nextPaymentDate && (
-                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-muted-foreground">Ciclo de pago</span>
-                      <span className="font-medium">{cycleLabel(billingCycle)}</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between gap-2">
-                      <span className="text-muted-foreground">Próximo pago</span>
-                      <span className={`font-medium ${paymentState === 'grace' ? 'text-destructive' : paymentState === 'due_soon' ? 'text-warning' : ''}`}>
-                        {formatDate(nextPaymentDate)}
-                      </span>
-                    </div>
+                <div className="mt-auto space-y-3">
+                  <div className="min-h-[3.25rem]">
+                    {showBilling ? (
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">Ciclo de pago</span>
+                          <span className="font-medium">{cycleLabel(billingCycle)}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">Próximo pago</span>
+                          <span className={`font-medium ${paymentState === 'grace' ? 'text-destructive' : paymentState === 'due_soon' ? 'text-warning' : ''}`}>
+                            {formatDate(nextPaymentDate)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                )}
 
-                <div className="flex justify-end">
-                  <Button
-                    variant={isCurrent ? 'secondary' : paid ? 'default' : 'outline'}
-                    disabled={loading || !isOwner || isCurrent || hasPending}
-                    onClick={() => handlePlanAction(plan.id)}
-                  >
-                    {planActionLabel(plan, isCurrent, hasPending)}
-                  </Button>
+                  <div className="flex justify-stretch sm:justify-end">
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant={isCurrent ? 'secondary' : paid ? 'default' : 'outline'}
+                      disabled={loading || !isOwner || isCurrent || hasPending}
+                      onClick={() => handlePlanAction(plan.id)}
+                    >
+                      {planActionLabel(plan, isCurrent, hasPending)}
+                    </Button>
+                  </div>
+                  {!isOwner && (
+                    <p className="text-xs text-muted-foreground">
+                      Solo el propietario puede cambiar el plan.
+                    </p>
+                  )}
                 </div>
-                {!isOwner && (
-                  <p className="text-xs text-muted-foreground">
-                    Solo el propietario puede cambiar el plan.
-                  </p>
-                )}
               </CardContent>
             </Card>
           )
@@ -255,25 +404,40 @@ export function PlansPanel() {
       <PaymentHistory alwaysShow={isPaidPlanId(currentPlan)} />
 
       <Dialog open={requestOpen} onOpenChange={setRequestOpen}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Solicitar {requestTarget === 'ultra' ? 'Ultra' : 'Premium'}</DialogTitle>
+            <DialogTitle>Solicitar {planLabel(requestTarget)}</DialogTitle>
             <DialogDescription>
-              Enviaremos tu solicitud para revisarla manualmente. La activación se confirma después del acuerdo o pago fuera de la aplicación.
+              Completa tus datos de contacto y la forma de pago. Activamos el plan tras confirmar el acuerdo.
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
               <Label>Ciclo de pago</Label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {cycleOptions.map((c) => {
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {[
+                  {
+                    id: 'monthly',
+                    label: 'Mensual',
+                    price: requestPrice.monthly,
+                    suffix: '/mes',
+                  },
+                  {
+                    id: 'annual',
+                    label: 'Anual',
+                    price: requestPrice.annual,
+                    suffix: '/año',
+                    save: ANNUAL_DISCOUNT_PCT,
+                    hint: `Equiv. $${requestPrice.equiv}/mes`,
+                  },
+                ].map((c) => {
                   const selected = requestForm.billingCycle === c.id
                   return (
                     <button
                       type="button"
                       key={c.id}
-                      onClick={() => setRequestForm(prev => ({ ...prev, billingCycle: c.id }))}
+                      onClick={() => setRequestForm((prev) => ({ ...prev, billingCycle: c.id }))}
                       aria-pressed={selected}
                       className={`relative flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors ${selected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:bg-accent'}`}
                     >
@@ -283,7 +447,9 @@ export function PlansPanel() {
                         <span className="text-xs font-normal text-muted-foreground"> {c.suffix}</span>
                       </span>
                       {c.save ? (
-                        <span className="mt-1 text-xs font-semibold text-success">Ahorra {c.save}%</span>
+                        <span className="mt-1 text-xs font-semibold text-success">
+                          Ahorra {c.save}% · {c.hint}
+                        </span>
                       ) : (
                         <span className="mt-1 select-none text-xs text-transparent">.</span>
                       )}
@@ -294,19 +460,32 @@ export function PlansPanel() {
             </div>
 
             <div className="grid gap-2">
-              <Label>Teléfono o WhatsApp</Label>
+              <Label htmlFor="plan-contact-name">Nombre del cliente</Label>
               <Input
-                value={requestForm.contactPhone}
-                onChange={(event) => setRequestForm(prev => ({ ...prev, contactPhone: event.target.value }))}
-                placeholder="+53..."
+                id="plan-contact-name"
+                value={requestForm.contactName}
+                onChange={(event) => setRequestForm((prev) => ({ ...prev, contactName: event.target.value }))}
+                placeholder="Nombre y apellidos o negocio"
+                autoComplete="name"
               />
             </div>
 
             <div className="grid gap-2">
-              <Label>Método acordado</Label>
+              <Label htmlFor="plan-contact-phone">Teléfono o WhatsApp</Label>
+              <Input
+                id="plan-contact-phone"
+                value={requestForm.contactPhone}
+                onChange={(event) => setRequestForm((prev) => ({ ...prev, contactPhone: event.target.value }))}
+                placeholder="+53..."
+                autoComplete="tel"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Forma de pago</Label>
               <Select
                 value={requestForm.paymentMethod}
-                onValueChange={(value) => setRequestForm(prev => ({ ...prev, paymentMethod: value }))}
+                onValueChange={(value) => setRequestForm((prev) => ({ ...prev, paymentMethod: value }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -318,24 +497,6 @@ export function PlansPanel() {
                   <SelectItem value="otro">Otro</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Referencia o nota de pago</Label>
-              <Input
-                value={requestForm.paymentReference}
-                onChange={(event) => setRequestForm(prev => ({ ...prev, paymentReference: event.target.value }))}
-                placeholder="Referencia, comprobante o detalle"
-              />
-            </div>
-
-            <div className="grid gap-2">
-              <Label>Notas adicionales</Label>
-              <Textarea
-                value={requestForm.userNotes}
-                onChange={(event) => setRequestForm(prev => ({ ...prev, userNotes: event.target.value }))}
-                placeholder="Cualquier detalle que ayude a revisar la solicitud"
-              />
             </div>
           </div>
 
@@ -365,7 +526,7 @@ export function PlansPanel() {
         open={cancelOpen}
         onOpenChange={setCancelOpen}
         title="Cancelar solicitud de plan"
-        description="Se cancelará la solicitud pendiente. Si quieres Premium u Ultra después, tendrás que enviar una nueva solicitud."
+        description="Se cancelará la solicitud pendiente. Si quieres Negocio o Élite después, tendrás que enviar una nueva solicitud."
         confirmText="Cancelar solicitud"
         cancelText="Volver"
         tone="destructive"
@@ -376,5 +537,6 @@ export function PlansPanel() {
         }}
       />
     </div>
+    </TooltipProvider>
   )
 }

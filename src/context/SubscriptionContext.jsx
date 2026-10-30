@@ -7,6 +7,7 @@ import { logAction } from '@/services/auditLogger'
 import { cancelMyPendingPlanChangeRequest, getPendingPlanRequest, requestPlanChange } from '@/services/planRequests'
 import { getEffectivePlanState } from '@/services/billing'
 import { readLocalCache, writeLocalCache } from '@/offline/localCache'
+import { planLabel } from '@/lib/plans'
 
 const SubscriptionContext = createContext({})
 
@@ -61,9 +62,10 @@ export const SubscriptionProvider = ({ children }) => {
 
   const FALLBACK_PLAN_LIMITS = {
     free: {
-      monthly_transactions: 40,
-      products: 40,
-      areas: 5,
+      monthly_transactions: 150,
+      products: 50,
+      areas: 1,
+      currencies: 1,
       reports_export: false,
       audit_logs: false,
       partners: 0,
@@ -73,28 +75,30 @@ export const SubscriptionProvider = ({ children }) => {
       ai_calc_queries: 0
     },
     premium: {
-      monthly_transactions: Infinity,
-      products: Infinity,
-      areas: Infinity,
-      reports_export: true,
-      audit_logs: true,
-      partners: 5,
-      watermark: false,
-      ai_tools: false,
-      ai_doc_pages: 0,
-      ai_calc_queries: 0
-    },
-    ultra: {
-      monthly_transactions: Infinity,
-      products: Infinity,
-      areas: Infinity,
+      monthly_transactions: 1500,
+      products: 200,
+      areas: 10,
+      currencies: Infinity,
       reports_export: true,
       audit_logs: true,
       partners: 5,
       watermark: false,
       ai_tools: true,
+      ai_doc_pages: 20,
+      ai_calc_queries: 15
+    },
+    ultra: {
+      monthly_transactions: Infinity,
+      products: Infinity,
+      areas: Infinity,
+      currencies: Infinity,
+      reports_export: true,
+      audit_logs: true,
+      partners: 10,
+      watermark: false,
+      ai_tools: true,
       ai_doc_pages: 100,
-      ai_calc_queries: 120
+      ai_calc_queries: 50
     }
   }
 
@@ -311,20 +315,33 @@ export const SubscriptionProvider = ({ children }) => {
 
     if (limit === Infinity) return true
 
+    const metricLabels = {
+      monthly_transactions: 'transacciones',
+      products: 'productos',
+      areas: 'áreas de inventario',
+      partners: 'miembros de equipo',
+      currencies: 'monedas',
+      ai_doc_pages: 'páginas OCR',
+      ai_calc_queries: 'consultas al Copiloto',
+    }
+    const metricLabel = metricLabels[metricKey] || 'recursos'
+    const goToPlans = {
+      label: 'Ver Planes',
+      onClick: () => { window.location.href = '/configuracion' }
+    }
+
     // Check 80% warning
     if (limit > 0 && currentUsage >= limit * 0.8 && currentUsage < limit) {
-      toast.warning(`Has consumido el ${Math.round((currentUsage / limit) * 100)}% de tu límite.`, {
-        description: 'Actualiza a Premium para evitar interrupciones.',
-        action: {
-          label: 'Ver Planes',
-          onClick: () => window.location.href = '/configuracion'
-        }
+      toast.warning(`Has utilizado ${currentUsage} de ${limit} ${metricLabel}.`, {
+        description: 'Te estás acercando al límite. Mejora tu plan para evitar interrupciones.',
+        action: goToPlans
       })
     }
 
     if (currentUsage >= limit) {
       toast.error('Límite del plan alcanzado', {
-        description: 'Has alcanzado el límite para tu plan actual. Actualiza a Premium para continuar.',
+        description: `Has utilizado ${currentUsage} de tus ${limit} ${metricLabel} disponibles en este periodo. Actualiza tu plan para continuar.`,
+        action: goToPlans
       })
       return false
     }
@@ -339,8 +356,8 @@ export const SubscriptionProvider = ({ children }) => {
     }
 
     if (planId === 'premium') {
-      toast.error('El plan Premium requiere aprobación manual.', {
-        description: 'Envía una solicitud de Premium para que podamos revisarla.'
+      toast.error('Los planes de pago requieren aprobación manual.', {
+        description: 'Envía una solicitud desde Configuración › Planes.'
       })
       return
     }
@@ -350,7 +367,7 @@ export const SubscriptionProvider = ({ children }) => {
     // excedentes y revoca el equipo de forma controlada. Un UPDATE directo a 'free'
     // saltaría esa lógica y dejaría el negocio en estado inconsistente (P4.5).
     if (planId === 'free') {
-      toast.error('Para bajar al plan Gratuito usa el asistente de cambio de plan.', {
+      toast.error('Para bajar al plan Inicial usa el asistente de cambio de plan.', {
         description: 'Así eliges qué moneda y áreas conservar antes de aplicar el cambio.'
       })
       return
@@ -386,7 +403,7 @@ export const SubscriptionProvider = ({ children }) => {
       await fetchUsage()
       await fetchPendingPlanRequest()
 
-      toast.success(`Plan actualizado a ${planId === 'premium' ? 'Premium' : 'Gratuito'}`, {
+      toast.success(`Plan actualizado a ${planLabel(planId)}`, {
         description: 'Los límites y accesos del plan ya fueron actualizados.',
         duration: 3000
       })
@@ -405,14 +422,15 @@ export const SubscriptionProvider = ({ children }) => {
     targetPlanId = 'premium',
     requestedMonths = 1,
     billingCycle = 'monthly',
+    contactName = '',
     contactPhone = '',
     paymentMethod = '',
     paymentReference = '',
     userNotes = ''
   } = {}) => {
-    const planLabel = targetPlanId === 'ultra' ? 'Ultra' : 'Premium'
+    const label = planLabel(targetPlanId)
     if (!isOwner) {
-      toast.error(`Solo el propietario puede solicitar ${planLabel}.`)
+      toast.error(`Solo el propietario puede solicitar ${label}.`)
       return null
     }
 
@@ -432,6 +450,7 @@ export const SubscriptionProvider = ({ children }) => {
         targetPlanId,
         requestedMonths,
         billingCycle,
+        contactName,
         contactPhone,
         paymentMethod,
         paymentReference,
@@ -440,14 +459,14 @@ export const SubscriptionProvider = ({ children }) => {
 
       await fetchPendingPlanRequest()
 
-      toast.success(`Solicitud ${planLabel} enviada`, {
+      toast.success(`Solicitud ${label} enviada`, {
         description: 'Revisaremos tu solicitud y te contactaremos para confirmar la activación.'
       })
 
       return result
     } catch (error) {
-      const msg = error?.message || `No se pudo enviar la solicitud ${planLabel}.`
-      toast.error(`Error al solicitar ${planLabel}`, { description: msg })
+      const msg = error?.message || `No se pudo enviar la solicitud ${label}.`
+      toast.error(`Error al solicitar ${label}`, { description: msg })
       return null
     } finally {
       setLoading(false)
