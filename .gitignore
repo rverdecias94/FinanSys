@@ -28,3 +28,19 @@ dist-ssr
 
 # Local Netlify folder
 .netlify
+
+# Playwright / agent UI test artifacts
+.playwright-cli/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+/*.png
+
+# Deploy / MCP temp payloads (local only)
+.deploy-*
+.mcp-*.json
+.mcp-invoke.json
+
+# Supabase CLI local cache
+supabase/.temp/
