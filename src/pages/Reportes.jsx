@@ -19,12 +19,13 @@ import { PermissionGuard, usePermissionCheck } from '@/components/common/Permiss
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { ExportButton } from '@/components/common/ExportButton'
 import { ReportPreview } from '@/components/reportes/ReportPreview'
-import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig } from '@/services/finanzas'
+import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig, fetchSettledCashSources, listOpenAccounts } from '@/services/finanzas'
 import { AgingPanel } from '@/components/finanzas/AgingPanel'
 import { CashFlowPanel } from '@/components/finanzas/CashFlowPanel'
 import { PositionPanel } from '@/components/finanzas/PositionPanel'
 import { agingToExportRows } from '@/utils/aging'
 import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRows } from '@/utils/financials'
+import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpenAccountRows, openAccountsToExportRows } from '@/reporting/metrics'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
@@ -84,6 +85,8 @@ const Reportes = () => {
   const [previewReport, setPreviewReport] = useState(null)
   const [filename, setFilename] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
+  /** E2: 'recorded' = transacciones del período; 'settled' = caja liquidada (abonos + contado). */
+  const [cashBasis, setCashBasis] = useState('recorded')
 
   // Contadores por tab (alimentados por ResponsiveListing.onMeta).
   const [financeCount, setFinanceCount] = useState(0)
@@ -119,13 +122,40 @@ const Reportes = () => {
     exportToExcel(`Antiguedad ${income ? 'CxC' : 'CxP'}`, rows, fname)
   }
 
-  // Flujo de Efectivo (Q5): entradas/salidas/neto por moneda del período del filtro.
-  const { data: cashTotals, isLoading: cashLoading } = useQuery({
-    queryKey: ['cashflow', effectiveUserId, dateFilter?.startDate, dateFilter?.endDate],
+  // Flujo registrado (Q5/E2): entradas/salidas por fecha de transacción (cualquier status).
+  const { data: cashTotals, isLoading: recordedLoading } = useQuery({
+    queryKey: ['cashflow', 'recorded', effectiveUserId, dateFilter?.startDate, dateFilter?.endDate],
     queryFn: () => getFilteredTotals({ from: dateFilter?.startDate, to: dateFilter?.endDate, userId, businessId }),
     enabled: listingsEnabled && canViewFinanzas
   })
-  const cashFlow = buildCashFlow(cashTotals)
+  const recordedFlow = buildCashFlow(cashTotals)
+
+  // Flujo liquidado (E2): abonos por paid_at + altas al contado sin ledger.
+  const { data: settledSources, isLoading: settledLoading } = useQuery({
+    queryKey: ['cashflow', 'settled', effectiveUserId, dateFilter?.startDate, dateFilter?.endDate],
+    queryFn: () => fetchSettledCashSources({ from: dateFilter?.startDate, to: dateFilter?.endDate, userId, businessId }),
+    enabled: listingsEnabled && canViewFinanzas && cashBasis === 'settled'
+  })
+  const settledFlow = settledSources
+    ? buildSettledCashFlow(settledSources)
+    : []
+  const cashFlow = cashBasis === 'settled' ? settledFlow : recordedFlow
+  const cashLoading = cashBasis === 'settled' ? settledLoading : recordedLoading
+  const cashLabels = CASH_BASIS_LABELS[cashBasis] || CASH_BASIS_LABELS.recorded
+
+  // Detalle CxC/CxP abiertas (E2) para export — no mezcla monedas.
+  const { data: openRecvPage } = useQuery({
+    queryKey: ['openAccounts', 'receivable', effectiveUserId],
+    queryFn: () => listOpenAccounts({ direction: 'receivable', page: 1, pageSize: 100, userId, businessId }),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+  const { data: openPayPage } = useQuery({
+    queryKey: ['openAccounts', 'payable', effectiveUserId],
+    queryFn: () => listOpenAccounts({ direction: 'payable', page: 1, pageSize: 100, userId, businessId }),
+    enabled: !!userId && !!effectiveUserId && canViewFinanzas
+  })
+  const openReceivableRows = buildOpenAccountRows(openRecvPage?.data || [], 'receivable')
+  const openPayableRows = buildOpenAccountRows(openPayPage?.data || [], 'payable')
 
   // Posición (Q5): saldo (business_balances, devengado) + por cobrar/pagar (aging) →
   // caja real. Las queries de aging recv/pay comparten caché con el Card de Antigüedad.
@@ -148,16 +178,34 @@ const Reportes = () => {
   const positionLoading = recvLoading || payLoading
 
   const exportCashFlow = (type) => {
-    const rows = cashFlowToExportRows(cashFlow)
-    const fname = 'flujo_efectivo'
+    const labeled = cashFlowRowsToExport(cashFlow, cashBasis)
+    // Compat: si alguien espera las claves antiguas en recorded, cashFlowToExportRows sigue existiendo.
+    const rows = cashBasis === 'recorded' ? cashFlowToExportRows(cashFlow) : labeled
+    const fname = cashBasis === 'settled' ? 'flujo_liquidado' : 'flujo_registrado'
+    const title = cashLabels.title
     const label = dateFilter?.label ? ` - ${dateFilter.label}` : ''
     if (type === 'pdf') {
-      const headers = ['Moneda', 'Entradas', 'Salidas', 'Flujo neto']
-      const body = rows.map((r) => [r.Moneda, r.Entradas, r.Salidas, r['Flujo neto']].map(String))
-      exportToPDF(`Flujo de Efectivo${label}`, headers, body, fname, pdfOptions())
+      const headers = Object.keys(rows[0] || { Moneda: '', A: '', B: '', C: '' })
+      const body = rows.map((r) => headers.map((h) => String(r[h] ?? '')))
+      exportToPDF(`${title}${label}`, headers, body, fname, pdfOptions())
       return
     }
-    exportToExcel('Flujo de Efectivo', rows, fname)
+    exportToExcel(title, rows, fname)
+  }
+
+  const exportOpenAccounts = (direction, type) => {
+    const rows = openAccountsToExportRows(
+      direction === 'payable' ? openPayableRows : openReceivableRows
+    )
+    const title = direction === 'payable' ? 'Cuentas por pagar (detalle)' : 'Cuentas por cobrar (detalle)'
+    const fname = direction === 'payable' ? 'cxp_detalle' : 'cxc_detalle'
+    if (type === 'pdf') {
+      const headers = rows[0] ? Object.keys(rows[0]) : ['Moneda', 'Contacto', 'Saldo abierto']
+      const body = rows.map((r) => headers.map((h) => String(r[h] ?? '')))
+      exportToPDF(title, headers, body, fname, pdfOptions())
+      return
+    }
+    exportToExcel(title, rows, fname)
   }
 
   const exportPosition = (type) => {
@@ -255,6 +303,13 @@ const Reportes = () => {
   }
 
   const exportInventario = async (type) => {
+    const domainLabel = {
+      merchandise: 'Mercancía / listas',
+      supplies: 'Suministros',
+      fixed_asset: 'Activos y equipos',
+      tool: 'Herramientas',
+      custom: 'Personalizado'
+    }
     const summary = await fetchInventorySummaryForExport()
     const totalItems = summary.reduce((sum, a) => sum + (a.itemsCount || 0), 0)
     const data = summary
@@ -262,12 +317,13 @@ const Reportes = () => {
       .sort((a, b) => (b.itemsCount || 0) - (a.itemsCount || 0))
       .map(area => ({
         Área: area.name,
-        'Ítems Registrados (en periodo)': area.itemsCount ?? 0,
-        'Participación': totalItems > 0 ? `${(((area.itemsCount || 0) / totalItems) * 100).toFixed(1)}%` : '0.0%'
+        Tipo: domainLabel[area.domain_type] || 'Personalizado',
+        'Ítems registrados': area.itemsCount ?? 0,
+        Participación: totalItems > 0 ? `${(((area.itemsCount || 0) / totalItems) * 100).toFixed(1)}%` : '0.0%'
       }))
 
     if (type === 'pdf') {
-      const headers = ['Área', 'Ítems Registrados', 'Participación']
+      const headers = ['Área', 'Tipo', 'Ítems registrados', 'Participación']
       const body = data.map(Object.values)
       await exportToPDF(`Resumen de Inventario - ${dateFilter?.label}`, headers, body, `inventario_${dateFilter?.type}`, pdfOptions())
       return
@@ -359,7 +415,9 @@ const Reportes = () => {
     <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Reportes y Resúmenes</h1>
-        <p className="text-muted-foreground">Genera y exporta reportes de tus módulos.</p>
+        <p className="text-muted-foreground">
+          Finanzas (caja), Almacén (stock de venta) e Inventario (áreas, equipos y listas). Los comprobantes de recepción/ajuste se gestionan en Almacén.
+        </p>
       </div>
 
       <DateRangeFilter onFilterChange={handleFilterChange}>
@@ -534,10 +592,12 @@ const Reportes = () => {
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
                 <div className="space-y-1 min-w-0">
                   <CardTitle className="flex items-center gap-2">
-                    Resumen de Inventario (Activos)
+                    Resumen de Inventario (áreas y activos)
                     <Badge variant="secondary" className="shrink-0">{inventoryCount}</Badge>
                   </CardTitle>
-                  <CardDescription>Ítems registrados durante: {dateFilter.label}</CardDescription>
+                  <CardDescription>
+                    Fichas por área (equipos, suministros, listas). La mercancía de venta está en Almacén. Periodo: {dateFilter.label}
+                  </CardDescription>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
@@ -560,7 +620,15 @@ const Reportes = () => {
                   getItemKey={(area) => area.id}
                   emptyMessage="No hay áreas configuradas."
                   loadingMessage="Cargando inventario..."
-                  renderItem={(area) => (
+                  renderItem={(area) => {
+                    const tipo = ({
+                      merchandise: 'Mercancía / listas',
+                      supplies: 'Suministros',
+                      fixed_asset: 'Activos',
+                      tool: 'Herramientas',
+                      custom: 'Personalizado'
+                    })[area.domain_type] || 'Personalizado'
+                    return (
                     <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                       <div className="flex min-w-0 items-start gap-3 sm:items-center">
                         <div className="shrink-0 rounded-full bg-primary/10 p-2">
@@ -568,15 +636,17 @@ const Reportes = () => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-medium break-words">{area.name}</div>
-                          <div className="text-sm text-muted-foreground">Ítems registrados en el periodo</div>
+                          <div className="text-sm text-muted-foreground">{tipo} · ítems en el periodo</div>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                        <Badge variant="outline" className="whitespace-nowrap">{tipo}</Badge>
                         <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount ?? 0} ítems</Badge>
                       </div>
                     </div>
-                  )}
+                    )
+                  }}
                 />
               </CardContent>
             </Card>
@@ -584,24 +654,50 @@ const Reportes = () => {
         </Tabs>
       )}
 
-      {/* Flujo de Efectivo (Q5): entradas/salidas del período del filtro, por moneda. */}
+      {/* Flujo registrado / liquidado (Q5/E2): dos bases explícitas, sin sustituir en silencio. */}
       {canViewFinanzas && (
         <Card>
-          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-1 min-w-0">
               <CardTitle className="flex items-center gap-2">
                 <ArrowLeftRight className="h-5 w-5 text-primary" />
-                Flujo de Efectivo
+                {cashLabels.title}
               </CardTitle>
-              <CardDescription>{dateFilter?.label ? `Entradas y salidas · ${dateFilter.label}` : 'Selecciona un período arriba'}</CardDescription>
+              <CardDescription>
+                {dateFilter?.label
+                  ? `${cashLabels.description} · ${dateFilter.label}`
+                  : 'Selecciona un período arriba'}
+              </CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              <PermissionGuard permission="reports.export" mode="disable">
-                <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
-              </PermissionGuard>
-              <PermissionGuard permission="reports.export" mode="disable">
-                <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
-              </PermissionGuard>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={cashBasis === 'recorded' ? 'default' : 'outline'}
+                  className="h-9"
+                  onClick={() => setCashBasis('recorded')}
+                >
+                  Registrado
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={cashBasis === 'settled' ? 'default' : 'outline'}
+                  className="h-9"
+                  onClick={() => setCashBasis('settled')}
+                >
+                  Liquidado
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                <PermissionGuard permission="reports.export" mode="disable">
+                  <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
+                </PermissionGuard>
+                <PermissionGuard permission="reports.export" mode="disable">
+                  <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
+                </PermissionGuard>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -609,6 +705,9 @@ const Reportes = () => {
               rows={cashFlow}
               loading={cashLoading}
               formatCurrency={formatCurrency}
+              netLabel={cashLabels.net}
+              inflowLabel={cashLabels.inflow}
+              outflowLabel={cashLabels.outflow}
               emptyMessage={dateFilter ? 'No hay movimientos en el período seleccionado.' : 'Selecciona un período arriba para ver el flujo.'}
             />
           </CardContent>
@@ -660,6 +759,16 @@ const Reportes = () => {
                 </TabsList>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
+                    <ExportButton
+                      format="excel"
+                      label="Detalle"
+                      locked={!canExportDocs}
+                      onClick={() => canExportDocs
+                        ? exportOpenAccounts(agingTab === 'payable' ? 'payable' : 'receivable', 'excel')
+                        : notifyPremiumExport('Excel')}
+                    />
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
                     <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
@@ -669,9 +778,19 @@ const Reportes = () => {
               </div>
               <TabsContent value="receivable" className="mt-4">
                 <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income emptyMessage="No hay cuentas por cobrar pendientes." />
+                {openReceivableRows.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {openReceivableRows.length} cuenta{openReceivableRows.length === 1 ? '' : 's'} abierta{openReceivableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
+                  </p>
+                )}
               </TabsContent>
               <TabsContent value="payable" className="mt-4">
                 <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income={false} emptyMessage="No hay cuentas por pagar pendientes." />
+                {openPayableRows.length > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {openPayableRows.length} cuenta{openPayableRows.length === 1 ? '' : 's'} abierta{openPayableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
+                  </p>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

@@ -1,19 +1,15 @@
-// Q5 — Flujo de Efectivo y Posición simplificada. Helpers puros sobre datos que ya
-// provee la app (getFilteredTotals, getBalanceConfig, getAgingReport): NO hay RPC nueva.
+// Q5 / E2 — Flujo y Posición. buildCashFlow conserva la firma histórica (= flujo registrado
+// desde getFilteredTotals). La lógica settled vive en src/reporting/metrics/.
+
+import { buildRecordedFlowFromTotals } from '@/reporting/metrics/cashMetrics'
 
 const num = (v) => Number(v || 0)
 
-// Flujo de Efectivo del período por moneda, a partir de getFilteredTotals
+// Flujo REGISTRADO del período por moneda, a partir de getFilteredTotals
 // ({ income: {USD,CUP,...}, expense: {...} }). net = entradas - salidas.
+// Misma forma que antes de E2; no es caja liquidada.
 export function buildCashFlow(totals) {
-  const income = totals?.income || {}
-  const expense = totals?.expense || {}
-  const currencies = [...new Set([...Object.keys(income), ...Object.keys(expense)])].sort()
-  return currencies.map((currency) => {
-    const inflow = num(income[currency])
-    const outflow = num(expense[currency])
-    return { currency, inflow, outflow, net: inflow - outflow }
-  })
+  return buildRecordedFlowFromTotals(totals)
 }
 
 // Posición simplificada por moneda. El saldo (business_balances) es DEVENGADO: ya
@@ -40,7 +36,7 @@ export function buildPosition(balances, receivable, payable) {
   }).filter((r) => r.saldo !== 0 || r.porCobrar !== 0 || r.porPagar !== 0)
 }
 
-// Filas planas para exportar el flujo (Excel/PDF).
+// Filas planas para exportar el flujo (Excel/PDF). Etiquetas históricas por compatibilidad.
 export function cashFlowToExportRows(rows) {
   return (rows || []).map((r) => ({
     Moneda: r.currency,

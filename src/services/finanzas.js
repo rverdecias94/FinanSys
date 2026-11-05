@@ -465,6 +465,8 @@ export function computeTotals(rows) {
   }
 
   for (const r of rows) {
+    // E2: type=transfer no es ingreso/gasto (evita contaminar flujo registrado).
+    if (r.type !== 'income' && r.type !== 'expense') continue
     if (!totals[r.type][r.currency]) {
       totals[r.type][r.currency] = 0
     }
@@ -472,6 +474,79 @@ export function computeTotals(rows) {
   }
 
   return totals
+}
+
+/**
+ * E2 — Fuentes para flujo liquidado (settled) en un período.
+ * Abonos por paid_at + candidatos a alta al contado (paid sin ledger).
+ * No usa paid_amount como movimiento de caja (es caché).
+ */
+export async function fetchSettledCashSources({ from, to, userId, businessId } = {}) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+
+  let payQ = supabase
+    .from('account_payments')
+    .select('id, amount, paid_at, transaction_id, transactions!inner(id, type, currency, status, amount, paid_amount, date)')
+    .eq('user_id', effectiveUserId)
+  if (from) payQ = payQ.gte('paid_at', from)
+  if (to) payQ = payQ.lte('paid_at', to)
+
+  const { data: payRows, error: payErr } = await payQ
+  if (payErr) throw payErr
+
+  const payments = (payRows || []).map((p) => ({
+    id: p.id,
+    amount: p.amount,
+    paid_at: p.paid_at,
+    transaction_id: p.transaction_id,
+  }))
+
+  let txQ = supabase
+    .from('transactions')
+    .select('id, type, currency, status, amount, paid_amount, date')
+    .eq('user_id', effectiveUserId)
+    .eq('status', 'paid')
+    .in('type', ['income', 'expense'])
+  if (from) txQ = txQ.gte('date', from)
+  if (to) txQ = txQ.lte('date', to)
+
+  const { data: paidTxs, error: txErr } = await txQ
+  if (txErr) throw txErr
+
+  const paymentCountsByTx = {}
+  for (const p of payments) {
+    const id = Number(p.transaction_id)
+    paymentCountsByTx[id] = (paymentCountsByTx[id] || 0) + 1
+  }
+
+  const candidateIds = (paidTxs || []).map((t) => Number(t.id))
+  const needCount = candidateIds.filter((id) => paymentCountsByTx[id] == null)
+  if (needCount.length) {
+    const { data: allPays, error: cntErr } = await supabase
+      .from('account_payments')
+      .select('transaction_id')
+      .eq('user_id', effectiveUserId)
+      .in('transaction_id', needCount)
+    if (cntErr) throw cntErr
+    for (const id of needCount) paymentCountsByTx[id] = 0
+    for (const p of allPays || []) {
+      const id = Number(p.transaction_id)
+      paymentCountsByTx[id] = (paymentCountsByTx[id] || 0) + 1
+    }
+  }
+
+  const byId = new Map()
+  for (const p of payRows || []) {
+    if (p.transactions) byId.set(Number(p.transactions.id), p.transactions)
+  }
+  for (const t of paidTxs || []) byId.set(Number(t.id), t)
+
+  return {
+    transactions: [...byId.values()],
+    payments,
+    paymentCountsByTx,
+    period: { from, to },
+  }
 }
 
 export async function getMonthlySummary(userId, businessId, year, month) {
