@@ -115,7 +115,7 @@ export default function ForgotPassword() {
         {/* Header Section */}
         <div className="flex flex-col items-center space-y-4">
           <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-            <img src="/logo.png" alt="Logo" className="h-10 w-10 object-contain" />
+            <img src="/logo_ico.png" alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <div className="text-center space-y-1">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">

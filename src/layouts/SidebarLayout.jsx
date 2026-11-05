@@ -20,6 +20,7 @@ import { AccountGate } from '@/components/auth/AccountGate'
 import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { cn } from '@/lib/utils'
+import BrandLogo from '@/components/BrandLogo'
 
 const SIDEBAR_COLLAPSED_KEY = 'gestia.sidebarCollapsed'
 const SIDEBAR_GROUPS_KEY = 'gestia.sidebarGroupsOpen'
@@ -423,7 +424,7 @@ export default function SidebarLayout() {
           <div className={`flex h-full min-h-0 flex-col ${collapsed ? 'lg:hidden' : ''}`}>
             <div className="mb-4 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center font-bold text-xl">
-                <img src="/logo.png" alt="Logo" className="h-16 w-36 object-contain" />
+                <BrandLogo className="h-16 w-36 object-contain" />
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button
@@ -512,7 +513,7 @@ export default function SidebarLayout() {
           <OfflineBanner />
           <PaymentReminderBanner />
           <header className="sticky top-0 z-30 flex items-center border-b bg-background px-4 py-3 lg:hidden">
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto object-contain" />
+            <BrandLogo className="h-8 w-auto object-contain" />
             <div className="ml-auto flex items-center gap-2">
               <span className="text-sm font-semibold">Menú</span>
               <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>

@@ -59,18 +59,18 @@ export function buildAuditDocument({
 
   const sections = [
     {
-      title: '0. Nota metodológica',
+      title: '1. Metodología',
       content:
         `${DEFAULT_DISCLAIMER} Este informe lista eventos de audit_logs hasta la fecha de corte. ` +
         'Es una consulta recalculable: registros posteriores o retroactivos pueden cambiar el resultado al regenerar. ' +
         'No es un documento emitido inmutable (eso corresponde a E6).',
     },
     {
-      title: '1. Resumen',
+      title: '2. Resumen',
       content: `Se incluyen ${rows.length} evento(s) de auditoría en ${periodLabel}. Columnas: quién, qué, cuándo, objeto, antes/después e IP cuando existen.`,
     },
     {
-      title: '2. Eventos',
+      title: '3. Eventos',
       type: 'table',
       headers: [
         'Fecha/hora',

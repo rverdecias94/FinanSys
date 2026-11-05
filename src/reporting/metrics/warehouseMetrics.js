@@ -1,7 +1,8 @@
 /**
- * E4 — Existencias y Kardex.
+ * E4/post-revisión — Existencias y Kardex.
  * Valoración SOLO con movements.unit_cost sellado. Nunca products.avg_cost actual.
  * No agregar cantidades entre productos (UDM distintas).
+ * productName limpio (sin SKU concatenado); sku en campo aparte.
  */
 
 const num = (v) => {
@@ -18,10 +19,27 @@ export function productKey(m) {
   return String(m?.products?.name || m?.product_name || 'unknown')
 }
 
+/** Nombre de producto sin concatenar SKU (evitar duplicados en tablas). */
+export function productNameOnly(m) {
+  return m?.products?.name || m?.product_name || 'Producto'
+}
+
+/** @deprecated Preferir productNameOnly + sku separado. Conservado para callers legacy. */
 export function productLabel(m) {
-  const name = m?.products?.name || m?.product_name || 'Producto'
-  const sku = m?.products?.sku || m?.sku
-  return sku ? `${name} (${sku})` : name
+  return productNameOnly(m)
+}
+
+export function productSku(m) {
+  return m?.products?.sku || m?.sku || null
+}
+
+export function productCurrency(m) {
+  return m?.products?.currency || m?.currency || null
+}
+
+/** UDM no está en el modelo de products; no se inventa. */
+export function productUom(_m) {
+  return null
 }
 
 export function sortMovementsChronologically(movements = []) {
@@ -58,6 +76,13 @@ function parseUnitCost(m) {
   return Number.isFinite(n) ? n : null
 }
 
+function movementRefLabel(m) {
+  const parts = []
+  if (m?.document_id != null) parts.push(`Doc ${m.document_id}`)
+  if (m?.transaction_id != null) parts.push(`Tx ${m.transaction_id}`)
+  return parts.length ? parts.join(' · ') : null
+}
+
 /**
  * Kardex de un producto: saldo corrido de cantidad; valor solo si TODAS las líneas
  * hasta el momento tienen unit_cost.
@@ -88,6 +113,9 @@ export function buildKardexForProduct(movements = [], key = null) {
 
     rows.push({
       movementId: m.id ?? null,
+      documentId: m.document_id ?? null,
+      transactionId: m.transaction_id ?? null,
+      sourceRef: movementRefLabel(m),
       effectiveAt: movementEffectiveAt(m),
       type: m.type,
       qtyIn: inbound ? q : null,
@@ -97,23 +125,57 @@ export function buildKardexForProduct(movements = [], key = null) {
       balanceQty: qty,
       balanceValue: valuationOk ? value : null,
       valuationAvailable: valuationOk,
+      missingCost: cost == null,
+      negativeBalance: qty < 0,
       productId: m.product_id ?? null,
-      productName: productLabel(m),
-      sku: m.products?.sku || m.sku || null,
-      currency: m.products?.currency || m.currency || null,
+      productName: productNameOnly(m),
+      sku: productSku(m),
+      currency: productCurrency(m),
+      uom: productUom(m),
     })
   }
 
+  const sample = filtered[0]
   return {
-    productKey: key != null ? String(key) : (filtered[0] ? productKey(filtered[0]) : null),
-    productName: filtered[0] ? productLabel(filtered[0]) : null,
-    sku: filtered[0]?.products?.sku || filtered[0]?.sku || null,
-    currency: filtered[0]?.products?.currency || filtered[0]?.currency || null,
+    productKey: key != null ? String(key) : (sample ? productKey(sample) : null),
+    productName: sample ? productNameOnly(sample) : null,
+    sku: sample ? productSku(sample) : null,
+    currency: sample ? productCurrency(sample) : null,
+    uom: null,
     rows,
     finalQty: qty,
     finalValue: valuationOk ? value : null,
     valuationAvailable: valuationOk && filtered.length > 0,
     missingCostLines: filtered.filter((m) => parseUnitCost(m) == null).length,
+    negativeBalance: qty < 0,
+  }
+}
+
+/**
+ * Kardex con saldo inicial explícito respecto a un período.
+ * opening = Kardex de movimientos previos; periodRows = líneas del período con saldo corrido.
+ */
+export function buildPeriodKardexForProduct(movements = [], key, { from = null, to = null } = {}) {
+  const { before, during } = splitMovementsByPeriod(movements, from, to)
+  const beforeForKey = before.filter((m) => productKey(m) === String(key))
+  const duringForKey = during.filter((m) => productKey(m) === String(key))
+  const opening = buildKardexForProduct(beforeForKey, key)
+  const full = buildKardexForProduct([...beforeForKey, ...duringForKey], key)
+  const periodRows = full.rows.slice(beforeForKey.length)
+
+  const openingSource = beforeForKey.length
+    ? 'Saldo reconstruido con movimientos previos al inicio del período (fecha efectiva).'
+    : 'Sin movimientos previos al período: saldo inicial 0 (reconstruido; no es conteo físico).'
+
+  return {
+    ...full,
+    openingQty: opening.finalQty,
+    openingValue: opening.finalValue,
+    openingValuationAvailable: opening.valuationAvailable,
+    openingSource,
+    periodRows,
+    beforeCount: beforeForKey.length,
+    negativeBalance: full.finalQty < 0,
   }
 }
 
@@ -125,10 +187,19 @@ export function buildKardexByProduct(movements = []) {
     .sort((a, b) => String(a.productName || '').localeCompare(String(b.productName || ''), 'es'))
 }
 
+/** Kardex por producto con apertura de período. */
+export function buildPeriodKardexByProduct(movements = [], { from = null, to = null } = {}) {
+  const { before, during } = splitMovementsByPeriod(movements, from, to)
+  const keys = [...new Set([...before, ...during].map(productKey))]
+  return keys
+    .map((k) => buildPeriodKardexForProduct(movements, k, { from, to }))
+    .sort((a, b) => String(a.productName || '').localeCompare(String(b.productName || ''), 'es'))
+}
+
 /**
  * Resumen de existencias por producto en un período.
  * Requiere movimientos previos (before) + del período (during) para saldo inicial.
- * Nunca suma qty entre productos.
+ * Nunca suma qty entre productos. Saldo = reconstruido, no físico verificado.
  */
 export function buildWarehouseStockByProduct(movements = [], { from = null, to = null } = {}) {
   const { before, during } = splitMovementsByPeriod(movements, from, to)
@@ -158,13 +229,21 @@ export function buildWarehouseStockByProduct(movements = [], { from = null, to =
       : null
 
     const sample = periodMoves[0] || before.find((m) => productKey(m) === k)
+    const openingSource = before.some((m) => productKey(m) === k)
+      ? 'movimientos_previos'
+      : 'sin_historial_previo'
 
     return {
       productKey: k,
-      productName: sample ? productLabel(sample) : k,
-      sku: sample?.products?.sku || sample?.sku || null,
-      currency: sample?.products?.currency || sample?.currency || null,
+      productName: sample ? productNameOnly(sample) : k,
+      sku: sample ? productSku(sample) : null,
+      uom: null,
+      currency: sample ? productCurrency(sample) : null,
       qtyInitial: opening.finalQty,
+      openingSource,
+      openingSourceLabel: openingSource === 'movimientos_previos'
+        ? 'Reconstruido con movimientos previos al período'
+        : 'Sin movimientos previos (inicial 0 reconstruido)',
       qtyIn,
       qtyOut,
       qtyFinal: closing.finalQty,
@@ -175,8 +254,26 @@ export function buildWarehouseStockByProduct(movements = [], { from = null, to =
       valuationAvailable: closing.valuationAvailable,
       missingCostLines: closing.missingCostLines,
       movementCount: periodMoves.length,
+      negativeBalance: closing.finalQty < 0,
+      qualityLabel: !closing.valuationAvailable
+        ? 'Valoración N/D'
+        : (closing.finalQty < 0 ? 'Saldo negativo' : 'OK'),
     }
   }).sort((a, b) => String(a.productName).localeCompare(String(b.productName), 'es'))
+}
+
+export function summarizeWarehouseDataQuality(rows = []) {
+  const total = rows.length
+  const valued = rows.filter((r) => r.valuationAvailable).length
+  const negative = rows.filter((r) => r.negativeBalance).length
+  const missingCost = rows.filter((r) => !r.valuationAvailable).length
+  return {
+    total,
+    valued,
+    negative,
+    missingCost,
+    valuedPct: total ? Math.round((valued / total) * 100) : 0,
+  }
 }
 
 export function formatValuation(value, available) {

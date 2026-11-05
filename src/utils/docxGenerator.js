@@ -1,4 +1,3 @@
-
 import {
   Document,
   Packer,
@@ -10,7 +9,9 @@ import {
   TableRow,
   TableCell,
   WidthType,
-  ImageRun
+  ImageRun,
+  Footer,
+  PageNumber,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { loadLogoAsPng, buildCompanyLines } from './reportBranding';
@@ -25,6 +26,8 @@ import { loadLogoAsPng, buildCompanyLines } from './reportBranding';
 export const generateDOCX = async (reportData, filename, options = {}) => {
   const { company = null } = options;
   const children = [];
+  const reportTitle = reportData?.title || 'Informe GESTIA';
+  const reportId = reportData?.id || reportData?.type || '';
 
   // 0. Membrete del negocio (premium / custom_branding): logo + identificación
   if (company) {
@@ -63,37 +66,37 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
   // 1. Title
   children.push(
     new Paragraph({
-      text: reportData.title,
+      text: reportTitle,
       heading: HeadingLevel.TITLE,
       alignment: AlignmentType.CENTER,
       spacing: { after: 300 },
     })
   );
 
-  // 2. Metadata Block
+  // 2. Metadata Block (sin separador "---")
   if (reportData.metadata) {
     reportData.metadata.forEach(meta => {
       children.push(
         new Paragraph({
           children: [
             new TextRun({ text: `${meta.label}: `, bold: true }),
-            new TextRun({ text: meta.value })
+            new TextRun({ text: String(meta.value ?? '') })
           ],
           spacing: { after: 100 }
         })
       );
     });
-    children.push(new Paragraph({ text: "", spacing: { after: 300 } })); // Spacer
-    children.push(new Paragraph({ 
-      text: "---", 
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 300 }
+    children.push(new Paragraph({
+      text: '',
+      border: { bottom: { color: 'DDDDDD', size: 6, space: 1, style: 'single' } },
+      spacing: { before: 100, after: 300 }
     }));
   }
 
   // 3. Sections
-  reportData.sections.forEach(section => {
-    // Section Title
+  (reportData.sections || []).forEach((section, sectionIndex) => {
+    const pageBreakBefore = Boolean(section.pageBreakBefore) && sectionIndex > 0;
+
     if (section.title) {
       const isMajorHeader = section.type === 'header_section';
       children.push(
@@ -101,12 +104,20 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
           text: section.title,
           heading: isMajorHeader ? HeadingLevel.HEADING_1 : HeadingLevel.HEADING_2,
           spacing: { before: isMajorHeader ? 400 : 300, after: 200 },
-          alignment: isMajorHeader ? AlignmentType.CENTER : AlignmentType.LEFT
+          alignment: isMajorHeader ? AlignmentType.CENTER : AlignmentType.LEFT,
+          pageBreakBefore,
+        })
+      );
+    } else if (pageBreakBefore) {
+      children.push(
+        new Paragraph({
+          text: '',
+          pageBreakBefore: true,
+          spacing: { after: 0 },
         })
       );
     }
 
-    // Section Content by Type
     if (section.type === 'paragraph' || !section.type) {
       if (section.content) {
         children.push(
@@ -118,42 +129,49 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
         );
       }
     } else if (section.type === 'table') {
+      const colCount = Math.max(
+        section.headers?.length || 0,
+        ...(section.rows || []).map((row) => row.length),
+        1
+      );
+      const colWidthPct = 100 / colCount;
       const tableRows = [];
 
-      // Header Row
       if (section.headers) {
         tableRows.push(
           new TableRow({
-            children: section.headers.map(header => 
+            cantSplit: true,
+            children: section.headers.map(header =>
               new TableCell({
-                children: [new Paragraph({ 
-                  children: [new TextRun({ text: header, bold: true, size: 22 })],
-                  alignment: AlignmentType.CENTER 
+                children: [new Paragraph({
+                  children: [new TextRun({ text: String(header ?? ''), bold: true, size: 20 })],
+                  alignment: AlignmentType.CENTER
                 })],
-                shading: { fill: "F0F0F0" },
-                width: { size: 100 / section.headers.length, type: WidthType.PERCENTAGE },
-                verticalAlign: "center",
+                shading: { fill: 'F0F0F0' },
+                width: { size: colWidthPct, type: WidthType.PERCENTAGE },
+                verticalAlign: 'center',
               })
             ),
           })
         );
       }
 
-      // Data Rows
       if (section.rows) {
         section.rows.forEach(row => {
           tableRows.push(
             new TableRow({
-              children: row.map(cell => 
-                new TableCell({
-                  children: [new Paragraph({ 
-                    text: cell, 
-                    size: 22,
-                    alignment: isNaN(cell) ? AlignmentType.LEFT : AlignmentType.RIGHT // Auto align numbers
+              cantSplit: true,
+              children: row.map(cell => {
+                const text = cell == null ? '' : String(cell);
+                const looksNumeric = text !== '' && !Number.isNaN(Number(String(text).replace(/[^\d.-]/g, ''))) && /[\d]/.test(text);
+                return new TableCell({
+                  children: [new Paragraph({
+                    children: [new TextRun({ text, size: 20 })],
+                    alignment: looksNumeric ? AlignmentType.RIGHT : AlignmentType.LEFT,
                   })],
-                  width: { size: 100 / row.length, type: WidthType.PERCENTAGE },
-                })
-              ),
+                  width: { size: colWidthPct, type: WidthType.PERCENTAGE },
+                });
+              }),
             })
           );
         });
@@ -165,13 +183,13 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
           width: { size: 100, type: WidthType.PERCENTAGE },
         })
       );
-      children.push(new Paragraph({ text: "", spacing: { after: 200 } })); // Spacer after table
+      children.push(new Paragraph({ text: '', spacing: { after: 200 } }));
     } else if (section.type === 'list') {
       if (section.items) {
         section.items.forEach(item => {
           children.push(
             new Paragraph({
-              children: [new TextRun({ text: item.replace(/\*\*/g, ''), size: 24 })], // Remove markdown bold markers for now
+              children: [new TextRun({ text: String(item).replace(/\*\*/g, ''), size: 24 })],
               bullet: { level: 0 },
               spacing: { after: 100 }
             })
@@ -180,7 +198,6 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
       }
     }
 
-    // Notes
     if (section.notes) {
       children.push(
         new Paragraph({
@@ -193,27 +210,35 @@ export const generateDOCX = async (reportData, filename, options = {}) => {
     }
   });
 
-  // Footer
   const footerName = company ? (company.tradeName || company.legalName || '') : '';
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `${footerName ? `${footerName} — ` : ''}Generado automáticamente el ${new Date().toLocaleDateString()} a las ${new Date().toLocaleTimeString()}`,
-          italics: true,
-          size: 16, // 8pt
-          color: "888888"
-        }),
-      ],
-      spacing: { before: 600 },
-      alignment: AlignmentType.CENTER,
-    })
-  );
+  const footerLeft = [footerName, reportTitle, reportId].filter(Boolean).join(' · ');
+  const emittedAt = `Emitido ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
 
   const doc = new Document({
     sections: [{
-      properties: {},
-      children: children,
+      properties: {
+        page: {
+          pageNumbers: { start: 1 },
+        },
+      },
+      headers: undefined,
+      footers: {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({ text: footerLeft || 'GESTIA', size: 16, color: '666666' }),
+                new TextRun({ text: '  |  ', size: 16, color: 'AAAAAA' }),
+                new TextRun({ text: emittedAt, size: 16, color: '888888', italics: true }),
+                new TextRun({ text: '  |  Pág. ', size: 16, color: '666666' }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, color: '666666' }),
+              ],
+              alignment: AlignmentType.CENTER,
+            }),
+          ],
+        }),
+      },
+      children,
     }],
   });
 

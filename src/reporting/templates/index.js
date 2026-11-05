@@ -27,6 +27,10 @@ function attachPeriod(doc, periodContext) {
   for (const m of cutoffMetadata(periodContext)) {
     if (!meta.some((x) => x.label === m.label)) meta.push(m)
   }
+  const warnings = [...(doc.warnings || [])]
+  for (const w of periodContext.warnings || []) {
+    if (!warnings.includes(w)) warnings.push(w)
+  }
   return {
     ...doc,
     period: {
@@ -34,6 +38,7 @@ function attachPeriod(doc, periodContext) {
       ...periodContext,
     },
     metadata: meta,
+    warnings,
     generatedAt: periodContext.generatedAt || doc.generatedAt,
   }
 }
@@ -44,9 +49,13 @@ function attachPeriod(doc, periodContext) {
 export function buildReport(templateId, payload = {}, { asLegacy = true } = {}) {
   const periodContext = payload.periodContext || resolvePeriodContext(payload.dateFilter, {
     cutoffAt: payload.cutoffAt,
-    timezone: payload.timezone,
+    timezone: payload.timezone, // si no viene, resolvePeriodContext usa getClientTimeZone()
   })
-  const enriched = { ...payload, periodContext }
+  // Propagar etiqueta efectiva al dateFilter que consumen narrativas legacy.
+  const dateFilter = payload.dateFilter
+    ? { ...payload.dateFilter, label: periodContext.label || payload.dateFilter.label }
+    : payload.dateFilter
+  const enriched = { ...payload, dateFilter, periodContext }
 
   let doc
   switch (templateId) {

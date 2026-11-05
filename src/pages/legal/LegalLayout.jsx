@@ -48,7 +48,7 @@ export default function LegalLayout({ title, children }) {
       <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link to="/login" className="flex items-center gap-2">
-            <img src="/logo.png" alt={LEGAL.producto} className="h-7 w-7 object-contain" />
+            <img src="/logo_ico.png" alt={LEGAL.producto} className="h-7 w-7 object-contain" />
             <span className="font-semibold tracking-tight">{LEGAL.producto}</span>
           </Link>
           <button

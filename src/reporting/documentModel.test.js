@@ -60,7 +60,7 @@ describe('templates E3', () => {
     expect(JSON.stringify(report)).not.toMatch(/margen neto/i)
   })
 
-  it('buildReport executive incluye KPIs y disclaimer', () => {
+  it('buildReport executive incluye flujo por moneda y disclaimer', () => {
     const report = buildReport('executive', {
       transactions: multiCurrencyTransactions,
       movements: mixedUomMovements,
@@ -70,12 +70,13 @@ describe('templates E3', () => {
       openPayableCount: 1,
     })
     expect(report.title).toMatch(/ejecutivo/i)
-    expect(report.sections.some((s) => /Indicadores clave/i.test(s.title))).toBe(true)
+    expect(report.sections.some((s) => /Flujo registrado por moneda/i.test(s.title))).toBe(true)
     expect(JSON.stringify(report)).toMatch(/partida doble|registros operacionales/i)
     expect(JSON.stringify(report)).toMatch(/Por cobrar abiertas/i)
+    expect(JSON.stringify(report)).toMatch(/Recomendaciones/i)
   })
 
-  it('buildReport global mantiene cabeceras I/II/III', () => {
+  it('buildReport global es síntesis (no copia I/II/III íntegra)', () => {
     const report = buildReport('global', {
       transactions: multiCurrencyTransactions,
       movements: mixedUomMovements,
@@ -83,11 +84,11 @@ describe('templates E3', () => {
       dateFilter,
     })
     const headers = report.sections.filter((s) => s.type === 'header_section').map((s) => s.title)
-    expect(headers).toEqual([
-      'I. MÓDULO FINANCIERO',
-      'II. MÓDULO DE ALMACÉN',
-      'III. INVENTARIO',
-    ])
+    expect(headers).toEqual([])
+    expect(report.sections.some((s) => /Resumen ejecutivo consolidado/i.test(s.title))).toBe(true)
+    expect(report.sections.some((s) => /Finanzas \(síntesis\)/i.test(s.title))).toBe(true)
+    expect(JSON.stringify(report)).toMatch(/fichas/i)
+    expect(JSON.stringify(report)).not.toMatch(/I\. MÓDULO FINANCIERO/)
   })
 
   it('buildReport asLegacy:false existencias/kardex devuelven Document', () => {

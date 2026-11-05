@@ -8,6 +8,7 @@ import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3, Mail, Clock } from 'l
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
 import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
+import BrandLogo from '@/components/BrandLogo'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -182,7 +183,7 @@ export default function Login() {
 
           <div className="flex flex-col items-center space-y-2">
             <div className="h-24 w-auto flex items-center justify-center mb-2">
-              <img src="/logo.png" alt="Logo" className="h-20 w-auto object-contain" />
+              <BrandLogo className="h-20 w-auto object-contain" />
             </div>
             <div className="text-center space-y-1">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">

@@ -112,7 +112,7 @@ export function toLegacyReportShape(doc) {
   const sections = [...(doc.sections || [])]
   if (doc.disclaimer && !hasMethodologySection(sections)) {
     sections.unshift({
-      title: '0. Nota metodológica',
+      title: '1. Metodología',
       content: doc.disclaimer,
     })
   }

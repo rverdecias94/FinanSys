@@ -99,7 +99,7 @@ export function buildReconcileDocument({
 
   const sections = [
     {
-      title: '0. Nota metodológica',
+      title: '1. Metodología',
       content:
         `${DEFAULT_DISCLAIMER} Este informe relaciona tres hechos operativos por separado: ` +
         'entrega (almacén), registro de venta (ingreso) y cobro (abonos o paid_amount). ' +
@@ -107,14 +107,14 @@ export function buildReconcileDocument({
         fx.note,
     },
     {
-      title: '1. Resumen de conciliación',
+      title: '2. Resumen de conciliación',
       content:
         `Período ${periodLabel}: ${summary.total} ingreso(s). ` +
         `Con entrega: ${summary.withDelivery}. Totalmente cobrados y entregados: ${summary.fullyCollected}. ` +
         (statusBits ? `Detalle — ${statusBits}.` : ''),
     },
     {
-      title: '2. Venta · stock · cobro',
+      title: '3. Venta · stock · cobro',
       type: 'table',
       headers: [
         'Fecha',
@@ -130,7 +130,7 @@ export function buildReconcileDocument({
       rows: tableRows.length ? tableRows : [['—', '—', 'Sin ingresos en el período', '—', '—', '—', '—', '—', '—']],
     },
     {
-      title: '3. Rotación valorizada (COGS / inventario medio)',
+      title: '4. Rotación valorizada (COGS / inventario medio)',
       content:
         rotationOk.length
           ? `Calculada solo donde unit_cost está completo. Días del período: ${days ?? 'N/D'}.`
@@ -142,7 +142,7 @@ export function buildReconcileDocument({
         : [['—', 'Sin datos de almacén', '—', '—', '—', '—', '—']],
     },
     {
-      title: '4. FX',
+      title: '5. FX',
       content: fx.note,
     },
   ]

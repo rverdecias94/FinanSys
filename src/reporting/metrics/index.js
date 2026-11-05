@@ -32,12 +32,17 @@ export {
 export {
   buildKardexByProduct,
   buildKardexForProduct,
+  buildPeriodKardexByProduct,
+  buildPeriodKardexForProduct,
   buildWarehouseStockByProduct,
   formatValuation,
   movementEffectiveAt,
   productKey,
+  productLabel,
+  productNameOnly,
   sortMovementsChronologically,
   splitMovementsByPeriod,
+  summarizeWarehouseDataQuality,
 } from './warehouseMetrics'
 
 export {

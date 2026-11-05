@@ -1,22 +1,64 @@
 import { describe, it, expect } from 'vitest'
 import {
   resolvePeriodContext,
+  resolveEffectivePeriod,
   filterRowsByCutoff,
   buildSourceRefs,
   cutoffMetadata,
+  getClientTimeZone,
 } from './periodCutoff'
 import { buildReport } from './templates'
 import { REPORT_TYPES } from './documentModel'
 
-describe('periodCutoff E5', () => {
-  it('resuelve cutoffAt desde endDate del filtro', () => {
+describe('periodCutoff — período efectivo y timezone', () => {
+  it('getClientTimeZone devuelve string no vacío', () => {
+    expect(typeof getClientTimeZone()).toBe('string')
+    expect(getClientTimeZone().length).toBeGreaterThan(0)
+  })
+
+  it('año pasado → closed con fin del rango', () => {
+    const p = resolveEffectivePeriod(
+      { startDate: '2025-01-01T00:00:00.000Z', endDate: '2025-12-31T23:59:59.000Z', label: '2025' },
+      { now: new Date('2026-11-05T15:00:00.000Z'), timezone: 'America/Havana' }
+    )
+    expect(p.status).toBe('closed')
+    expect(p.label).toBe('2025')
+    expect(p.effectiveTo).toMatch(/2025-12-31/)
+    expect(p.warnings).toHaveLength(0)
+  })
+
+  it('año en curso → ytd_open acumulado a now', () => {
+    const now = new Date('2026-11-05T15:00:00.000Z')
+    const p = resolveEffectivePeriod(
+      { startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-12-31T23:59:59.000Z', label: '2026' },
+      { now, timezone: 'America/Havana' }
+    )
+    expect(p.status).toBe('ytd_open')
+    expect(p.label).toMatch(/acumulado/i)
+    expect(p.effectiveTo).toBe(now.toISOString())
+    expect(p.cutoffAt).toBe(now.toISOString())
+    expect(p.warnings.some((w) => /en curso|acumulado/i.test(w))).toBe(true)
+  })
+
+  it('inicio futuro → future_open', () => {
+    const p = resolveEffectivePeriod(
+      { startDate: '2027-01-01T00:00:00.000Z', endDate: '2027-12-31T23:59:59.000Z', label: '2027' },
+      { now: new Date('2026-11-05T12:00:00.000Z'), timezone: 'UTC' }
+    )
+    expect(p.status).toBe('future_open')
+    expect(p.warnings.some((w) => /no cerrado|futuros/i.test(w))).toBe(true)
+  })
+
+  it('resolvePeriodContext usa timezone del cliente por defecto', () => {
     const p = resolvePeriodContext(
       { startDate: '2026-01-01', endDate: '2026-01-31T23:59:59.000Z', label: 'Enero' },
       { now: new Date('2026-02-01T12:00:00.000Z') }
     )
     expect(p.cutoffAt).toBe('2026-01-31T23:59:59.000Z')
-    expect(p.timezone).toBe('America/Havana')
+    expect(p.timezone).toBe(getClientTimeZone())
+    expect(p.status).toBe('closed')
     expect(cutoffMetadata(p).some((m) => m.label === 'Fecha de corte')).toBe(true)
+    expect(cutoffMetadata(p).some((m) => m.label === 'Estado del período')).toBe(true)
   })
 
   it('filterRowsByCutoff excluye fechas posteriores al corte', () => {
@@ -56,13 +98,20 @@ describe('periodCutoff E5', () => {
     expect(doc.metadata.some((m) => /corte/i.test(m.label))).toBe(true)
   })
 
-  it('finanzas adjunta sourceRefs de transacciones al KPI', () => {
+  it('finanzas adjunta sourceRefs y período efectivo en año en curso', () => {
     const doc = buildReport('finanzas', {
-      dateFilter: { label: 'Enero', startDate: '2026-01-01', endDate: '2026-01-31' },
+      dateFilter: {
+        label: '2026',
+        startDate: '2026-01-01T00:00:00.000Z',
+        endDate: '2026-12-31T23:59:59.000Z',
+      },
       transactions: [
         { id: 1, type: 'income', amount: 100, currency: 'USD', category: 'Ventas', date: '2026-01-05' },
       ],
+      cutoffAt: undefined,
     }, { asLegacy: false })
+    // buildReport usa now real; si estamos en 2026+ el status puede ser ytd_open
+    expect(doc.period.label).toBeTruthy()
     const kpi = doc.kpis.find((k) => k.currency === 'USD')
     expect(kpi.sourceRefs).toEqual([{ table: 'transactions', id: '1' }])
     expect(doc.period.cutoffAt).toBeTruthy()

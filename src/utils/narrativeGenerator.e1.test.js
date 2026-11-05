@@ -31,7 +31,7 @@ describe('E1 / comportamiento esperado', () => {
       expect(base?.value).toMatch(/registros operacionales/i)
       expect(base?.value).not.toMatch(/base de efectivo/i)
 
-      const disclaimer = report.sections.find((s) => /Nota metodológica|Disclaimer/i.test(s.title))
+      const disclaimer = report.sections.find((s) => /Nota metodológica|Metodología|Disclaimer/i.test(s.title))
       expect(disclaimer).toBeTruthy()
       expect(disclaimer.content || (disclaimer.items || []).join(' ')).toMatch(
         /no constituye (un )?estado financiero|partida doble/i
@@ -45,11 +45,11 @@ describe('E1 / comportamiento esperado', () => {
       expect(flat).toMatch(/Relación flujo neto\/entradas registradas/i)
       expect(flat).not.toMatch(FORBIDDEN_FINANCE)
 
-      const summary = report.sections.find((s) => /Resumen de Ingresos y Gastos/.test(s.title))
+      const summary = report.sections.find((s) => /Resumen de [Ii]ngresos y [Gg]astos/.test(s.title))
       expect(summary.rows.some((r) => r[0] === 'Flujo neto registrado')).toBe(true)
       expect(summary.rows.some((r) => /Resultado neto/i.test(r[0]))).toBe(false)
 
-      const kpi = report.sections.find((s) => /Indicadores del período/.test(s.title))
+      const kpi = report.sections.find((s) => /Indicadores del período/i.test(s.title))
       expect(kpi.rows.some((r) => /Relación flujo neto\/entradas registradas/i.test(r[0]))).toBe(true)
       expect(kpi.rows.some((r) => /Margen neto/i.test(r[0]))).toBe(false)
     })
@@ -68,7 +68,7 @@ describe('E1 / comportamiento esperado', () => {
 
     it('totales por moneda USD y CUP sin mezclar importes', () => {
       const report = generateFinanceReport(multiCurrencyTransactions, dateFilter)
-      const summary = report.sections.find((s) => /Resumen de Ingresos y Gastos/.test(s.title))
+      const summary = report.sections.find((s) => /Resumen de [Ii]ngresos y [Gg]astos/.test(s.title))
       expect(summary.headers).toEqual(
         expect.arrayContaining([expect.stringMatching(/USD/), expect.stringMatching(/CUP/)])
       )
@@ -77,24 +77,25 @@ describe('E1 / comportamiento esperado', () => {
       expect(summary.rows[0][2]).toMatch(/20[.,]?000/)
     })
 
-    it('conclusiones cubren cada moneda con actividad (USD y CUP)', () => {
+    it('hallazgos cubren cada moneda con actividad (USD y CUP)', () => {
       const report = generateFinanceReport(multiCurrencyTransactions, dateFilter)
-      const conclusions = report.sections.find((s) => /Conclusiones/.test(s.title))
-      const text = (conclusions?.items || []).join(' ')
+      const findings = report.sections.find((s) => /Hallazgos/i.test(s.title))
+      const text = (findings?.items || []).join(' ')
       expect(text).toMatch(/USD/)
       expect(text).toMatch(/CUP/)
       expect(text).not.toMatch(FORBIDDEN_FINANCE)
+      expect(flattenReport(report)).not.toMatch(/Ticket promedio/i)
+      expect(flattenReport(report)).toMatch(/Importe promedio por transacción registrada/i)
     })
 
     it('Top gastos se presenta por moneda (no ranking global cruzado)', () => {
       const report = generateFinanceReport(crossCurrencyExpenses, dateFilter)
-      const table = report.sections.find((s) => /Gastos Principales/.test(s.title))
+      const table = report.sections.find((s) => /[Gg]astos [Pp]rincipales/.test(s.title))
       expect(table).toBeTruthy()
-      // Debe identificar moneda en cabecera o en filas; no poner Transporte (500 CUP) como “mayor” que Software (10 USD) en un ranking único.
       const headers = table.headers.join(' ')
       const hasCurrencyColumn = /Moneda/i.test(headers)
       const sectionNotesCurrency = /por moneda/i.test(table.notes || '')
-      const multipleTables = report.sections.filter((s) => /Gastos Principales/.test(s.title)).length > 1
+      const multipleTables = report.sections.filter((s) => /[Gg]astos [Pp]rincipales/.test(s.title)).length > 1
       expect(hasCurrencyColumn || sectionNotesCurrency || multipleTables).toBe(true)
 
       if (hasCurrencyColumn) {
@@ -103,6 +104,7 @@ describe('E1 / comportamiento esperado', () => {
         expect(usdRows.length).toBeGreaterThan(0)
         expect(cupRows.length).toBeGreaterThan(0)
       }
+      expect(table.headers.join(' ')).toMatch(/Fecha|ID/i)
     })
 
     it('no presenta la base como efectivo cobrado; aclara que no equivale a caja cobrada', () => {
@@ -145,7 +147,7 @@ describe('E1 / comportamiento esperado', () => {
   })
 
   describe('global — compatibilidad', () => {
-    it('generateGlobalReport sigue componiendo I/II/III sin términos prohibidos de finanzas', () => {
+    it('generateGlobalReport legacy mantiene I/II/III; buildReport global es síntesis', async () => {
       const report = generateGlobalReport(
         {
           transactions: multiCurrencyTransactions,
@@ -162,6 +164,16 @@ describe('E1 / comportamiento esperado', () => {
       ])
       expect(flattenReport(report)).not.toMatch(FORBIDDEN_FINANCE)
       expect(flattenReport(report)).not.toMatch(FORBIDDEN_WH)
+
+      const { buildReport } = await import('@/reporting/templates')
+      const modern = buildReport('global', {
+        transactions: multiCurrencyTransactions,
+        movements: mixedUomMovements,
+        inventorySummary: [{ id: '1', name: 'Central', itemsCount: 2 }],
+        dateFilter,
+      })
+      expect(modern.sections.some((s) => /consolidado|síntesis/i.test(s.title))).toBe(true)
+      expect(JSON.stringify(modern)).not.toMatch(/I\. MÓDULO FINANCIERO/)
     })
   })
 })
