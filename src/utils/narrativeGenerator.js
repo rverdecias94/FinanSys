@@ -88,10 +88,15 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     { label: "Período analizado", value: periodLabel },
     { label: "Fecha de emisión", value: reportDate },
     { label: currencies.length > 1 ? "Monedas" : "Moneda", value: currencies.join(' / ') },
-    { label: "Base de preparación", value: "Movimientos de caja registrados (base de efectivo)" }
+    { label: "Base de preparación", value: "Registros operacionales (movimientos registrados; no equivale a caja cobrada)" }
   ];
 
   const sections = [];
+
+  sections.push({
+    title: "0. Nota metodológica",
+    content: "Documento de gestión sobre registros operacionales de GESTIA. No constituye un estado financiero preparado mediante contabilidad de partida doble ni certificación contable. Los importes reflejan transacciones registradas en el período (cualquier estado de cobro/pago) y no equivalen a caja cobrada ni a un estado de resultados formal."
+  });
 
   // 3. Sección 1: Resumen ejecutivo (redacción basada en los indicadores calculados)
   const totalTx = transactions.length;
@@ -99,16 +104,16 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
   const totalExpenseCount = transactions.filter(t => t.type === 'expense').length;
 
   const txWord = totalTx === 1 ? 'transacción' : 'transacciones';
-  let summaryText = `El presente informe consolida ${totalTx} ${txWord} registradas durante ${periodLabel} (${totalIncomeCount} de ingreso y ${totalExpenseCount} de egreso operativo). `;
+  let summaryText = `El presente informe consolida ${totalTx} ${txWord} registradas durante ${periodLabel} (${totalIncomeCount} de ingreso y ${totalExpenseCount} de egreso). `;
 
   currencies.forEach((curr) => {
     const d = dataByCurrency[curr];
     if (!d) return;
-    const margin = d.incomeTotal > 0 ? (d.net / d.incomeTotal) * 100 : null;
+    const netRatio = d.incomeTotal > 0 ? (d.net / d.incomeTotal) * 100 : null;
     const coverage = d.expenseTotal > 0 ? d.incomeTotal / d.expenseTotal : null;
-    summaryText += `En ${curr}, los ingresos totalizaron ${fmt(d.incomeTotal, curr)} frente a egresos por ${fmt(d.expenseTotal, curr)}, arrojando un resultado neto ${d.net >= 0 ? 'positivo (entró más de lo que salió)' : 'negativo (salió más de lo que entró)'} de ${fmt(d.net, curr)}`;
-    if (margin !== null) summaryText += `, con un margen neto del ${margin.toFixed(1)}%`;
-    if (coverage !== null) summaryText += ` y una razón de cobertura de gastos de ${coverage.toFixed(2)}x`;
+    summaryText += `En ${curr}, las entradas registradas totalizaron ${fmt(d.incomeTotal, curr)} frente a salidas registradas por ${fmt(d.expenseTotal, curr)}, con un flujo neto registrado ${d.net >= 0 ? 'positivo (se registró más entrada que salida)' : 'negativo (se registró más salida que entrada)'} de ${fmt(d.net, curr)}`;
+    if (netRatio !== null) summaryText += `, y una relación flujo neto/entradas registradas del ${netRatio.toFixed(1)}%`;
+    if (coverage !== null) summaryText += `; la razón entradas/salidas registradas es ${coverage.toFixed(2)}x`;
     summaryText += '. ';
   });
 
@@ -130,7 +135,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
       const netPct = pct(deltaNet, Math.abs(prev?.net || 0))
 
       const fmtPct = (v) => (v === null ? 'N/A' : `${(v >= 0 ? '+' : '')}${v.toFixed(0)}%`)
-      return `- **${curr} (${comparisonLabel}):** Ingresos ${fmt(deltaIncome, curr)} (${fmtPct(incomePct)}), Gastos ${fmt(deltaExpense, curr)} (${fmtPct(expensePct)}), Neto ${fmt(deltaNet, curr)} (${fmtPct(netPct)}).`
+      return `- **${curr} (${comparisonLabel}):** Entradas registradas ${fmt(deltaIncome, curr)} (${fmtPct(incomePct)}), Salidas registradas ${fmt(deltaExpense, curr)} (${fmtPct(expensePct)}), Flujo neto registrado ${fmt(deltaNet, curr)} (${fmtPct(netPct)}).`
     })
 
     sections.push({
@@ -140,17 +145,17 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     })
   }
 
-  // 4. Section 2: Statement of Results (Table)
+  // 4. Resumen de entradas/salidas registradas por moneda
   const resultHeaders = ["Concepto", ...currencies.map(c => `Importe (${c})`)];
   const resultRows = [
-    ["Ingresos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.incomeTotal || 0, c))],
-    ["Gastos totales", ...currencies.map(c => fmt(dataByCurrency[c]?.expenseTotal || 0, c))],
-    ["Resultado neto", ...currencies.map(c => fmt(dataByCurrency[c]?.net || 0, c))]
+    ["Entradas registradas", ...currencies.map(c => fmt(dataByCurrency[c]?.incomeTotal || 0, c))],
+    ["Salidas registradas", ...currencies.map(c => fmt(dataByCurrency[c]?.expenseTotal || 0, c))],
+    ["Flujo neto registrado", ...currencies.map(c => fmt(dataByCurrency[c]?.net || 0, c))]
   ];
 
   const resultNote = currencies.length > 1
-    ? `El resumen de ingresos y gastos se presenta por separado para cada moneda, sin convertir a una sola; para leerlo en conjunto, ten en cuenta la diferencia de cambio entre las monedas usadas.`
-    : `Resumen de ingresos y gastos del período (base de caja), según los movimientos registrados. El resultado neto es la diferencia entre el dinero que entró y el que salió.`
+    ? `Importes por moneda sin conversión. «Flujo neto registrado» = entradas registradas − salidas registradas; no equivale a caja cobrada ni a un estado de resultados formal.`
+    : `Resumen del período sobre movimientos registrados. «Flujo neto registrado» = entradas − salidas registradas; no equivale a caja cobrada ni a un estado de resultados formal.`
 
   sections.push({
     title: prevByCurrency ? "3. Resumen de Ingresos y Gastos" : "2. Resumen de Ingresos y Gastos",
@@ -183,25 +188,31 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     notes: ""
   });
 
-  // 6. Section 4: Expense Analysis (Table)
-  // Top 5 expenses
-  const topExpenses = transactions
-    .filter(t => t.type === 'expense')
-    .sort((a, b) => Number(b.amount) - Number(a.amount))
-    .slice(0, 5)
-    .map(t => [
-      t.category || 'Sin categoría',
-      `${fmt(Number(t.amount), t.currency)}`,
-      t.details?.payment_method || 'Efectivo',
-      t.description || '-'
-    ]);
+  // 6. Top gastos por moneda (nunca ordenar montos cruzando monedas)
+  const topExpenseRows = []
+  currencies.forEach((curr) => {
+    const expenses = (dataByCurrency[curr]?.expenseTxs || [])
+      .slice()
+      .sort((a, b) => Number(b.amount) - Number(a.amount))
+      .slice(0, 5)
+    expenses.forEach((t) => {
+      topExpenseRows.push([
+        curr,
+        t.category || 'Sin categoría',
+        fmt(Number(t.amount), curr),
+        t.details?.payment_method || 'Efectivo',
+        t.description || '-'
+      ])
+    })
+  })
 
-  if (topExpenses.length > 0) {
+  if (topExpenseRows.length > 0) {
     sections.push({
       title: prevByCurrency ? "5. Detalle de Gastos Principales" : "4. Detalle de Gastos Principales",
       type: "table",
-      headers: ["Categoría", "Monto", "Método", "Observaciones"],
-      rows: topExpenses
+      headers: ["Moneda", "Categoría", "Monto", "Método", "Observaciones"],
+      rows: topExpenseRows,
+      notes: "Hasta 5 gastos por moneda, ordenados dentro de cada moneda. No se comparan importes entre monedas distintas."
     });
   }
 
@@ -213,10 +224,10 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     const tag = currencies.length > 1 ? ` (${curr})` : '';
 
     if (d.incomeTotal > 0) {
-      kpis.push([`Margen neto${tag}`, `${((d.net / d.incomeTotal) * 100).toFixed(1)}%`]);
+      kpis.push([`Relación flujo neto/entradas registradas${tag}`, `${((d.net / d.incomeTotal) * 100).toFixed(1)}%`]);
     }
     if (d.expenseTotal > 0) {
-      kpis.push([`Razón de cobertura de gastos${tag}`, `${(d.incomeTotal / d.expenseTotal).toFixed(2)}x`]);
+      kpis.push([`Razón entradas/salidas registradas${tag}`, `${(d.incomeTotal / d.expenseTotal).toFixed(2)}x`]);
     }
     if (d.incomeCount > 0) {
       kpis.push([`Ticket promedio de ingreso${tag}`, fmt(d.incomeTotal / d.incomeCount, curr)]);
@@ -233,7 +244,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
       const cashExpenses = d.expenseTxs
         .filter(t => !t.details?.payment_method || /efectivo|cash/i.test(t.details.payment_method))
         .reduce((s, t) => s + Number(t.amount), 0);
-      kpis.push([`Gastos liquidados en efectivo${tag}`, `${((cashExpenses / d.expenseTotal) * 100).toFixed(0)}%`]);
+      kpis.push([`Salidas registradas con método efectivo${tag}`, `${((cashExpenses / d.expenseTotal) * 100).toFixed(0)}%`]);
     }
   });
 
@@ -242,7 +253,7 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     type: "table",
     headers: ["Indicador", "Valor"],
     rows: kpis,
-    notes: `Indicadores calculados sobre los movimientos del período. El margen neto mide la proporción del ingreso que se traduce en resultado; la razón de cobertura, las veces que los ingresos cubren los egresos (valores > 1x indican que los ingresos cubren los gastos).`
+    notes: `Indicadores sobre movimientos registrados del período (no caja liquidada). «Relación flujo neto/entradas registradas» = (entradas − salidas) / entradas. «Razón entradas/salidas registradas» > 1x indica más entradas que salidas registradas.`
   });
 
   if (prevByCurrency) {
@@ -295,47 +306,52 @@ export const generateFinanceReport = (transactions, dateFilter, comparison = nul
     }
   }
 
-  // 8. Conclusiones y recomendaciones (derivadas de la moneda principal del período)
-  const primaryCurr = currencies[0]
-  const dp = dataByCurrency[primaryCurr] || { incomeTotal: 0, expenseTotal: 0, net: 0, incomeTxs: [], expenseTxs: [] }
+  // 8. Conclusiones por cada moneda con actividad (descriptivas; sin utilidad/rentabilidad)
   const conclusions = []
+  const activeCurrencies = currencies.filter((curr) => {
+    const d = dataByCurrency[curr]
+    return d && (d.incomeTotal > 0 || d.expenseTotal > 0)
+  })
 
-  if (dp.incomeTotal > 0 || dp.expenseTotal > 0) {
-    const margin = dp.incomeTotal > 0 ? (dp.net / dp.incomeTotal) * 100 : null
-    if (dp.net >= 0) {
-      conclusions.push(`**Resultado del período:** el período cerró con un resultado positivo de ${fmt(dp.net, primaryCurr)}${margin !== null ? ` y un margen neto del ${margin.toFixed(1)}%` : ''} (entró más dinero del que salió), lo que deja margen para reinvertir o ahorrar.`)
+  if (activeCurrencies.length === 0) {
+    conclusions.push('**Flujo neto registrado:** no se registró actividad financiera relevante en el período analizado.')
+  }
+
+  activeCurrencies.forEach((curr) => {
+    const d = dataByCurrency[curr]
+    const netRatio = d.incomeTotal > 0 ? (d.net / d.incomeTotal) * 100 : null
+    if (d.net >= 0) {
+      conclusions.push(
+        `**Flujo neto registrado (${curr}):** ${fmt(d.net, curr)}${netRatio !== null ? ` (relación flujo neto/entradas registradas ${netRatio.toFixed(1)}%)` : ''}. Se registraron más entradas que salidas en esta moneda.`
+      )
     } else {
-      conclusions.push(`**Resultado del período:** el período cerró con un resultado negativo de ${fmt(dp.net, primaryCurr)} (salió más dinero del que entró), conviene revisar los gastos o aumentar los ingresos.`)
+      conclusions.push(
+        `**Flujo neto registrado (${curr}):** ${fmt(d.net, curr)}. Se registraron más salidas que entradas en esta moneda.`
+      )
     }
-  } else {
-    conclusions.push(`**Resultado del período:** no se registró actividad financiera relevante en el período analizado.`)
-  }
 
-  if (dp.expenseTotal > 0) {
-    const expCats = sumByCategory(dp.expenseTxs)
-    const topExp = Object.entries(expCats).sort((a, b) => b[1] - a[1])[0]
-    if (topExp) {
-      const share = (topExp[1] / dp.expenseTotal) * 100
-      conclusions.push(`**Estructura del gasto:** la categoría "${topExp[0]}" concentra el ${share.toFixed(0)}% del egreso total (${fmt(topExp[1], primaryCurr)}); conviene vigilar esta categoría de gasto.`)
-    }
-  }
-
-  if (dp.incomeTotal > 0) {
-    const incCats = sumByCategory(dp.incomeTxs)
-    const topInc = Object.entries(incCats).sort((a, b) => b[1] - a[1])[0]
-    if (topInc) {
-      const share = (topInc[1] / dp.incomeTotal) * 100
-      if (share >= 60) {
-        conclusions.push(`**Riesgo de concentración:** el ${share.toFixed(0)}% de los ingresos proviene de "${topInc[0]}", lo que supone una dependencia elevada de una única fuente; se aconseja diversificar la cartera de ingresos para mitigar el riesgo.`)
-      } else {
-        conclusions.push(`**Diversificación de ingresos:** la fuente principal ("${topInc[0]}") representa el ${share.toFixed(0)}% del total, lo que denota una base de ingresos razonablemente diversificada.`)
+    if (d.expenseTotal > 0) {
+      const expCats = sumByCategory(d.expenseTxs)
+      const topExp = Object.entries(expCats).sort((a, b) => b[1] - a[1])[0]
+      if (topExp) {
+        const share = (topExp[1] / d.expenseTotal) * 100
+        conclusions.push(
+          `**Salidas por categoría (${curr}):** "${topExp[0]}" concentra el ${share.toFixed(0)}% de las salidas registradas (${fmt(topExp[1], curr)}).`
+        )
       }
     }
-  }
 
-  if (conclusions.length === 0) {
-    conclusions.push('No se dispone de datos suficientes para emitir conclusiones cuantitativas en el período seleccionado.')
-  }
+    if (d.incomeTotal > 0) {
+      const incCats = sumByCategory(d.incomeTxs)
+      const topInc = Object.entries(incCats).sort((a, b) => b[1] - a[1])[0]
+      if (topInc) {
+        const share = (topInc[1] / d.incomeTotal) * 100
+        conclusions.push(
+          `**Entradas por categoría (${curr}):** "${topInc[0]}" representa el ${share.toFixed(0)}% de las entradas registradas.`
+        )
+      }
+    }
+  })
 
   sections.push({
     title: prevByCurrency ? "8. Conclusiones y Recomendaciones" : "6. Conclusiones y Recomendaciones",
@@ -364,30 +380,28 @@ export const generateWarehouseReport = (movements, dateFilter) => {
     { label: "Total Movimientos", value: movements.length.toString() }
   ];
 
-  // Section 1: Summary
+  // Section 1: Summary — conteos de movimientos/productos; NO sumar qty entre UDM distintas
   const ins = movements.filter(m => m.type === 'in');
   const outs = movements.filter(m => m.type === 'out');
-  const totalIn = ins.reduce((s, m) => s + Number(m.qty || 0), 0);
-  const totalOut = outs.reduce((s, m) => s + Number(m.qty || 0), 0);
-  const netFlow = totalIn - totalOut;
-  const rotation = totalIn > 0 ? (totalOut / totalIn) : null;
 
-  let warehouseSummary = `Durante ${dateFilter?.label || 'el período'} se registraron ${movements.length} movimientos de inventario: ${ins.length} entradas de abastecimiento (${totalIn} unidades) y ${outs.length} salidas por consumo o venta (${totalOut} unidades). `;
-  warehouseSummary += `El flujo neto de unidades fue ${netFlow >= 0 ? `positivo (+${netFlow})` : `negativo (${netFlow})`}`;
-  if (rotation !== null) warehouseSummary += `, con un índice de rotación (salidas/entradas) de ${rotation.toFixed(2)}x`;
-  warehouseSummary += '.';
-
-  sections.push({
-    title: "1. Resumen Operativo de Almacén",
-    content: warehouseSummary
-  });
-
-  // Section 2: Product Flow Table
   const products = {};
   movements.forEach(m => {
     const name = m.products?.name || 'Desconocido';
     if (!products[name]) products[name] = { in: 0, out: 0 };
-    products[name][m.type] += m.qty;
+    products[name][m.type] = (products[name][m.type] || 0) + Number(m.qty || 0);
+  });
+  const productCount = Object.keys(products).length;
+
+  const entradaWord = ins.length === 1 ? 'entrada' : 'entradas'
+  const salidaWord = outs.length === 1 ? 'salida' : 'salidas'
+  const productoWord = productCount === 1 ? 'producto' : 'productos'
+  let warehouseSummary = `Durante ${dateFilter?.label || 'el período'} se registraron ${movements.length} movimientos de almacén (${ins.length} ${entradaWord} y ${outs.length} ${salidaWord}) sobre ${productCount} ${productoWord}. `;
+  warehouseSummary += 'Las cantidades se detallan por producto; no se agregan unidades de medida distintas en un solo total. ';
+  warehouseSummary += 'Este resumen describe actividad física registrada y no calcula un indicador de rotación de inventario ni valoración de existencias.';
+
+  sections.push({
+    title: "1. Resumen Operativo de Almacén",
+    content: warehouseSummary
   });
 
   const productRows = Object.entries(products)
@@ -399,15 +413,17 @@ export const generateWarehouseReport = (movements, dateFilter) => {
     title: "2. Flujo de Productos (Top 10)",
     type: "table",
     headers: ["Producto", "Entradas", "Salidas", "Balance Periodo"],
-    rows: productRows
+    rows: productRows,
+    notes: "Balance del período = entradas − salidas del mismo producto. No comparar ni sumar filas con unidades de medida distintas."
   });
 
-  // Section 3: Conclusions
+  const topName = productRows[0]?.[0] || 'N/A';
+  const top = products[topName];
   const conclusions = [
-    netFlow >= 0
-      ? `**Política de inventario:** el período presenta acumulación neta de existencias (+${netFlow} unidades), lo que incrementa la inmovilización de capital en stock; conviene ajustar el reabastecimiento a la demanda real.`
-      : `**Política de inventario:** el período presenta reducción neta de existencias (${netFlow} unidades), con rotación superior al abastecimiento; conviene vigilar los niveles de stock para evitar rupturas.`,
-    `**Producto crítico:** el ítem con mayor actividad fue "${productRows[0]?.[0] || 'N/A'}", concentrando el mayor volumen de movimientos del período.`
+    `**Actividad registrada:** ${movements.length} movimientos sobre ${productCount} ${productoWord} en el período.`,
+    top
+      ? `**Producto con mayor actividad:** "${topName}" (entradas ${top.in}, salidas ${top.out}; balance del período ${top.in - top.out}).`
+      : '**Producto con mayor actividad:** no hay movimientos en el período.',
   ];
 
   sections.push({

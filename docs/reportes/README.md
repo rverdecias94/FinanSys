@@ -1,0 +1,23 @@
+# Reportes — rediseño documental
+
+## Documentos
+
+| Archivo | Contenido |
+|---|---|
+| [arquitectura-documental.md](./arquitectura-documental.md) | Investigación de referencia (especificación funcional, no checklist obligatorio) |
+| [baseline-vitest-reportes-e0.txt](./baseline-vitest-reportes-e0.txt) | Baseline E0 de tests del módulo reportes |
+| [baseline-vitest-full-e0.txt](./baseline-vitest-full-e0.txt) | Baseline E0 del suite completo (incluye fallos preexistentes ajenos a reportes) |
+| [E1_COMPARATIVA.md](./E1_COMPARATIVA.md) | Comparación de textos/indicadores antes y después de E1 |
+
+## Suites de prueba (separadas)
+
+| Archivo | Propósito |
+|---|---|
+| `src/utils/narrativeGenerator.baseline.test.js` | Documenta el **comportamiento pre-E1** (incl. defectos de terminología). Tras E1 queda en `describe.skip` histórico. |
+| `src/utils/narrativeGenerator.e1.test.js` | Verifica el **comportamiento esperado post-E1** (terminología descriptiva, UDM, multi-moneda). |
+| `src/utils/narrativeGenerator.test.js` | Regresión estable (P2.5, inventario, global) — no debe romperse con E1. |
+
+## Entregas
+
+- **E0–E1** (rama `feat/reportes-e0-e1-terminologia`): docs + baseline + corrección de terminología.
+- **E2–E7**: bloqueadas hasta revisión post-E1.

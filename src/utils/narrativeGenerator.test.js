@@ -19,7 +19,8 @@ describe('narrativeGenerator — P2.5 moneda no-ISO', () => {
 
     const table = report.sections.find(s => s.type === 'table' && /Resumen de Ingresos y Gastos/.test(s.title))
     expect(table).toBeTruthy()
-    // Fila "Ingresos totales": número formateado + código (fallback), no NaN ni crash.
+    // Fila "Entradas registradas": número formateado + código (fallback), no NaN ni crash.
+    expect(table.rows[0][0]).toMatch(/Entradas registradas/i)
     expect(table.rows[0][1]).toMatch(/\d.*BITCOIN/)
     expect(table.rows[0][1]).not.toMatch(/NaN/)
   })
@@ -29,6 +30,7 @@ describe('narrativeGenerator — P2.5 moneda no-ISO', () => {
     const report = generateFinanceReport(txs, dateFilter)
     const table = report.sections.find(s => s.type === 'table' && /Resumen de Ingresos y Gastos/.test(s.title))
     expect(table).toBeTruthy()
+    expect(table.rows[0][0]).toMatch(/Entradas registradas/i)
     expect(table.rows[0][1]).not.toMatch(/NaN/)
   })
 })
