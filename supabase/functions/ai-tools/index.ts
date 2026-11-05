@@ -298,6 +298,58 @@ async function buildBusinessSnapshot(supabase: SupabaseClient, ownerId: string) 
       not_due: num(r.not_due),
     }))
     sources.push('cxc', 'cxp')
+
+    // Histórico mensual (año actual + anterior) — fallback si el cliente no manda snapshot
+    const y = now.getFullYear()
+    const histStart = `${y - 1}-01-01`
+    const histEnd = `${y + 1}-01-01`
+    const { data: histTx } = await supabase
+      .from('transactions')
+      .select('amount, type, currency, date')
+      .eq('user_id', ownerId)
+      .gte('date', histStart)
+      .lt('date', histEnd)
+
+    const buckets: Record<string, { income: Record<string, number>; expense: Record<string, number> }> = {}
+    for (const t of histTx || []) {
+      const d = String(t.date || '').slice(0, 7) // YYYY-MM
+      if (!/^\d{4}-\d{2}$/.test(d)) continue
+      if (!buckets[d]) buckets[d] = { income: {}, expense: {} }
+      const cur = String(t.currency || 'USD').toUpperCase()
+      const amt = num(t.amount)
+      const side = t.type === 'income' ? 'income' : t.type === 'expense' ? 'expense' : null
+      if (!side) continue
+      buckets[d][side][cur] = (buckets[d][side][cur] || 0) + amt
+    }
+
+    const glossary = {
+      income: 'Ingresos / facturación / ventas registradas en Finanzas',
+      expense: 'Gastos / egresos registrados en Finanzas',
+    }
+    const monthsForYear = (year: number, throughMonth: number) => {
+      const by_month = []
+      for (let m = 1; m <= throughMonth; m++) {
+        const period = `${year}-${String(m).padStart(2, '0')}`
+        const b = buckets[period] || { income: {}, expense: {} }
+        by_month.push({
+          month: m,
+          period,
+          income_by_currency: b.income,
+          expense_by_currency: b.expense,
+          has_activity:
+            Object.keys(b.income).length > 0 || Object.keys(b.expense).length > 0,
+        })
+      }
+      return { year, glossary, by_month, ytd_through_month: throughMonth }
+    }
+
+    snapshot.history = {
+      note: 'Usa history.years[].by_month para meses pasados. income = facturación/ingresos; expense = gastos. Un mes sin actividad tiene has_activity=false (montos vacíos = 0).',
+      years: [
+        monthsForYear(y, now.getMonth() + 1),
+        monthsForYear(y - 1, 12),
+      ],
+    }
   }
 
   if (canWarehouse) {
@@ -385,7 +437,7 @@ async function buildBusinessSnapshot(supabase: SupabaseClient, ownerId: string) 
     sources.push('reportes')
     snapshot.report_hint = {
       month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-      note: 'Usa month.income_by_currency / expense_by_currency y balances para hablar de reportes del periodo actual.',
+      note: 'Mes actual: month.*. Histórico mensual (si viene del cliente): history.years[].by_month. Facturación = income_by_currency.',
     }
   }
 
@@ -522,7 +574,9 @@ Reglas DURAS:
 4. Para preguntas de escenarios (¿me alcanza?, convertir FX, margen, cobro %), calcula solo con cifras del snapshot + lo que diga el usuario; si falta tasa/dato, dilo.
 5. No ofrezcas crear/editar transacciones ni borrar datos; solo consultas.
 6. sources debe listar solo dominios que realmente usaste del snapshot.
-7. Los campos answer y next_step SIEMPRE en español.`
+7. Los campos answer y next_step SIEMPRE en español.
+8. HISTÓRICO: snapshot.history.years[].by_month tiene ingresos/gastos por mes (año actual y anterior). "Facturación" / "cuánto se facturó" = income_by_currency. Si el mes existe con has_activity=false o montos vacíos, responde 0 (no digas que "no hay datos del snapshot"). snapshot.month es solo el mes en curso; para otros meses usa history.
+9. Si preguntan por un mes fuera de history.years, dilo y sugiere Reportes en la app.`
 
       let ai: { text: string; modelUsed: string }
       try {

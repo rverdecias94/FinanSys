@@ -1,10 +1,11 @@
 import { supabase } from '@/config/supabase'
-import { getDashboardStats, getAgingReport } from '@/services/finanzas'
+import { getDashboardStats, getAgingReport, getYearlySummary } from '@/services/finanzas'
 import { getAlmacenStats } from '@/services/almacen'
 import { listAuditLogs } from '@/services/auditLogs'
 import { listAreas } from '@/services/dynamicInventory'
 import { getEffectiveUserId } from '@/services/team'
 import { agingOverdue } from '@/utils/aging'
+import { formatYearHistory } from '@/services/businessSnapshotHistory'
 
 function num(v) {
   const n = Number(v)
@@ -34,11 +35,34 @@ export async function buildClientBusinessSnapshot({ userId, businessId }) {
       getAgingReport('payable').catch(() => []),
     ])
     snapshot.balances = stats?.balance || {}
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
     snapshot.month = {
-      period: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+      period: `${currentYear}-${String(currentMonth).padStart(2, '0')}`,
       income_by_currency: stats?.income?.current || {},
       expense_by_currency: stats?.expense?.current || {},
     }
+
+    // Histórico mensual (año actual + anterior) para preguntas tipo "febrero", "el año pasado"
+    try {
+      const [yearNow, yearPrev] = await Promise.all([
+        getYearlySummary(userId, businessId, currentYear),
+        getYearlySummary(userId, businessId, currentYear - 1),
+      ])
+      snapshot.history = {
+        note: 'Usa history.years[].by_month para meses pasados. income = facturación/ingresos; expense = gastos. Un mes sin actividad tiene has_activity=false (montos vacíos = 0).',
+        years: [
+          formatYearHistory(currentYear, yearNow, { throughMonth: currentMonth }),
+          formatYearHistory(currentYear - 1, yearPrev, { throughMonth: 12 }),
+        ],
+      }
+    } catch (histErr) {
+      snapshot.history = {
+        error: histErr?.message || 'No se pudo cargar el histórico mensual',
+        note: 'Sin histórico: solo puedes hablar del mes actual en snapshot.month',
+      }
+    }
+
     snapshot.accounts_receivable = (agingRecv || []).map((r) => ({
       currency: r.currency,
       total: num(r.total),

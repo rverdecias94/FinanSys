@@ -1,0 +1,15 @@
+FACTURA / COMPROBANTE DE PAGO
+Negocio: Bodega El Sol
+Fecha: 2026-10-15
+Folio: FAC-1042
+
+Detalle:
+1) Compra de arroz 25 kg — Gasto — Suministros — 38.50 USD — Proveedor: Alimentos del Caribe
+2) Compra de aceite 12 L — Gasto — Suministros — 22.00 USD — Proveedor: Alimentos del Caribe
+3) Pago de electricidad octubre — Gasto — Servicios Públicos — 15.75 USD — Proveedor: UNE
+4) Venta al contado cliente María López — Ingreso — Ventas — 60.00 USD — Cliente: María López
+5) Transporte de mercancía — Gasto — Transporte — 8.00 USD — Proveedor: Mensajería Express
+
+Notas: Pagado en efectivo el mismo día.
+Total gastos aprox.: 84.25 USD
+Total ingresos aprox.: 60.00 USD

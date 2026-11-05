@@ -106,7 +106,7 @@ export function MovementList({
           </Select>
         </div>
         {hasPermission('warehouse.move') && (
-          <Button onClick={handleOpenModal}>+ Registrar Movimiento</Button>
+          <Button onClick={handleOpenModal}>+ Movimiento rápido</Button>
         )}
       </div>
 

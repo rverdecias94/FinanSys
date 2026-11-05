@@ -46,8 +46,8 @@ const NAV_GROUPS = [
     id: 'existencias',
     label: 'Existencias',
     items: [
-      { to: '/almacen', label: 'Almacén', icon: Warehouse, permission: 'warehouse.view' },
-      { to: '/inventario', label: 'Inventario', icon: Layers, permission: 'inventory.view' },
+      { to: '/almacen', label: 'Almacén', icon: Warehouse, permission: 'warehouse.view', hint: 'Productos que compras y vendes' },
+      { to: '/inventario', label: 'Inventario', icon: Layers, permission: 'inventory.view', hint: 'Áreas, equipos y listas personalizadas' },
     ],
   },
   {
@@ -110,16 +110,17 @@ function SidebarTooltip({ label, children }) {
   )
 }
 
-function NavIconLink({ to, label, icon: Icon, end }) {
+function NavIconLink({ to, label, icon: Icon, end, title }) {
   // Wrapper fijo: TooltipTrigger+asChild sobre NavLink rompe className función
   // y deja el icono pegado arriba-izquierda.
+  const tip = title || label
   return (
-    <SidebarTooltip label={label}>
+    <SidebarTooltip label={tip}>
       <div className="flex h-9 w-9 shrink-0 items-center justify-center">
         <NavLink
           to={to}
           end={end}
-          aria-label={label}
+          aria-label={tip}
           className={({ isActive }) =>
             `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
               isActive
@@ -146,7 +147,7 @@ function PlanBadge({ planId }) {
   }
   if (planId === 'premium') {
     return (
-      <div className="flex items-center justify-center gap-1.5 rounded-md border border-primary/40 bg-primary/15 px-2.5 py-1.5 text-xs font-bold tracking-wide text-foreground dark:text-primary">
+      <div className="flex items-center justify-center gap-1.5 rounded-md border border-primary/50 bg-primary/10 px-2.5 py-1.5 text-xs font-bold tracking-wide text-foreground">
         <Crown className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
         <span>Plan Negocio</span>
       </div>
@@ -238,9 +239,9 @@ export default function SidebarLayout() {
   const renderItem = (item, mode) => {
     const link =
       mode === 'icon' ? (
-        <NavIconLink key={item.to} to={item.to} label={item.label} icon={item.icon} end={item.to === '/'} />
+        <NavIconLink key={item.to} to={item.to} label={item.label} icon={item.icon} end={item.to === '/'} title={item.hint || item.label} />
       ) : (
-        <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClass}>
+        <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClass} title={item.hint || item.label}>
           <item.icon className="h-3.5 w-3.5 shrink-0 opacity-80" />
           <span className="truncate">{item.label}</span>
         </NavLink>

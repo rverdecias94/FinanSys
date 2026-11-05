@@ -1,15 +1,19 @@
+/* eslint-disable react/prop-types */
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { usePermissions } from '@/context/PermissionContext'
 import { FormRunner } from '@/components/inventario/FormRunner'
+import { AssetEventsPanel } from '@/components/inventario/AssetEventsPanel'
 import { getInventoryAreas, getItem } from '@/services/dynamicInventory'
+import { DOMAIN_LABELS, isAssetLikeDomain } from '@/utils/inventoryFormUtils'
 
 export default function InventarioItem({ forceNew = false }) {
   const navigate = useNavigate()
@@ -51,20 +55,32 @@ export default function InventarioItem({ forceNew = false }) {
   }, [areas, areaId])
 
   const readOnly = isNew ? !hasPermission('inventory.create') : !hasPermission('inventory.edit')
+  const showAssetPanel = !isNew && item && isAssetLikeDomain(currentArea?.domain_type)
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Button variant="outline" size="icon" onClick={() => navigate('/inventario')} aria-label="Volver">
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Layers className="w-6 h-6 text-primary" />
-            </div>
-            {isNew ? 'Nuevo ítem' : 'Detalle de ítem'}
-          </h1>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                <Layers className="w-6 h-6 text-primary" />
+              </div>
+              <span className="truncate">{isNew ? 'Nuevo ítem' : 'Detalle de ítem'}</span>
+            </h1>
+            {currentArea && (
+              <div className="mt-1 flex flex-wrap items-center gap-2 pl-12">
+                <span className="text-sm text-muted-foreground truncate">{currentArea.name}</span>
+                {currentArea.domain_type && (
+                  <Badge variant="outline">{DOMAIN_LABELS[currentArea.domain_type] || currentArea.domain_type}</Badge>
+                )}
+                {item?.status && <Badge variant="secondary">{item.status}</Badge>}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -113,9 +129,17 @@ export default function InventarioItem({ forceNew = false }) {
               readOnly={readOnly}
             />
           )}
+
+          {showAssetPanel && (
+            <AssetEventsPanel
+              itemId={item.id}
+              userId={effectiveUserId}
+              itemStatus={item.status || item.values?.Estado}
+              readOnly={readOnly}
+            />
+          )}
         </>
       )}
     </div>
   )
 }
-

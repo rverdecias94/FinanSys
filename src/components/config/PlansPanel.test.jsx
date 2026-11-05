@@ -94,8 +94,10 @@ describe('PlansPanel', () => {
     const { PlansPanel } = await import('./PlansPanel')
     renderPanel(<PlansPanel />)
 
-    expect(screen.getByText(/1[.,]?500 transacciones/i)).toBeInTheDocument()
-    expect(screen.getByText(/^150 transacciones/i)).toBeInTheDocument()
+    expect(screen.getByText(/1[.,]?500 movimientos de caja/i)).toBeInTheDocument()
+    expect(screen.getByText(/^150 movimientos de caja/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Sin acceso/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Sin Radar/i)).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Solicitar Negocio' }))
     expect(screen.getByRole('heading', { name: 'Solicitar Negocio' })).toBeInTheDocument()

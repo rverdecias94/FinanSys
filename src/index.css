@@ -10,8 +10,10 @@
     --card-foreground: 0 0% 9%;
     --popover: 0 0% 99%;
     --popover-foreground: 0 0% 32%;
-    --primary: 151 67% 67%;
-    --primary-foreground: 153 13% 14%;
+    /* Primario oscuro en modo claro: el pastel 151 67% 67% fallaba como texto
+       sobre blanco (~1.6:1). ~32% luminosidad ≈ WCAG AA para texto normal. */
+    --primary: 152 62% 32%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 99%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 93%;
@@ -22,12 +24,10 @@
     --destructive-foreground: 0 100% 99%;
     --border: 0 0% 87%;
     --input: 0 0% 96%;
-    --ring: 151 67% 67%;
+    --ring: 152 62% 32%;
     --success: 160 90% 26%; /* P3.6: verde más oscuro para contraste WCAG AA (4.98:1) sobre fondo claro */
     --warning: 38 92% 50%;
-    /* Verde de gráficas (ingresos/entradas). El pastel anterior (151 67% 67%) no
-       contrastaba sobre fondo claro (~1.6:1). Verde medio con ~3.8:1 sobre blanco,
-       que sigue destacando en modo oscuro. La variante .dark mantiene su tono claro. */
+    /* Verde de gráficas (ingresos/entradas). Alineado al primario legible. */
     --chart-1: 152 62% 37%;
     --chart-2: 217 91% 60%;
     --chart-3: 258 90% 66%;
@@ -35,12 +35,12 @@
     --chart-5: var(--destructive);
     --sidebar: 0 0% 99%;
     --sidebar-foreground: 0 0% 44%;
-    --sidebar-primary: 151 67% 67%;
-    --sidebar-primary-foreground: 153 13% 14%;
+    --sidebar-primary: 152 62% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 93%;
     --sidebar-accent-foreground: 0 0% 13%;
     --sidebar-border: 0 0% 87%;
-    --sidebar-ring: 151 67% 67%;
+    --sidebar-ring: 152 62% 32%;
     --font-sans: Outfit, sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     --font-mono: monospace;
@@ -128,6 +128,20 @@
   *::before,
   *::after {
     box-sizing: border-box;
+    /* Barras invisibles; el scroll sigue con rueda, touch y teclado (no overflow:hidden). */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* Radix ScrollArea: ocultar el thumb custom (el viewport ya scrollea sin barra nativa). */
+  [data-radix-scroll-area-scrollbar] {
+    display: none !important;
   }
 
   html {

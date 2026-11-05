@@ -57,7 +57,9 @@ export function ProductList({
           </div>
           <div className="min-w-0">
             <div className="font-medium break-words">{p.name}</div>
-            <div className="text-sm text-muted-foreground">{p.category}</div>
+            <div className="text-sm text-muted-foreground">
+              {p.category}{p.sku ? ` · ${p.sku}` : ''}{p.barcode ? ` · ${p.barcode}` : ''}
+            </div>
           </div>
         </div>
 

@@ -140,6 +140,11 @@ export function BusinessAssistant({ onQuotaChange }) {
       question: '¿Cuánto gasté e ingresé este mes por moneda?',
     },
     {
+      id: 'ex-history',
+      label: '¿Cuánto se facturó en febrero?',
+      question: `¿Cuánto se facturó (ingresos) en febrero de ${new Date().getFullYear()} por moneda?`,
+    },
+    {
       id: 'ex-stock',
       label: '¿Qué productos tienen stock bajo?',
       question: '¿Qué productos tienen stock bajo o agotado?',

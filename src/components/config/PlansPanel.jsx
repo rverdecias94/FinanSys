@@ -18,38 +18,14 @@ import {
   planLabel,
   resolvePlanPrice,
 } from '@/lib/plans'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Check, Crown, Info, Loader2, Shield, Send, Sparkles } from 'lucide-react'
+import { Check, Crown, Loader2, Shield, Send, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 
-const FEATURE_TIPS = {
-  ocr: 'OCR: digitalización de facturas, recibos y comprobantes.',
-  copiloto: 'Copiloto IA: asistente inteligente para consultar y analizar la información del negocio.',
-  radar: 'Radar de caja: proyección del efectivo. Negocio: 15 días. Élite: 30, 60 y 90 días (+ escenarios).',
-  auditoria: 'Auditoría: seguimiento y revisión de operaciones registradas.',
-}
-
-function FeatureRow({ text, tipKey }) {
+function FeatureRow({ text }) {
   return (
     <li className="flex items-start gap-2 text-sm min-h-[1.5rem]">
-      <Check className="h-4 w-4 mt-0.5 text-success shrink-0" />
-      <span className="flex-1 leading-snug">{text}</span>
-      {tipKey && FEATURE_TIPS[tipKey] && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              className="mt-0.5 shrink-0 rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={FEATURE_TIPS[tipKey]}
-            >
-              <Info className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-[240px] text-xs">
-            {FEATURE_TIPS[tipKey]}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      <Check className="h-4 w-4 mt-0.5 text-success shrink-0" aria-hidden="true" />
+      <span className="flex-1 leading-snug text-foreground">{text}</span>
     </li>
   )
 }
@@ -128,7 +104,7 @@ export function PlansPanel() {
     const docUltra = n(ultra, 'ai_doc_pages', 100)
     const calcUltra = n(ultra, 'ai_calc_queries', 50)
 
-    // Mismo orden de filas en los 3 planes para comparar en vertical
+    // Solo lo que cada plan SÍ incluye, en lenguaje claro (sin tooltips ni “Sin X”).
     return [
       {
         id: 'free',
@@ -136,15 +112,11 @@ export function PlansPanel() {
         subtitle: 'Ideal para emprendedores que están comenzando',
         icon: <Shield className="h-5 w-5" />,
         highlights: [
-          { text: `${currFree} moneda activa` },
-          { text: `${txFree.toLocaleString('es-ES')} transacciones / mes` },
-          { text: `${prodFree} productos` },
-          { text: `${areasFree} área de inventario` },
-          { text: 'Sin miembros adicionales de equipo' },
-          { text: 'Sin procesamiento OCR', tipKey: 'ocr' },
-          { text: 'Sin acceso al Copiloto IA', tipKey: 'copiloto' },
-          { text: 'Sin Radar de caja', tipKey: 'radar' },
-          { text: 'Reportes básicos' },
+          { text: `${currFree} moneda de trabajo` },
+          { text: `${txFree.toLocaleString('es-ES')} movimientos de caja al mes` },
+          { text: `Hasta ${prodFree} productos en Almacén` },
+          { text: `${areasFree} área de Inventario` },
+          { text: 'Reportes de Finanzas, Almacén e Inventario' },
         ],
       },
       {
@@ -153,32 +125,32 @@ export function PlansPanel() {
         subtitle: 'Más capacidad y control para tu negocio',
         icon: <Crown className="h-5 w-5" />,
         highlights: [
-          { text: currPrem == null ? 'Monedas ilimitadas' : `${currPrem} monedas activas` },
-          { text: `${txPrem.toLocaleString('es-ES')} transacciones / mes` },
-          { text: `${prodPrem} productos` },
-          { text: `${areasPrem} áreas de inventario` },
-          { text: `Hasta ${partnersPrem} miembros de equipo` },
-          { text: `${docPrem} páginas OCR / mes`, tipKey: 'ocr' },
-          { text: `${calcPrem} consultas Copiloto IA / mes`, tipKey: 'copiloto' },
-          { text: 'Radar de caja a 15 días (30/60/90 en Élite)', tipKey: 'radar' },
-          { text: 'Reportes avanzados y auditoría', tipKey: 'auditoria' },
+          { text: currPrem == null ? 'Todas las monedas que necesites' : `${currPrem} monedas de trabajo` },
+          { text: `${txPrem.toLocaleString('es-ES')} movimientos de caja al mes` },
+          { text: `Hasta ${prodPrem} productos en Almacén` },
+          { text: `Hasta ${areasPrem} áreas de Inventario` },
+          { text: `Hasta ${partnersPrem} personas en tu equipo` },
+          { text: `${docPrem} fotos de facturas digitalizadas al mes` },
+          { text: `${calcPrem} consultas al asistente del negocio al mes` },
+          { text: 'Proyección de caja a 15 días' },
+          { text: 'Reportes avanzados e historial de cambios' },
         ],
       },
       {
         id: 'ultra',
         title: 'Plan Élite',
-        subtitle: 'Sin límites operativos + Copiloto completo',
+        subtitle: 'Capacidad amplia y asistente completo',
         icon: <Sparkles className="h-5 w-5" />,
         highlights: [
-          { text: 'Monedas ilimitadas' },
-          { text: 'Transacciones ilimitadas' },
-          { text: 'Productos ilimitados' },
-          { text: 'Áreas de inventario ilimitadas' },
-          { text: `Hasta ${partnersUltra} miembros de equipo` },
-          { text: `${docUltra} páginas OCR / mes`, tipKey: 'ocr' },
-          { text: `${calcUltra} consultas Copiloto IA / mes`, tipKey: 'copiloto' },
-          { text: 'Radar de caja 30/60/90 + escenarios', tipKey: 'radar' },
-          { text: 'Reportes avanzados y auditoría', tipKey: 'auditoria' },
+          { text: 'Todas las monedas que necesites' },
+          { text: 'Movimientos de caja sin límite mensual' },
+          { text: 'Productos de Almacén sin límite' },
+          { text: 'Áreas de Inventario sin límite' },
+          { text: `Hasta ${partnersUltra} personas en tu equipo` },
+          { text: `${docUltra} fotos de facturas digitalizadas al mes` },
+          { text: `${calcUltra} consultas al asistente del negocio al mes` },
+          { text: 'Proyección de caja a 30, 60 y 90 días' },
+          { text: 'Reportes avanzados e historial de cambios' },
         ],
       },
     ]
@@ -250,7 +222,6 @@ export function PlansPanel() {
   const billingCurrency = pricing?.premium?.currency || pricing?.ultra?.currency || 'USD'
 
   return (
-    <TooltipProvider delayDuration={200}>
     <div className="space-y-6">
       <div>
         <h3 className="text-lg font-medium">Planes</h3>
@@ -357,7 +328,7 @@ export function PlansPanel() {
               <CardContent className="flex flex-1 flex-col gap-4 pt-0">
                 <ul className="space-y-2 flex-1">
                   {plan.highlights.map((h) => (
-                    <FeatureRow key={h.text} text={h.text} tipKey={h.tipKey} />
+                    <FeatureRow key={h.text} text={h.text} />
                   ))}
                 </ul>
 
@@ -537,6 +508,5 @@ export function PlansPanel() {
         }}
       />
     </div>
-    </TooltipProvider>
   )
 }

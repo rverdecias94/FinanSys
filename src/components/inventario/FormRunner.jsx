@@ -1,7 +1,17 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { listFields, listItems, createItem, updateItem, deleteItem, validateValuesAgainstFields } from '@/services/dynamicInventory'
+import {
+  listFields,
+  listItems,
+  createItem,
+  updateItem,
+  deleteItem,
+  validateValuesAgainstFields,
+  adjustInventoryItemQty,
+  countInventoryItem,
+  recordAssetEvent
+} from '@/services/dynamicInventory'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,44 +19,51 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
-import { Trash2, Pencil, Package } from 'lucide-react'
-import { notify } from '@/services/notifications'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Trash2, Pencil, Package, SlidersHorizontal, ScanLine } from 'lucide-react'
+import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { Calendar } from '@/components/ui/calendar'
 import { usePermissions } from '@/context/PermissionContext'
-import { placeholderForType, toLabelFromName } from '@/utils/inventoryFormUtils'
+import {
+  placeholderForType,
+  toLabelFromName,
+  isStockLikeDomain,
+  isAssetLikeDomain
+} from '@/utils/inventoryFormUtils'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { Link } from 'react-router-dom'
 
-// Convierte un valor de fecha guardado (string 'yyyy-MM-dd' o ISO) a Date local
-// (evita el desfase de un día al interpretar 'yyyy-MM-dd' como UTC).
 function parseDateValue(raw) {
   if (!raw) return null
   const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw)
   return Number.isNaN(d.getTime()) ? null : d
 }
 
-// Formatea el valor de un item según el tipo de campo dinámico (igual criterio
-// que usa el formulario), para que la fila del listado sea legible.
 function formatFieldValue(field, raw) {
   if (raw === null || raw === undefined || raw === '') return '—'
   if (field?.type === 'boolean') return raw ? 'Sí' : 'No'
-  if (field?.type === 'date') {
+  if (field?.type === 'date' || field?.semantic === 'date_expiry' || field?.semantic === 'date_acquired') {
     const d = parseDateValue(raw)
     return d ? format(d, 'dd MMM yyyy', { locale: es }) : String(raw)
+  }
+  if (field?.type === 'currency') {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n.toLocaleString('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(raw)
   }
   return String(raw)
 }
 
-// Indicador de obligatoriedad consistente para TODOS los tipos de campo.
-// Antes solo lo mostraban los campos de texto, por lo que un campo requerido (p. ej. número)
-// se veía igual que uno opcional. Esto unifica el asterisco rojo (requerido) / "(Opcional)".
 function FieldRequiredMark({ required }) {
   return required
     ? <b className="text-red-500 ml-1">*</b>
     : <span className="text-muted-foreground ml-1">(Opcional)</span>
 }
+
+const TEXT_LIKE = new Set(['text', 'barcode', 'serial', 'person_text', 'location_text', 'photo_url'])
+const NUMBER_LIKE = new Set(['number', 'quantity_uom', 'currency'])
 
 export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false, onConfigure }) {
   const queryClient = useQueryClient()
@@ -54,7 +71,16 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   const [editingId, setEditingId] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustItem, setAdjustItem] = useState(null)
+  const [adjustDelta, setAdjustDelta] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+  const [countMode, setCountMode] = useState(false)
+  const [countQty, setCountQty] = useState('')
   const { hasPermission } = usePermissions()
+
+  const stockLike = isStockLikeDomain(currentArea?.domain_type)
+  const assetLike = isAssetLikeDomain(currentArea?.domain_type)
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
     queryKey: ['inventoryFields', areaId],
@@ -70,12 +96,21 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
     setEditingId(initialItem.id || null)
   }, [initialItem])
 
-  // Mutaciones con mensajes automáticos configurados en 'meta'
   const createMutation = useMutation({
-    mutationFn: (data) => createItem(areaId, data, userId),
+    mutationFn: async (data) => {
+      const created = await createItem(areaId, data, userId)
+      if (assetLike && created?.id) {
+        try {
+          await recordAssetEvent({ itemId: created.id, eventType: 'intake', toLocation: data.Ubicación || data.ubicacion, toCustodian: data.Custodio })
+        } catch {
+          // Alta del ítem ya OK; el timeline se puede completar luego
+        }
+      }
+      return created
+    },
     meta: {
-      successMessage: "Producto agregado satisfactoriamente",
-      errorMessage: "Error al agregar el producto"
+      successMessage: 'Producto agregado satisfactoriamente',
+      errorMessage: 'Error al agregar el producto'
     },
     onSuccess: () => {
       setValues({})
@@ -86,8 +121,8 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateItem(id, data, userId),
     meta: {
-      successMessage: "Producto actualizado correctamente",
-      errorMessage: "Error al actualizar el producto"
+      successMessage: 'Producto actualizado correctamente',
+      errorMessage: 'Error al actualizar el producto'
     },
     onSuccess: () => {
       setValues({})
@@ -99,12 +134,35 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   const deleteMutation = useMutation({
     mutationFn: (id) => deleteItem(id, userId),
     meta: {
-      successMessage: "Producto eliminado exitosamente",
-      errorMessage: "Error al eliminar el producto"
+      successMessage: 'Producto eliminado exitosamente',
+      errorMessage: 'Error al eliminar el producto'
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
     }
+  })
+
+  const adjustMutation = useMutation({
+    mutationFn: async () => {
+      if (countMode) {
+        return countInventoryItem(adjustItem.id, Number(countQty), adjustReason)
+      }
+      return adjustInventoryItemQty(adjustItem.id, Number(adjustDelta), adjustReason)
+    },
+    onSuccess: () => {
+      notify.success(countMode ? 'Conteo registrado' : 'Cantidad ajustada')
+      setAdjustOpen(false)
+      setAdjustItem(null)
+      setAdjustDelta('')
+      setCountQty('')
+      setAdjustReason('')
+      setCountMode(false)
+      queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
+      if (adjustItem?.id) {
+        queryClient.invalidateQueries({ queryKey: ['inventoryItem', String(adjustItem.id)] })
+      }
+    },
+    onError: (e) => notify.error(getSupabaseErrorMessage(e))
   })
 
   const handleSubmit = async (e) => {
@@ -116,7 +174,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
         return
       }
       if (validation.invalidNumbers?.length) {
-        notify.warning(`Los campos numéricos deben ser mínimo 1: ${validation.invalidNumbers.join(', ')}`)
+        notify.warning(`Revisa los números: ${validation.invalidNumbers.join(', ')}`)
         return
       }
       notify.warning('Revisa los datos ingresados')
@@ -138,7 +196,6 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   const handleEditItem = (item) => {
     setValues(item.values || {})
     setEditingId(item.id)
-    // Scroll to form top
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -147,30 +204,176 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
     setEditingId(null)
   }
 
+  const openAdjust = (item, asCount = false) => {
+    setAdjustItem(item)
+    setCountMode(asCount)
+    setAdjustDelta('')
+    setCountQty(item.qty != null ? String(item.qty) : String(item.values?.Cantidad ?? ''))
+    setAdjustReason('')
+    setAdjustOpen(true)
+  }
+
   const canShowForm = readOnly ? true : (editingId ? hasPermission('inventory.edit') : hasPermission('inventory.create'))
 
-  // Columnas DINÁMICAS: las cabeceras dependen de los campos del área.
-  // Construimos una fila legible a partir de la definición de campos (`fields`)
-  // y de los valores del item (`item.values`).
-  const textFields = useMemo(() => fields.filter(f => f.type === 'text' || f.type === 'textarea'), [fields])
+  const textFields = useMemo(
+    () => fields.filter((f) => TEXT_LIKE.has(f.type) || f.type === 'textarea'),
+    [fields]
+  )
+
+  const renderFieldInput = (f) => {
+    const label = f.label || toLabelFromName(f.name)
+    const id = `field_${f.name}`
+    const qtyLocked = stockLike && editingId && (f.semantic === 'quantity' || f.name === 'Cantidad')
+
+    if (TEXT_LIKE.has(f.type) || f.type === 'textarea') {
+      return (
+        <div key={f.id} className="grid gap-1">
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+          {f.type === 'textarea' ? (
+            <Textarea
+              id={id}
+              value={values[f.name] ?? ''}
+              required={f.required}
+              disabled={readOnly}
+              onChange={readOnly ? undefined : (e) => setValues({ ...values, [f.name]: e.target.value })}
+              placeholder={placeholderForType(f.type)}
+            />
+          ) : (
+            <Input
+              id={id}
+              type={f.type === 'photo_url' ? 'url' : 'text'}
+              value={values[f.name] ?? ''}
+              required={f.required}
+              disabled={readOnly}
+              onChange={readOnly ? undefined : (e) => setValues({ ...values, [f.name]: e.target.value })}
+              placeholder={placeholderForType(f.type)}
+            />
+          )}
+        </div>
+      )
+    }
+
+    if (NUMBER_LIKE.has(f.type)) {
+      return (
+        <div key={f.id} className="grid gap-1">
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+          <Input
+            type="number"
+            min={f.type === 'currency' ? 0 : (f.semantic === 'quantity' ? 1 : 0)}
+            step={f.type === 'currency' ? '0.01' : '1'}
+            id={id}
+            required={f.required}
+            value={values[f.name] ?? ''}
+            placeholder={placeholderForType(f.type)}
+            disabled={readOnly || qtyLocked}
+            onChange={(e) => {
+              if (readOnly || qtyLocked) return
+              const raw = e.target.value
+              if (raw === '') {
+                setValues({ ...values, [f.name]: '' })
+                return
+              }
+              const n = Number(raw)
+              if (!Number.isFinite(n)) return
+              const min = f.type === 'currency' ? 0 : (f.semantic === 'quantity' || f.type === 'quantity_uom' || f.type === 'number' ? 0 : 0)
+              setValues({ ...values, [f.name]: String(Math.max(min, n)) })
+            }}
+          />
+          {qtyLocked && (
+            <p className="text-xs text-muted-foreground">
+              La cantidad se cambia con «Ajustar» (queda historial).
+            </p>
+          )}
+        </div>
+      )
+    }
+
+    if (f.type === 'date') {
+      return (
+        <div key={f.id} className="grid gap-1">
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+          <Calendar
+            value={parseDateValue(values[f.name])}
+            disabled={readOnly}
+            placeholder="Selecciona una fecha"
+            options={{ maxDate: null }}
+            onChange={readOnly ? undefined : (d) => setValues({ ...values, [f.name]: d ? format(d, 'yyyy-MM-dd') : '' })}
+          />
+        </div>
+      )
+    }
+
+    if (f.type === 'color') {
+      return (
+        <div key={f.id} className="grid gap-1">
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+          <Input
+            type="color"
+            id={id}
+            required={f.required}
+            value={values[f.name] ?? '#000000'}
+            disabled={readOnly}
+            onChange={readOnly ? undefined : (e) => setValues({ ...values, [f.name]: e.target.value })}
+          />
+        </div>
+      )
+    }
+
+    if (f.type === 'boolean') {
+      return (
+        <div key={f.id} className="flex items-center gap-2">
+          <Checkbox
+            checked={Boolean(values[f.name])}
+            disabled={readOnly}
+            onCheckedChange={(checked) => {
+              if (readOnly) return
+              setValues({ ...values, [f.name]: Boolean(checked) })
+            }}
+          />
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+        </div>
+      )
+    }
+
+    if (f.type === 'select') {
+      const options = Array.isArray(f.options) ? f.options : []
+      return (
+        <div key={f.id} className="grid gap-1">
+          <Label htmlFor={id}>{label}<FieldRequiredMark required={f.required} /></Label>
+          <Select
+            disabled={readOnly}
+            value={String(values[f.name] ?? '')}
+            onValueChange={(v) => {
+              if (readOnly) return
+              setValues({ ...values, [f.name]: v })
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={placeholderForType('select')} />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )
+    }
+
+    return null
+  }
 
   const renderItem = (item) => {
     const itemValues = item.values || {}
     const labelFor = (f) => f.label || toLabelFromName(f.name)
-
-    // Título: primer campo de texto, o SKU, con fallback al id.
     const firstText = textFields[0]
     const title =
       (firstText && itemValues[firstText.name] != null && String(itemValues[firstText.name]).trim()) ||
       (item.sku && String(item.sku).trim()) ||
       `Item ${item.id}`
 
-    // Subtítulo: siguientes 2-3 campos como "Etiqueta: valor" separados por " · ".
-    const subtitleFields = fields
-      .filter(f => f !== firstText)
-      .slice(0, 3)
+    const subtitleFields = fields.filter((f) => f !== firstText).slice(0, 3)
     const subtitle = subtitleFields
-      .map(f => `${labelFor(f)}: ${formatFieldValue(f, itemValues[f.name])}`)
+      .map((f) => `${labelFor(f)}: ${formatFieldValue(f, itemValues[f.name] ?? (f.semantic === 'quantity' ? item.qty : null))}`)
       .join(' · ')
 
     return (
@@ -182,11 +385,31 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           <div className="min-w-0">
             <div className="font-medium break-words">{title}</div>
             {subtitle && <div className="text-sm text-muted-foreground break-words">{subtitle}</div>}
+            {item.status && (
+              <div className="mt-1 text-xs text-muted-foreground">Estado: {item.status}</div>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-          <div className="flex shrink-0 items-center gap-2">
+        <div className="flex items-center justify-between gap-2 border-t pt-3 sm:shrink-0 sm:justify-end sm:border-0 sm:pt-0">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            {stockLike && hasPermission('inventory.edit') && (
+              <>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openAdjust(item, false)}>
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Ajustar
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openAdjust(item, true)}>
+                  <ScanLine className="w-3.5 h-3.5" />
+                  Contar
+                </Button>
+              </>
+            )}
+            {assetLike && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/inventario/${item.id}`}>Ficha</Link>
+              </Button>
+            )}
             {hasPermission('inventory.edit') && (
               <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
                 <Pencil className="w-4 h-4" />
@@ -205,6 +428,16 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
 
   return (
     <div className="space-y-6">
+      {currentArea?.domain_type === 'merchandise' && (
+        <div className="rounded-lg border border-dashed bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          ¿Vas a vender esto con costo?{' '}
+          <Link to="/almacen" className="font-medium text-primary underline-offset-2 hover:underline">
+            Usa Almacén
+          </Link>
+          {' '}— aquí es control de lista, sin venta.
+        </div>
+      )}
+
       {canShowForm && (
         <Card>
           <CardHeader>
@@ -217,9 +450,9 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
               <div className="text-muted-foreground">Cargando…</div>
             ) : fields.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
-                <p className="text-sm font-medium text-foreground">Todavía no hay qué preguntar</p>
+                <p className="text-sm font-medium text-foreground">Todavía no hay datos que anotar</p>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Primero arma la lista de datos que quieres anotar (nombre, cantidad, etc.). Toma menos de un minuto.
+                  Primero arma la lista (nombre, cantidad, etc.). Toma menos de un minuto.
                 </p>
                 {typeof onConfigure === 'function' && (
                   <Button type="button" onClick={onConfigure}>
@@ -229,125 +462,9 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {fields.map(f => {
-                  const label = f.label || toLabelFromName(f.name)
-                  const commonProps = {
-                    id: `field_${f.name}`,
-                    required: f.required,
-                    value: values[f.name] ?? '',
-                    onChange: e => setValues({ ...values, [f.name]: e.target.value })
-                  }
-                  if (f.type === 'text' || f.type === 'textarea') {
-                    return (
-                      <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        {f.type === 'textarea' ? (
-                          <Textarea
-                            id={commonProps.id}
-                            value={commonProps.value}
-                            required={commonProps.required}
-                            onChange={readOnly ? undefined : commonProps.onChange}
-                            disabled={readOnly}
-                            placeholder={placeholderForType('textarea')}
-                          />
-                        ) : (
-                          <Input {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} placeholder={placeholderForType('text')} />
-                        )}
-                      </div>
-                    )
-                  }
-                  if (f.type === 'number') {
-                    return (
-                      <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          id={commonProps.id}
-                          required={commonProps.required}
-                          value={commonProps.value}
-                          placeholder={placeholderForType('number')}
-                          disabled={readOnly}
-                          onChange={(e) => {
-                            if (readOnly) return
-                            const raw = e.target.value
-                            if (raw === '') {
-                              setValues({ ...values, [f.name]: '' })
-                              return
-                            }
-                            const n = Number(raw)
-                            if (!Number.isFinite(n)) return
-                            setValues({ ...values, [f.name]: String(Math.max(1, n)) })
-                          }}
-                        />
-                      </div>
-                    )
-                  }
-                  if (f.type === 'date') {
-                    return (
-                      <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        <Calendar
-                          value={parseDateValue(values[f.name])}
-                          disabled={readOnly}
-                          placeholder="Selecciona una fecha"
-                          // Permitir fechas futuras (p. ej. vencimientos), a diferencia del default.
-                          options={{ maxDate: null }}
-                          onChange={readOnly ? undefined : (d) => setValues({ ...values, [f.name]: d ? format(d, 'yyyy-MM-dd') : '' })}
-                        />
-                      </div>
-                    )
-                  }
-                  if (f.type === 'color') {
-                    return (
-                      <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        <Input type="color" {...commonProps} disabled={readOnly} onChange={readOnly ? undefined : commonProps.onChange} />
-                      </div>
-                    )
-                  }
-                  if (f.type === 'boolean') {
-                    return (
-                      <div key={f.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={Boolean(values[f.name])}
-                          disabled={readOnly}
-                          onCheckedChange={(checked) => {
-                            if (readOnly) return
-                            setValues({ ...values, [f.name]: Boolean(checked) })
-                          }}
-                        />
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                      </div>
-                    )
-                  }
-                  if (f.type === 'select') {
-                    const options = Array.isArray(f.options) ? f.options : []
-                    return (
-                      <div key={f.id} className="grid gap-1">
-                        <Label htmlFor={commonProps.id}>{label}<FieldRequiredMark required={f.required} /></Label>
-                        <Select
-                          disabled={readOnly}
-                          value={String(values[f.name] ?? '')}
-                          onValueChange={(v) => {
-                            if (readOnly) return
-                            setValues({ ...values, [f.name]: v })
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={placeholderForType('select')} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {options.map(opt => <SelectItem key={String(opt)} value={String(opt)}>{String(opt)}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )
-                  }
-                  return null
-                })}
+                {fields.map((f) => renderFieldInput(f))}
                 {!readOnly && (
-                  <div className="sm:col-span-2 flex justify-end gap-2 pt-2">
+                  <div className="sm:col-span-2 flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
                     {editingId && (
                       <Button type="button" variant="outline" onClick={handleCancelEdit}>
                         Cancelar Edición
@@ -384,6 +501,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           </CardContent>
         </Card>
       )}
+
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={(o) => {
@@ -403,6 +521,76 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           }
         }}
       />
+
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{countMode ? 'Conteo físico' : 'Ajustar cantidad'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Actual: {adjustItem?.qty ?? adjustItem?.values?.Cantidad ?? '—'}
+            </p>
+            {countMode ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="count-qty">Cantidad contada</Label>
+                <Input
+                  id="count-qty"
+                  type="number"
+                  min={0}
+                  value={countQty}
+                  onChange={(e) => setCountQty(e.target.value)}
+                />
+              </div>
+            ) : (
+              <div className="grid gap-1.5">
+                <Label htmlFor="adj-delta">Cambio (+/−)</Label>
+                <Input
+                  id="adj-delta"
+                  type="number"
+                  value={adjustDelta}
+                  onChange={(e) => setAdjustDelta(e.target.value)}
+                  placeholder="Ej: -2 o 5"
+                />
+              </div>
+            )}
+            <div className="grid gap-1.5">
+              <Label htmlFor="adj-reason">Motivo (obligatorio)</Label>
+              <Textarea
+                id="adj-reason"
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                placeholder="Rotura, consumo, error de carga…"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)}>Cancelar</Button>
+            <Button
+              type="button"
+              loading={adjustMutation.isPending}
+              onClick={() => {
+                if (!String(adjustReason || '').trim() || String(adjustReason).trim().length < 2) {
+                  notify.warning('El motivo es obligatorio')
+                  return
+                }
+                if (countMode) {
+                  if (countQty === '' || !Number.isFinite(Number(countQty))) {
+                    notify.warning('Indica la cantidad contada')
+                    return
+                  }
+                } else if (!adjustDelta || Number(adjustDelta) === 0) {
+                  notify.warning('El ajuste no puede ser cero')
+                  return
+                }
+                adjustMutation.mutate()
+              }}
+            >
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

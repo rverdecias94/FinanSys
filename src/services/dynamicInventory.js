@@ -28,12 +28,19 @@ export async function listAreas(userUuid, { page, pageSize } = {}) {
   return data
 }
 
-export async function createArea({ name, icon, slug, prefix }, userUuid, businessId) {
+export async function createArea({ name, icon, slug, prefix, domain_type, template_id }, userUuid, businessId) {
   if (!userUuid) throw new Error('User UUID is required')
   const effectiveUserId = getEffectiveUserId(userUuid, businessId)
   // Slug vacío → null para que la BD genere uno único (evita 409 por '' repetido).
   const cleanSlug = String(slug || '').trim() || null
-  const payload = { name, icon, slug: cleanSlug, user_id: effectiveUserId }
+  const payload = {
+    name,
+    icon,
+    slug: cleanSlug,
+    user_id: effectiveUserId,
+    domain_type: domain_type || 'custom',
+    template_id: template_id || null
+  }
   const { data: area, error } = await supabase
     .from('inventory_areas')
     .insert(payload)
@@ -48,6 +55,14 @@ export async function createArea({ name, icon, slug, prefix }, userUuid, busines
       .insert({ user_id: effectiveUserId, area_id: area.id, prefix: pref })
     if (perr) throw perr
   }
+  if (template_id && template_id !== 'custom_blank') {
+    try {
+      await applyInventoryTemplate(area.id, template_id)
+    } catch (tplErr) {
+      // Área ya creada; el usuario puede armar campos a mano.
+      console.warn('apply_inventory_template failed', tplErr)
+    }
+  }
   await logAction({
     action: 'Crear',
     resource: `Área: ${area.name}`,
@@ -55,6 +70,89 @@ export async function createArea({ name, icon, slug, prefix }, userUuid, busines
     area: 'Inventario'
   })
   return area
+}
+
+export async function applyInventoryTemplate(areaId, templateId) {
+  const { data, error } = await supabase.rpc('apply_inventory_template', {
+    p_area_id: Number(areaId),
+    p_template_id: templateId
+  })
+  if (error) throw error
+  return data
+}
+
+export async function adjustInventoryItemQty(itemId, qtyDelta, reason) {
+  const { data, error } = await supabase.rpc('adjust_inventory_item_qty', {
+    p_item_id: Number(itemId),
+    p_qty_delta: Number(qtyDelta),
+    p_reason: reason
+  })
+  if (error) throw error
+  return data
+}
+
+export async function countInventoryItem(itemId, countedQty, reason) {
+  const { data, error } = await supabase.rpc('count_inventory_item', {
+    p_item_id: Number(itemId),
+    p_counted_qty: Number(countedQty),
+    p_reason: reason || 'Conteo físico'
+  })
+  if (error) throw error
+  return data
+}
+
+export async function listItemMovements(itemId, userUuid, businessId) {
+  if (!userUuid) throw new Error('User UUID is required')
+  const effectiveUserId = getEffectiveUserId(userUuid, businessId)
+  const { data, error } = await supabase
+    .from('inventory_item_movements')
+    .select('*')
+    .eq('user_id', effectiveUserId)
+    .eq('item_id', itemId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data || []
+}
+
+export async function listAssetEvents(itemId, userUuid, businessId) {
+  if (!userUuid) throw new Error('User UUID is required')
+  const effectiveUserId = getEffectiveUserId(userUuid, businessId)
+  const { data, error } = await supabase
+    .from('inventory_asset_events')
+    .select('*')
+    .eq('user_id', effectiveUserId)
+    .eq('item_id', itemId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) throw error
+  return data || []
+}
+
+export async function recordAssetEvent({
+  itemId,
+  eventType,
+  toLocation,
+  toCustodian,
+  conditionIn,
+  conditionOut,
+  notes,
+  attachmentUrl,
+  requireOwnerForDispose = true
+}) {
+  const { data, error } = await supabase.rpc('record_inventory_asset_event', {
+    p_item_id: Number(itemId),
+    p_event_type: eventType,
+    p_to_location: toLocation || null,
+    p_to_custodian: toCustodian || null,
+    p_condition_in: conditionIn || null,
+    p_condition_out: conditionOut || null,
+    p_notes: notes || null,
+    p_attachment_url: attachmentUrl || null,
+    p_require_owner_for_dispose: requireOwnerForDispose !== false
+  })
+  if (error) throw error
+  return data
 }
 
 export async function updateArea(id, { name, icon, slug, prefix }, userUuid, businessId) {
@@ -309,12 +407,15 @@ export async function validateValuesAgainstFields(values, areaId, userUuid) {
   const missing = fields.filter(f => f.required && (values[f.name] === undefined || values[f.name] === null || values[f.name] === ''))
 
   const invalidNumbers = fields
-    .filter(f => f.type === 'number')
+    .filter(f => f.type === 'number' || f.type === 'quantity_uom' || f.type === 'currency')
     .filter(f => {
       const v = values[f.name]
       if (v === undefined || v === null || v === '') return false
       const n = Number(v)
-      return Number.isFinite(n) && n < 1
+      if (!Number.isFinite(n) || n < 0) return true
+      if ((f.type === 'number' || f.type === 'quantity_uom') && f.semantic === 'quantity' && n < 1) return true
+      if ((f.type === 'number' || f.type === 'quantity_uom') && !f.semantic && n < 1) return true
+      return false
     })
 
   if (missing.length > 0 || invalidNumbers.length > 0) {

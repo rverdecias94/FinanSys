@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Package } from 'lucide-react'
+import { Package, ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, ArrowLeftRight, ClipboardCheck } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
@@ -11,6 +12,10 @@ import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { ExportButton } from '@/components/common/ExportButton'
 import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
+import { DocumentList } from '@/components/almacen/DocumentList'
+import { LocationsPanel } from '@/components/almacen/LocationsPanel'
+import { WarehouseInsightsPanel } from '@/components/almacen/WarehouseInsightsPanel'
+import { WarehouseOperationModal } from '@/components/almacen/WarehouseOperationModal'
 import { notify } from '@/services/notifications'
 import {
   listProductsForSelection,
@@ -22,11 +27,11 @@ import {
 export default function AlmacenMejorado() {
   const { session } = useSession()
   const { businessId } = useBusiness()
-  const { canView } = usePermissionCheck()
+  const { canView, hasPermission } = usePermissionCheck()
   const queryClient = useQueryClient()
 
-  // Estado local
   const [tab, setTab] = useState('products')
+  const [opMode, setOpMode] = useState(null)
 
   const userId = session?.user?.id
 
@@ -39,7 +44,7 @@ export default function AlmacenMejorado() {
     try {
       await exportProducts(businessId || userId)
       notify.success('Exportación iniciada')
-    } catch (error) {
+    } catch {
       notify.error('Error al exportar productos')
     }
   }
@@ -68,8 +73,8 @@ export default function AlmacenMejorado() {
 
   const categories = categoriesData ?? []
   const productsForSelection = productsSelectionData ?? []
+  const canMove = hasPermission('warehouse.move')
 
-  // Si no tiene permisos de visualización, mostrar mensaje
   if (!canView('warehouse')) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -88,31 +93,56 @@ export default function AlmacenMejorado() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Package className="w-8 h-8 text-primary" />
           </div>
           <div>
             Almacén
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              Productos que compras y vendes, con stock y costo.
+            </p>
             <PlanLimitFeedback metric="products" label="Productos" className="mt-1" />
           </div>
         </h1>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <PermissionGuard permission="warehouse.export">
             <ExportButton format="excel" label="Exportar" size="default" onClick={handleExportProducts} />
           </PermissionGuard>
         </div>
       </div>
 
+      {canMove && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('receipt')}>
+            <ArrowDownToLine className="h-4 w-4 text-success" /> Recibir
+          </Button>
+          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('issue')}>
+            <ArrowUpFromLine className="h-4 w-4 text-destructive" /> Salida
+          </Button>
+          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('adjustment')}>
+            <SlidersHorizontal className="h-4 w-4" /> Ajustar
+          </Button>
+          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('transfer')}>
+            <ArrowLeftRight className="h-4 w-4" /> Transferir
+          </Button>
+          <Button variant="outline" className="h-11 gap-1.5 justify-start col-span-2 sm:col-span-1" onClick={() => setOpMode('count')}>
+            <ClipboardCheck className="h-4 w-4" /> Contar
+          </Button>
+        </div>
+      )}
+
       <AlmacenDashboard stats={statsData} loading={isLoadingStats} />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
           <TabsTrigger value="products">Productos</TabsTrigger>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
+          <TabsTrigger value="documents">Comprobantes</TabsTrigger>
+          <TabsTrigger value="locations">Ubicaciones</TabsTrigger>
+          <TabsTrigger value="insights">Alertas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products">
@@ -134,7 +164,41 @@ export default function AlmacenMejorado() {
             onRefresh={refreshWarehouse}
           />
         </TabsContent>
+
+        <TabsContent value="documents">
+          <DocumentList
+            userId={userId}
+            businessId={businessId}
+            enabled={canView('warehouse')}
+            onRefresh={refreshWarehouse}
+          />
+        </TabsContent>
+
+        <TabsContent value="locations">
+          <LocationsPanel
+            userId={userId}
+            businessId={businessId}
+            enabled={canView('warehouse')}
+          />
+        </TabsContent>
+
+        <TabsContent value="insights">
+          <WarehouseInsightsPanel
+            userId={userId}
+            businessId={businessId}
+            products={productsForSelection}
+            enabled={canView('warehouse')}
+          />
+        </TabsContent>
       </Tabs>
+
+      <WarehouseOperationModal
+        open={!!opMode}
+        onOpenChange={(o) => { if (!o) setOpMode(null) }}
+        mode={opMode || 'receipt'}
+        products={productsForSelection}
+        onSuccess={refreshWarehouse}
+      />
     </div>
   )
 }

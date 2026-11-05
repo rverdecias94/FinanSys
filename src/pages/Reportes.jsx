@@ -1,14 +1,29 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, FileText, Layers, Lock, Package, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  ArrowLeftRight,
+  BarChart3,
+  ChevronDown,
+  ClipboardList,
+  FileText,
+  Layers,
+  Loader2,
+  Lock,
+  Package,
+  TrendingDown,
+  TrendingUp,
+  Warehouse,
+  Wallet,
+} from 'lucide-react'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { getBusinessSettings } from '@/services/businessSettings'
 import { notify } from '@/services/notifications'
-import { useIsMobile } from '@/hooks/useIsMobile'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +34,7 @@ import { PermissionGuard, usePermissionCheck } from '@/components/common/Permiss
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { ExportButton } from '@/components/common/ExportButton'
 import { ReportPreview } from '@/components/reportes/ReportPreview'
+import { ReportTypeCard } from '@/components/reportes/ReportTypeCard'
 import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig, fetchSettledCashSources, listOpenAccounts } from '@/services/finanzas'
 import { AgingPanel } from '@/components/finanzas/AgingPanel'
 import { CashFlowPanel } from '@/components/finanzas/CashFlowPanel'
@@ -28,7 +44,7 @@ import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRow
 import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpenAccountRows, openAccountsToExportRows } from '@/reporting/metrics'
 import { fetchMovementsForExport, fetchMovementsForReporting, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
-import { buildReport, TEMPLATE_OPTIONS } from '@/reporting/templates'
+import { buildReport } from '@/reporting/templates'
 import { toLegacyReportShape } from '@/reporting/documentModel'
 import { listAllAuditLogs } from '@/services/auditLogs'
 import { saveReportInstance, registerReportExport } from '@/services/reportInstances'
@@ -56,7 +72,6 @@ const Reportes = () => {
   const { canAccessFeature } = useSubscription()
   const { formatCurrency } = useCurrency()
   const { canView } = usePermissionCheck()
-  const isMobile = useIsMobile()
   const userId = session?.user?.id
   const effectiveUserId = businessId || userId
 
@@ -94,6 +109,8 @@ const Reportes = () => {
   const [issuing, setIssuing] = useState(false)
   /** E2: 'recorded' = transacciones del período; 'settled' = caja liquidada (abonos + contado). */
   const [cashBasis, setCashBasis] = useState('recorded')
+  const [showAdvancedReports, setShowAdvancedReports] = useState(false)
+  const [detailTab, setDetailTab] = useState('finanzas')
 
   // Contadores por tab (alimentados por ResponsiveListing.onMeta).
   const [financeCount, setFinanceCount] = useState(0)
@@ -540,456 +557,561 @@ const Reportes = () => {
     return { data: summary, count: res?.count || 0 }
   }
 
+  const reportsDisabled = !dateFilter || previewLoading
+  const exportToolbarClass = 'flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Reportes y Resúmenes</h1>
-        <p className="text-muted-foreground">
-          Finanzas (caja), Almacén (stock de venta) e Inventario (áreas, equipos y listas). Los comprobantes de recepción/ajuste se gestionan en Almacén.
-        </p>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      {/* Cabecera */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="shrink-0 rounded-lg bg-primary/10 p-2">
+            <BarChart3 className="h-7 w-7 text-primary sm:h-8 sm:w-8" aria-hidden />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Reportes y resúmenes</h1>
+            <p className="text-sm text-muted-foreground sm:text-base">
+              Elige el período, genera el documento y revisa el panorama. El detalle por módulo queda debajo.
+            </p>
+          </div>
+        </div>
+        {previewLoading && (
+          <div className="inline-flex h-10 items-center gap-2 self-start rounded-full border bg-muted/40 px-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            Preparando informe…
+          </div>
+        )}
       </div>
 
-      <DateRangeFilter onFilterChange={handleFilterChange}>
-        <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
+      {/* 1. Período — sin botones de documento mezclados */}
+      <section className="space-y-2" aria-labelledby="reportes-periodo">
+        <h2 id="reportes-periodo" className="text-sm font-medium text-foreground">
+          1. Período
+        </h2>
+        <DateRangeFilter onFilterChange={handleFilterChange} className="w-full sm:w-full" />
+      </section>
+
+      {/* 2. Generar documento — camino principal primero */}
+      <section className="space-y-3" aria-labelledby="reportes-generar">
+        <div className="space-y-1">
+          <h2 id="reportes-generar" className="text-sm font-medium text-foreground">
+            2. Generar informe
+          </h2>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            {dateFilter
+              ? `Período activo: ${dateFilter.label}. Se abre una vista previa; luego puedes emitir o descargar Word.`
+              : 'Selecciona un período para habilitar los informes.'}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           <PermissionGuard permission="reports.export" mode="disable">
-            <Button
-              onClick={() => handlePreview('executive')}
-              variant="outline"
-              className="w-full sm:w-auto sm:flex-1"
-              disabled={!dateFilter || previewLoading}
-            >
-              <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-              {isMobile ? 'Ejecutivo' : 'Resumen ejecutivo'}
-            </Button>
-          </PermissionGuard>
-          {canViewLogs && (
-            <PermissionGuard permission="reports.export" mode="disable">
-              <Button
-                onClick={() => handlePreview('audit')}
-                variant="outline"
-                className="w-full sm:w-auto sm:flex-1"
-                disabled={!dateFilter || previewLoading}
-              >
-                <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-                Auditoría
-              </Button>
-            </PermissionGuard>
-          )}
-          <PermissionGuard permission="reports.export" mode="disable">
-            <Button
-              onClick={() => handlePreview('reconcile')}
-              variant="outline"
-              className="w-full sm:w-auto sm:flex-1"
-              disabled={!dateFilter || previewLoading}
-            >
-              <ArrowLeftRight className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-              {isMobile ? 'Conciliar' : 'Conciliación venta–stock–cobro'}
-            </Button>
-          </PermissionGuard>
-          <PermissionGuard permission="reports.export" mode="disable">
-            <Button
+            <ReportTypeCard
+              featured
+              icon={FileText}
+              title="Resumen general"
+              description="Finanzas, almacén e inventario en un solo documento."
+              disabled={reportsDisabled}
               onClick={() => handlePreview('global')}
-              className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto sm:flex-1"
-              disabled={!dateFilter || previewLoading}
-            >
-              <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-              {isMobile ? 'Global' : 'Resumen General (DOCX)'}
-            </Button>
+            />
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <ReportTypeCard
+              icon={BarChart3}
+              title="Ejecutivo"
+              description="KPIs y excepciones del período, sin todo el detalle."
+              disabled={reportsDisabled}
+              onClick={() => handlePreview('executive')}
+            />
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <ReportTypeCard
+              icon={Wallet}
+              title="Financiero de gestión"
+              description="Entradas y salidas registradas por moneda."
+              disabled={reportsDisabled}
+              onClick={() => handlePreview('finanzas')}
+            />
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <ReportTypeCard
+              icon={Warehouse}
+              title="Existencias"
+              description="Saldo por producto; valoración si hay unit_cost."
+              disabled={reportsDisabled}
+              onClick={() => handlePreview('almacen')}
+            />
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <ReportTypeCard
+              icon={Layers}
+              title="Kardex"
+              description="Libro de movimientos por producto hasta la fecha de corte."
+              disabled={reportsDisabled}
+              onClick={() => handlePreview('kardex')}
+            />
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <ReportTypeCard
+              icon={Package}
+              title="Inventario por áreas"
+              description="Conteos de equipos, suministros y listas (no mercancía de venta)."
+              disabled={reportsDisabled}
+              onClick={() => handlePreview('inventario')}
+            />
           </PermissionGuard>
         </div>
-        {!isMobile && (
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Plantillas: {TEMPLATE_OPTIONS.map((t) => t.label).join(' · ')}
-          </p>
-        )}
-      </DateRangeFilter>
 
-      {dateFilter && (
-        <Tabs defaultValue="finanzas" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="finanzas">Finanzas</TabsTrigger>
-            <TabsTrigger value="almacen">Almacén</TabsTrigger>
-            <TabsTrigger value="inventario">Inventario</TabsTrigger>
-          </TabsList>
-
-          {/* --- FINANZAS --- */}
-          <TabsContent value="finanzas" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
-                <div className="space-y-1 min-w-0">
-                  <CardTitle className="flex items-center gap-2">
-                    Resumen Financiero
-                    <Badge variant="secondary" className="shrink-0">{financeCount}</Badge>
-                  </CardTitle>
-                  <CardDescription>{dateFilter.label}</CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="word" disabled={previewLoading} onClick={() => handlePreview('finanzas')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="pdf" onClick={() => exportFinanzas('pdf')} />
-                  </PermissionGuard>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveListing
-                  queryKey={['reportes-finanzas', effectiveUserId, dateFilter]}
-                  queryFn={({ page, pageSize }) => listTransactions({
-                    from: dateFilter?.startDate,
-                    to: dateFilter?.endDate,
-                    userId,
-                    businessId,
-                    page,
-                    pageSize
-                  })}
-                  enabled={listingsEnabled}
-                  onMeta={({ count }) => setFinanceCount(count)}
-                  getItemKey={(t) => t.id}
-                  emptyMessage="No hay transacciones en este periodo."
-                  loadingMessage="Cargando transacciones..."
-                  renderItem={(t) => (
-                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                        <div className={`shrink-0 rounded-full p-2 ${t.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'}`}>
-                          {t.type === 'income'
-                            ? <TrendingUp className="h-4 w-4 text-success" />
-                            : <TrendingDown className="h-4 w-4 text-destructive" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium break-words">{t.description || (t.type === 'income' ? 'Ingreso' : 'Gasto')}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-                        <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
-                          <div className={`whitespace-nowrap font-semibold ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
-                            {t.type === 'income' ? '+' : '−'} {t.amount} {t.currency}
-                          </div>
-                          {t.category ? (
-                            <Badge variant="outline" className="max-w-full truncate">{t.category}</Badge>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* --- ALMACEN --- */}
-          <TabsContent value="almacen" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
-                <div className="space-y-1 min-w-0">
-                  <CardTitle className="flex items-center gap-2">
-                    Movimientos de Almacén
-                    <Badge variant="secondary" className="shrink-0">{warehouseCount}</Badge>
-                  </CardTitle>
-                  <CardDescription>{dateFilter.label}</CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="word" label="Existencias" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="word" label="Kardex" disabled={previewLoading} onClick={() => handlePreview('kardex')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="pdf" onClick={() => exportAlmacen('pdf')} />
-                  </PermissionGuard>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveListing
-                  queryKey={['reportes-almacen', effectiveUserId, dateFilter]}
-                  queryFn={({ page, pageSize }) => listMovements({
-                    startDate: dateFilter?.startDate,
-                    endDate: dateFilter?.endDate,
-                    userId,
-                    businessId,
-                    page,
-                    pageSize
-                  })}
-                  enabled={listingsEnabled}
-                  onMeta={({ count }) => setWarehouseCount(count)}
-                  getItemKey={(m) => m.id}
-                  emptyMessage="No hay movimientos en este periodo."
-                  loadingMessage="Cargando movimientos..."
-                  renderItem={(m) => (
-                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                        <div className={`shrink-0 rounded-full p-2 ${m.type === 'in' ? 'bg-success/10' : 'bg-destructive/10'}`}>
-                          {m.type === 'in'
-                            ? <ArrowDownCircle className="h-4 w-4 text-success" />
-                            : <ArrowUpCircle className="h-4 w-4 text-destructive" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium break-words">{m.products?.name || 'Producto Eliminado'}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-                        <Badge
-                          variant="outline"
-                          className={m.type === 'in' ? 'border-success/40 text-success' : 'border-destructive/40 text-destructive'}
-                        >
-                          {m.type === 'in' ? 'Entrada' : 'Salida'}
-                        </Badge>
-                        <div className={`whitespace-nowrap font-semibold ${m.type === 'in' ? 'text-success' : 'text-destructive'}`}>
-                          {m.type === 'in' ? '+' : '−'}{m.qty}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* --- INVENTARIO --- */}
-          <TabsContent value="inventario" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pb-2">
-                <div className="space-y-1 min-w-0">
-                  <CardTitle className="flex items-center gap-2">
-                    Resumen de Inventario (áreas y activos)
-                    <Badge variant="secondary" className="shrink-0">{inventoryCount}</Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    Fichas por área (equipos, suministros, listas). La mercancía de venta está en Almacén. Periodo: {dateFilter.label}
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="word" label="Resumen de Inventario" disabled={previewLoading} onClick={() => handlePreview('inventario')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="pdf" onClick={() => exportInventario('pdf')} />
-                  </PermissionGuard>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveListing
-                  queryKey={['reportes-inventario', effectiveUserId, dateFilter]}
-                  queryFn={fetchInventorySummaryPage}
-                  enabled={listingsEnabled}
-                  onMeta={({ count }) => setInventoryCount(count)}
-                  getItemKey={(area) => area.id}
-                  emptyMessage="No hay áreas configuradas."
-                  loadingMessage="Cargando inventario..."
-                  renderItem={(area) => {
-                    const tipo = ({
-                      merchandise: 'Mercancía / listas',
-                      supplies: 'Suministros',
-                      fixed_asset: 'Activos',
-                      tool: 'Herramientas',
-                      custom: 'Personalizado'
-                    })[area.domain_type] || 'Personalizado'
-                    return (
-                    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                      <div className="flex min-w-0 items-start gap-3 sm:items-center">
-                        <div className="shrink-0 rounded-full bg-primary/10 p-2">
-                          <Package className="h-4 w-4 text-primary" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium break-words">{area.name}</div>
-                          <div className="text-sm text-muted-foreground">{tipo} · ítems en el periodo</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-                        <Badge variant="outline" className="whitespace-nowrap">{tipo}</Badge>
-                        <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount ?? 0} ítems</Badge>
-                      </div>
-                    </div>
-                    )
-                  }}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      )}
-
-      {/* Flujo registrado / liquidado (Q5/E2): dos bases explícitas, sin sustituir en silencio. */}
-      {canViewFinanzas && (
-        <Card>
-          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-1 min-w-0">
-              <CardTitle className="flex items-center gap-2">
-                <ArrowLeftRight className="h-5 w-5 text-primary" />
-                {cashLabels.title}
-              </CardTitle>
-              <CardDescription>
-                {dateFilter?.label
-                  ? `${cashLabels.description} · ${dateFilter.label}`
-                  : 'Selecciona un período arriba'}
-              </CardDescription>
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={cashBasis === 'recorded' ? 'default' : 'outline'}
-                  className="h-9"
-                  onClick={() => setCashBasis('recorded')}
-                >
-                  Registrado
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={cashBasis === 'settled' ? 'default' : 'outline'}
-                  className="h-9"
-                  onClick={() => setCashBasis('settled')}
-                >
-                  Liquidado
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <PermissionGuard permission="reports.export" mode="disable">
-                  <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
-                </PermissionGuard>
-                <PermissionGuard permission="reports.export" mode="disable">
-                  <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
-                </PermissionGuard>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <CashFlowPanel
-              rows={cashFlow}
-              loading={cashLoading}
-              formatCurrency={formatCurrency}
-              netLabel={cashLabels.net}
-              inflowLabel={cashLabels.inflow}
-              outflowLabel={cashLabels.outflow}
-              emptyMessage={dateFilter ? 'No hay movimientos en el período seleccionado.' : 'Selecciona un período arriba para ver el flujo.'}
+        <div className="rounded-xl border bg-muted/20 p-2 sm:p-3">
+          <button
+            type="button"
+            className="flex h-11 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-sm font-medium transition-colors hover:bg-muted/60 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => setShowAdvancedReports((v) => !v)}
+            aria-expanded={showAdvancedReports}
+          >
+            <span>Informes avanzados</span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${showAdvancedReports ? 'rotate-180' : ''}`}
+              aria-hidden
             />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Posición simplificada (Q5): foto a hoy, saldo + caja real (saldo − CxC + CxP). */}
-      {canViewFinanzas && (
-        <Card>
-          <CardHeader className="pb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1 min-w-0">
-              <CardTitle className="flex items-center gap-2">
-                <Wallet className="h-5 w-5 text-primary" />
-                Posición
-              </CardTitle>
-              <CardDescription>Tu caja real hoy y de qué se compone, por moneda.</CardDescription>
-            </div>
-            <div className="flex flex-wrap gap-2 sm:justify-end">
+          </button>
+          {showAdvancedReports && (
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <PermissionGuard permission="reports.export" mode="disable">
-                <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportPosition('excel') : notifyPremiumExport('Excel')} />
+                <ReportTypeCard
+                  icon={ArrowLeftRight}
+                  title="Conciliación venta–stock–cobro"
+                  description="¿Se entregó, se registró y se cobró? + rotación valorizada."
+                  disabled={reportsDisabled}
+                  onClick={() => handlePreview('reconcile')}
+                />
               </PermissionGuard>
-              <PermissionGuard permission="reports.export" mode="disable">
-                <ExportButton format="pdf" onClick={() => exportPosition('pdf')} />
-              </PermissionGuard>
+              {canViewLogs ? (
+                <PermissionGuard permission="reports.export" mode="disable">
+                  <ReportTypeCard
+                    icon={ClipboardList}
+                    title="Auditoría"
+                    description="Quién, qué, cuándo y antes/después hasta la fecha de corte."
+                    disabled={reportsDisabled}
+                    onClick={() => handlePreview('audit')}
+                  />
+                </PermissionGuard>
+              ) : (
+                <p className="flex items-center gap-2 self-center px-1 text-xs text-muted-foreground sm:col-span-1">
+                  <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Auditoría requiere permiso de logs.
+                </p>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            <PositionPanel rows={position} loading={positionLoading} formatCurrency={formatCurrency} />
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </div>
+      </section>
 
-      {/* Antigüedad de saldos (Q10): independiente del filtro de fechas (foto a hoy). */}
-      {canViewFinanzas && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
-              Antigüedad de saldos
-            </CardTitle>
-            <CardDescription>Cuentas pendientes clasificadas por vencimiento, a la fecha de hoy.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs value={agingTab} onValueChange={setAgingTab}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex">
-                  <TabsTrigger value="receivable">Por cobrar</TabsTrigger>
-                  <TabsTrigger value="payable">Por pagar</TabsTrigger>
-                </TabsList>
-                <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton
-                      format="excel"
-                      label="Detalle"
-                      locked={!canExportDocs}
-                      onClick={() => canExportDocs
-                        ? exportOpenAccounts(agingTab === 'payable' ? 'payable' : 'receivable', 'excel')
-                        : notifyPremiumExport('Excel')}
-                    />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')} />
-                  </PermissionGuard>
-                  <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="pdf" onClick={() => exportAging('pdf')} />
-                  </PermissionGuard>
-                </div>
+      {/* 3. Panorama + 4. Detalle — solo con período */}
+      {dateFilter && (
+        <>
+          {canViewFinanzas && (
+            <section className="space-y-3" aria-labelledby="reportes-panorama">
+              <div className="space-y-1">
+                <h2 id="reportes-panorama" className="text-sm font-medium text-foreground">
+                  3. Panorama
+                </h2>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  Flujo del período y posición de caja (foto a hoy), sin mezclar monedas.
+                </p>
               </div>
-              <TabsContent value="receivable" className="mt-4">
-                <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income emptyMessage="No hay cuentas por cobrar pendientes." />
-                {openReceivableRows.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {openReceivableRows.length} cuenta{openReceivableRows.length === 1 ? '' : 's'} abierta{openReceivableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
-                  </p>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <Card className="min-w-0 overflow-hidden">
+                  <CardHeader className="space-y-3 pb-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                          <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                          <span className="min-w-0 break-words">{cashLabels.title}</span>
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">
+                          {cashLabels.description} · {dateFilter.label}
+                        </CardDescription>
+                      </div>
+                      <div className={exportToolbarClass}>
+                        <PermissionGuard permission="reports.export" mode="disable">
+                          <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
+                        </PermissionGuard>
+                        <PermissionGuard permission="reports.export" mode="disable">
+                          <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
+                        </PermissionGuard>
+                      </div>
+                    </div>
+                    <div
+                      role="group"
+                      aria-label="Base del flujo"
+                      className="grid grid-cols-2 gap-1 rounded-lg border bg-muted/40 p-1"
+                    >
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={cashBasis === 'recorded' ? 'default' : 'ghost'}
+                        className="h-10"
+                        onClick={() => setCashBasis('recorded')}
+                      >
+                        Registrado
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={cashBasis === 'settled' ? 'default' : 'ghost'}
+                        className="h-10"
+                        onClick={() => setCashBasis('settled')}
+                      >
+                        Liquidado
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <CashFlowPanel
+                      rows={cashFlow}
+                      loading={cashLoading}
+                      formatCurrency={formatCurrency}
+                      netLabel={cashLabels.net}
+                      inflowLabel={cashLabels.inflow}
+                      outflowLabel={cashLabels.outflow}
+                      emptyMessage="No hay movimientos en el período seleccionado."
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card className="min-w-0 overflow-hidden">
+                  <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Wallet className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+                        Posición
+                      </CardTitle>
+                      <CardDescription className="text-xs sm:text-sm">
+                        Caja real hoy y de qué se compone, por moneda.
+                      </CardDescription>
+                    </div>
+                    <div className={exportToolbarClass}>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportPosition('excel') : notifyPremiumExport('Excel')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="pdf" onClick={() => exportPosition('pdf')} />
+                      </PermissionGuard>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <PositionPanel rows={position} loading={positionLoading} formatCurrency={formatCurrency} />
+                  </CardContent>
+                </Card>
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-3" aria-labelledby="reportes-detalle">
+            <div className="space-y-1">
+              <h2 id="reportes-detalle" className="text-sm font-medium text-foreground">
+                4. Detalle por módulo
+              </h2>
+              <p className="text-xs text-muted-foreground sm:text-sm">
+                Lista del período y exportaciones rápidas. Antigüedad es foto a hoy.
+              </p>
+            </div>
+
+            <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full">
+              <TabsList className={`grid h-auto w-full gap-1 p-1 ${canViewFinanzas ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                <TabsTrigger value="finanzas" className="h-10 px-2 text-xs sm:text-sm">Finanzas</TabsTrigger>
+                <TabsTrigger value="almacen" className="h-10 px-2 text-xs sm:text-sm">Almacén</TabsTrigger>
+                <TabsTrigger value="inventario" className="h-10 px-2 text-xs sm:text-sm">Inventario</TabsTrigger>
+                {canViewFinanzas && (
+                  <TabsTrigger value="aging" className="h-10 px-2 text-xs sm:text-sm">Antigüedad</TabsTrigger>
                 )}
+              </TabsList>
+
+              <TabsContent value="finanzas" className="mt-3 space-y-4">
+                <Card className="min-w-0 overflow-hidden">
+                  <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <CardTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg">
+                        Movimientos financieros
+                        <Badge variant="secondary" className="shrink-0">{financeCount}</Badge>
+                      </CardTitle>
+                      <CardDescription>{dateFilter.label}</CardDescription>
+                    </div>
+                    <div className={exportToolbarClass}>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="word" disabled={previewLoading} onClick={() => handlePreview('finanzas')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="pdf" onClick={() => exportFinanzas('pdf')} />
+                      </PermissionGuard>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveListing
+                      queryKey={['reportes-finanzas', effectiveUserId, dateFilter]}
+                      queryFn={({ page, pageSize }) => listTransactions({
+                        from: dateFilter?.startDate,
+                        to: dateFilter?.endDate,
+                        userId,
+                        businessId,
+                        page,
+                        pageSize
+                      })}
+                      enabled={listingsEnabled}
+                      onMeta={({ count }) => setFinanceCount(count)}
+                      getItemKey={(t) => t.id}
+                      emptyMessage="No hay transacciones en este periodo."
+                      loadingMessage="Cargando transacciones..."
+                      renderItem={(t) => (
+                        <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                          <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                            <div className={`shrink-0 rounded-full p-2 ${t.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                              {t.type === 'income'
+                                ? <TrendingUp className="h-4 w-4 text-success" />
+                                : <TrendingDown className="h-4 w-4 text-destructive" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium break-words">{t.description || (t.type === 'income' ? 'Ingreso' : 'Gasto')}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {t.date ? format(new Date(t.date), 'dd/MM/yyyy') : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                            <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
+                              <div className={`whitespace-nowrap font-semibold ${t.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                                {t.type === 'income' ? '+' : '−'} {t.amount} {t.currency}
+                              </div>
+                              {t.category ? (
+                                <Badge variant="outline" className="max-w-full truncate">{t.category}</Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
               </TabsContent>
-              <TabsContent value="payable" className="mt-4">
-                <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income={false} emptyMessage="No hay cuentas por pagar pendientes." />
-                {openPayableRows.length > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {openPayableRows.length} cuenta{openPayableRows.length === 1 ? '' : 's'} abierta{openPayableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
-                  </p>
-                )}
+
+              <TabsContent value="almacen" className="mt-3 space-y-4">
+                <Card className="min-w-0 overflow-hidden">
+                  <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <CardTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg">
+                        Movimientos de almacén
+                        <Badge variant="secondary" className="shrink-0">{warehouseCount}</Badge>
+                      </CardTitle>
+                      <CardDescription>{dateFilter.label}</CardDescription>
+                    </div>
+                    <div className={exportToolbarClass}>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="word" label="Existencias" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="word" label="Kardex" disabled={previewLoading} onClick={() => handlePreview('kardex')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="pdf" onClick={() => exportAlmacen('pdf')} />
+                      </PermissionGuard>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveListing
+                      queryKey={['reportes-almacen', effectiveUserId, dateFilter]}
+                      queryFn={({ page, pageSize }) => listMovements({
+                        startDate: dateFilter?.startDate,
+                        endDate: dateFilter?.endDate,
+                        userId,
+                        businessId,
+                        page,
+                        pageSize
+                      })}
+                      enabled={listingsEnabled}
+                      onMeta={({ count }) => setWarehouseCount(count)}
+                      getItemKey={(m) => m.id}
+                      emptyMessage="No hay movimientos en este periodo."
+                      loadingMessage="Cargando movimientos..."
+                      renderItem={(m) => (
+                        <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                          <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                            <div className={`shrink-0 rounded-full p-2 ${m.type === 'in' ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                              {m.type === 'in'
+                                ? <ArrowDownCircle className="h-4 w-4 text-success" />
+                                : <ArrowUpCircle className="h-4 w-4 text-destructive" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium break-words">{m.products?.name || 'Producto Eliminado'}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {m.created_at ? format(new Date(m.created_at), 'dd/MM/yyyy HH:mm') : ''}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                            <Badge
+                              variant="outline"
+                              className={m.type === 'in' ? 'border-success/40 text-success' : 'border-destructive/40 text-destructive'}
+                            >
+                              {m.type === 'in' ? 'Entrada' : 'Salida'}
+                            </Badge>
+                            <div className={`whitespace-nowrap font-semibold ${m.type === 'in' ? 'text-success' : 'text-destructive'}`}>
+                              {m.type === 'in' ? '+' : '−'}{m.qty}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
               </TabsContent>
+
+              <TabsContent value="inventario" className="mt-3 space-y-4">
+                <Card className="min-w-0 overflow-hidden">
+                  <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <CardTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg">
+                        Inventario por áreas
+                        <Badge variant="secondary" className="shrink-0">{inventoryCount}</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Equipos, suministros y listas. La mercancía de venta está en Almacén · {dateFilter.label}
+                      </CardDescription>
+                    </div>
+                    <div className={exportToolbarClass}>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="word" label="Resumen" disabled={previewLoading} onClick={() => handlePreview('inventario')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')} />
+                      </PermissionGuard>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportButton format="pdf" onClick={() => exportInventario('pdf')} />
+                      </PermissionGuard>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveListing
+                      queryKey={['reportes-inventario', effectiveUserId, dateFilter]}
+                      queryFn={fetchInventorySummaryPage}
+                      enabled={listingsEnabled}
+                      onMeta={({ count }) => setInventoryCount(count)}
+                      getItemKey={(area) => area.id}
+                      emptyMessage="No hay áreas configuradas."
+                      loadingMessage="Cargando inventario..."
+                      renderItem={(area) => {
+                        const tipo = ({
+                          merchandise: 'Mercancía / listas',
+                          supplies: 'Suministros',
+                          fixed_asset: 'Activos',
+                          tool: 'Herramientas',
+                          custom: 'Personalizado'
+                        })[area.domain_type] || 'Personalizado'
+                        return (
+                          <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                            <div className="flex min-w-0 items-start gap-3 sm:items-center">
+                              <div className="shrink-0 rounded-full bg-primary/10 p-2">
+                                <Package className="h-4 w-4 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium break-words">{area.name}</div>
+                                <div className="text-sm text-muted-foreground">{tipo} · ítems en el periodo</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
+                              <Badge variant="outline" className="whitespace-nowrap">{tipo}</Badge>
+                              <Badge variant="secondary" className="whitespace-nowrap">{area.itemsCount ?? 0} ítems</Badge>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {canViewFinanzas && (
+                <TabsContent value="aging" className="mt-3 space-y-4">
+                  <Card className="min-w-0 overflow-hidden">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                        <Layers className="h-5 w-5 text-primary" aria-hidden />
+                        Antigüedad de saldos
+                      </CardTitle>
+                      <CardDescription>Cuentas pendientes por vencimiento (foto a hoy, no usa el período).</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Tabs value={agingTab} onValueChange={setAgingTab}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <TabsList className="grid h-auto w-full grid-cols-2 p-1 sm:w-auto sm:inline-flex">
+                            <TabsTrigger value="receivable" className="h-10">Por cobrar</TabsTrigger>
+                            <TabsTrigger value="payable" className="h-10">Por pagar</TabsTrigger>
+                          </TabsList>
+                          <div className={exportToolbarClass}>
+                            <PermissionGuard permission="reports.export" mode="disable">
+                              <ExportButton
+                                format="excel"
+                                label="Detalle"
+                                locked={!canExportDocs}
+                                onClick={() => canExportDocs
+                                  ? exportOpenAccounts(agingTab === 'payable' ? 'payable' : 'receivable', 'excel')
+                                  : notifyPremiumExport('Excel')}
+                              />
+                            </PermissionGuard>
+                            <PermissionGuard permission="reports.export" mode="disable">
+                              <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')} />
+                            </PermissionGuard>
+                            <PermissionGuard permission="reports.export" mode="disable">
+                              <ExportButton format="pdf" onClick={() => exportAging('pdf')} />
+                            </PermissionGuard>
+                          </div>
+                        </div>
+                        <TabsContent value="receivable" className="mt-4">
+                          <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income emptyMessage="No hay cuentas por cobrar pendientes." />
+                          {openReceivableRows.length > 0 && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {openReceivableRows.length} cuenta{openReceivableRows.length === 1 ? '' : 's'} abierta{openReceivableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
+                            </p>
+                          )}
+                        </TabsContent>
+                        <TabsContent value="payable" className="mt-4">
+                          <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income={false} emptyMessage="No hay cuentas por pagar pendientes." />
+                          {openPayableRows.length > 0 && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {openPayableRows.length} cuenta{openPayableRows.length === 1 ? '' : 's'} abierta{openPayableRows.length === 1 ? '' : 's'} (exporta «Detalle» para contacto y saldo).
+                            </p>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
             </Tabs>
-          </CardContent>
-        </Card>
+          </section>
+        </>
       )}
 
-      {/* Modal de previsualización: el cierre (X) vive arriba a la derecha (lo aporta
-          DialogContent). Abajo, un único botón de descarga a ancho completo en móvil. */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-h-[85vh] max-w-[800px] overflow-y-auto p-4 sm:p-6">
           {previewReport && (
             <>
               <DialogHeader className="pr-8 text-left">
-                <DialogTitle>Previsualización del Informe</DialogTitle>
+                <DialogTitle>Previsualización del informe</DialogTitle>
                 <DialogDescription>
                   {issuedPublicId
                     ? `Emitido como ${issuedPublicId}. La descarga Word registra una exportación de la misma instancia.`
-                    : 'Consulta con fecha de corte. Emite para congelar el snapshot (E6) o descarga Word como borrador de trabajo.'}
+                    : 'Consulta con fecha de corte. Emite para congelar el snapshot o descarga Word como borrador.'}
                 </DialogDescription>
               </DialogHeader>
 
-              {/* min-w-0: el DialogContent es un grid; sin esto, la "hoja" (grid item con
-                  min-width:auto) se estira al min-content de una tabla ancha y desbordaba
-                  el modal (se recortaba). Con min-w-0 la hoja cabe y la tabla hace scroll
-                  interno en su propio recuadro. */}
               <div className="mt-2 min-w-0 rounded-md border bg-white p-4 text-black shadow-sm sm:p-8">
                 <ReportPreview report={previewReport} company={company} />
               </div>
@@ -1009,14 +1131,14 @@ const Reportes = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      className="w-full sm:w-auto"
+                      className="h-11 w-full sm:h-10 sm:w-auto"
                       disabled={issuing || !!issuedPublicId}
                       onClick={handleIssueReport}
                     >
                       {issuedPublicId ? 'Ya emitido' : (issuing ? 'Emitiendo…' : 'Emitir informe')}
                     </Button>
                   ) : (
-                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => notifyPremiumExport('emitir informes')}>
+                    <Button type="button" variant="secondary" className="h-11 w-full sm:h-10 sm:w-auto" onClick={() => notifyPremiumExport('emitir informes')}>
                       <Lock className="mr-2 h-4 w-4" />
                       Emitir (Premium)
                     </Button>
@@ -1024,12 +1146,12 @@ const Reportes = () => {
                 </PermissionGuard>
                 <PermissionGuard permission="reports.export" mode="disable">
                   {canExportDocs ? (
-                    <Button onClick={handleDownloadDOCX} className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto">
+                    <Button onClick={handleDownloadDOCX} className="h-11 w-full bg-primary text-primary-foreground hover:bg-primary/90 sm:h-10 sm:w-auto">
                       <FileText className="mr-2 h-4 w-4" />
                       Descargar Word
                     </Button>
                   ) : (
-                    <Button onClick={() => notifyPremiumExport('Word')} variant="secondary" className="w-full sm:w-auto">
+                    <Button onClick={() => notifyPremiumExport('Word')} variant="secondary" className="h-11 w-full sm:h-10 sm:w-auto">
                       <Lock className="mr-2 h-4 w-4" />
                       Word (Premium)
                     </Button>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createProduct, updateProduct, deleteProduct } from '@/services/almacen'
+import { createProduct, updateProduct, deleteProduct, generateProductSku } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
@@ -27,7 +27,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     unit_price: '',
     currency: defaultCurrency,
     stock: 0,
-    min_stock: 5
+    min_stock: 5,
+    max_stock: '',
+    sku: '',
+    barcode: '',
+    track_lot: false,
+    track_serial: false,
+    track_expiry: false,
+    issue_strategy: 'none'
   })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [errors, setErrors] = useState({})
@@ -41,7 +48,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         unit_price: product.unit_price,
         currency: product.currency || defaultCurrency,
         stock: product.stock,
-        min_stock: product.min_stock || 5
+        min_stock: product.min_stock || 5,
+        max_stock: product.max_stock ?? '',
+        sku: product.sku || '',
+        barcode: product.barcode || '',
+        track_lot: !!product.track_lot,
+        track_serial: !!product.track_serial,
+        track_expiry: !!product.track_expiry,
+        issue_strategy: product.issue_strategy || 'none'
       })
     } else {
       setFormData({
@@ -50,7 +64,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         unit_price: '',
         currency: defaultCurrency,
         stock: 0,
-        min_stock: 5
+        min_stock: 5,
+        max_stock: '',
+        sku: '',
+        barcode: '',
+        track_lot: false,
+        track_serial: false,
+        track_expiry: false,
+        issue_strategy: 'none'
       })
     }
   }, [product, open, defaultCurrency])
@@ -76,7 +97,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         ...formData,
         unit_price: Number(formData.unit_price),
         stock: Number(formData.stock),
-        min_stock: Number(formData.min_stock)
+        min_stock: Number(formData.min_stock),
+        max_stock: formData.max_stock === '' || formData.max_stock == null ? null : Number(formData.max_stock),
+        sku: formData.sku?.trim() || null,
+        barcode: formData.barcode?.trim() || null,
+        track_lot: !!formData.track_lot,
+        track_serial: !!formData.track_serial,
+        track_expiry: !!formData.track_expiry,
+        issue_strategy: formData.issue_strategy || 'none'
       }
 
       if (product) {
@@ -119,12 +147,19 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
           unit_price: '',
           currency: defaultCurrency,
           stock: 0,
-          min_stock: 5
+          min_stock: 5,
+          max_stock: '',
+          sku: '',
+          barcode: '',
+          track_lot: false,
+          track_serial: false,
+          track_expiry: false,
+          issue_strategy: 'none'
         })
         setConfirmOpen(false)
       }
     }}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{product ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
         </DialogHeader>
@@ -137,6 +172,35 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               aria-invalid={!!errors.name}
             />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>SKU</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={formData.sku}
+                  onChange={e => setFormData({ ...formData, sku: e.target.value })}
+                  placeholder="PRD-0001"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => setFormData({ ...formData, sku: generateProductSku(formData.name) })}
+                >
+                  Generar
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Código de barras</Label>
+              <Input
+                value={formData.barcode}
+                onChange={e => setFormData({ ...formData, barcode: e.target.value })}
+                placeholder="EAN / UPC"
+              />
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -221,6 +285,61 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
               />
               {errors.min_stock && <p className="text-xs text-destructive">{errors.min_stock}</p>}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Stock máximo <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
+              <Input
+                type="number"
+                min="0"
+                value={formData.max_stock}
+                onChange={e => setFormData({ ...formData, max_stock: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Estrategia de salida</Label>
+              <Select
+                value={formData.issue_strategy}
+                onValueChange={v => setFormData({ ...formData, issue_strategy: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ninguna</SelectItem>
+                  <SelectItem value="fifo">FIFO</SelectItem>
+                  <SelectItem value="fefo">FEFO (caducidad)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={formData.track_lot}
+                onChange={e => setFormData({ ...formData, track_lot: e.target.checked })}
+              />
+              Control por lote
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={formData.track_serial}
+                onChange={e => setFormData({ ...formData, track_serial: e.target.checked })}
+              />
+              Control por serie
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={formData.track_expiry}
+                onChange={e => setFormData({ ...formData, track_expiry: e.target.checked })}
+              />
+              Caducidad
+            </label>
           </div>
 
           <DialogFooter className="flex justify-between items-center sm:justify-between w-full mt-6">

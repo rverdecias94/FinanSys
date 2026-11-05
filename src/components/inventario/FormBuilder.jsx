@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical, Sparkles, Loader2, HelpCircle } from 'lucide-react'
+import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical, Sparkles, Loader2, HelpCircle, Lock } from 'lucide-react'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { FormBuilderHelpModal } from '@/components/inventario/FormBuilderHelpModal'
@@ -17,8 +17,12 @@ import {
   parseOptionsCsv,
   toLabelFromName,
   FIELD_TYPE_GUIDES,
-  FORM_STARTERS
+  FORM_STARTERS,
+  fieldIsLocked,
+  semanticLabel,
+  ORIGIN_LABELS
 } from '@/utils/inventoryFormUtils'
+import { Badge } from '@/components/ui/badge'
 
 function typeGuide(type) {
   return FIELD_TYPE_GUIDES.find((t) => t.value === type) || FIELD_TYPE_GUIDES[0]
@@ -68,13 +72,15 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
     type: field.type,
     required: Boolean(field.required),
     options: field.type === 'select' ? (field.options || null) : null,
-    order
+    order,
+    origin: field.origin || 'custom',
+    semantic: field.semantic || null
   })
 
   const handleAddField = async () => {
     const name = String(newField.name || '').trim()
     if (!name) {
-      notify.warning('Escribe el nombre de la pregunta (ej. Nombre, Cantidad)')
+      notify.warning('Escribe el nombre del dato (ej. Nombre, Cantidad)')
       return
     }
 
@@ -91,7 +97,7 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
       await addField(areaId, createFieldPayload({ name, type, required: newField.required, options }, localFields.length), userId)
       setNewField({ name: '', type: 'text', required: false, optionsText: '' })
       queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
-      notify.success('Pregunta agregada')
+      notify.success('Dato agregado')
     } catch (e) {
       notify.error(getSupabaseErrorMessage(e))
     } finally {
@@ -154,6 +160,13 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
 
   const confirmDelete = async () => {
     if (!pendingDeleteId) return
+    const target = localFields.find((f) => f.id === pendingDeleteId)
+    if (target && fieldIsLocked(target)) {
+      notify.warning('Este campo es de la plantilla GESTIA y no se puede eliminar. Puedes añadir campos propios encima.')
+      setConfirmOpen(false)
+      setPendingDeleteId(null)
+      return
+    }
     try {
       await deleteField(pendingDeleteId, userId)
       queryClient.invalidateQueries({ queryKey: ['inventoryFields', areaId] })
@@ -203,22 +216,22 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight">¿Qué quieres anotar de cada artículo?</h2>
             <p className="mt-1 text-sm text-muted-foreground max-w-prose">
-              Arma las preguntas de tu lista. Cuando registres algo, verás exactamente estos campos — sin jerga técnica.
+              Arma los datos de tu lista. Cuando registres algo, verás exactamente estos campos — sin jerga técnica.
             </p>
           </div>
           <Button
             type="button"
             variant="outline"
-            className="w-full shrink-0 gap-2 sm:w-auto"
+            className="w-full shrink-0 gap-2 sm:w-auto text-foreground"
             onClick={() => setHelpOpen(true)}
           >
-            <HelpCircle className="h-4 w-4" />
+            <HelpCircle className="h-4 w-4 text-primary" />
             ¿Necesitas ayuda?
           </Button>
         </div>
       </div>
 
-      {/* Plantillas: siempre visibles si no hay preguntas; opcionales si ya hay pocas */}
+      {/* Plantillas: siempre visibles si la lista está vacía */}
       {isEmpty && (
         <Card>
           <CardHeader className="pb-3">
@@ -227,7 +240,7 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
               Empieza en un toque
             </CardTitle>
             <CardDescription>
-              Elige un modelo listo. Luego puedes agregar, quitar o renombrar preguntas.
+              Elige un modelo listo. Luego puedes agregar, quitar o renombrar datos.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -254,7 +267,7 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Tus preguntas</CardTitle>
+          <CardTitle className="text-base">Tus datos</CardTitle>
           {!isEmpty && (
             <CardDescription>Arrastra o usa las flechas para cambiar el orden.</CardDescription>
           )}
@@ -264,13 +277,14 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
             <div className="text-sm text-muted-foreground py-6 text-center">Cargando…</div>
           ) : isEmpty ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Todavía no hay preguntas.<br />
-              Usa un modelo de arriba o agrega la primera abajo.
+              Todavía no hay datos.<br />
+              Usa un modelo de arriba o agrega el primero abajo.
             </div>
           ) : (
             localFields.map((f, idx) => {
               const guide = typeGuide(f.type)
               const Icon = guide.Icon
+              const locked = fieldIsLocked(f)
               return (
                 <div
                   key={f.id}
@@ -294,44 +308,67 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
                       </div>
                       <div className="min-w-0 flex-1 grid gap-3">
                         <div className="grid gap-1.5">
-                          <Label>Pregunta</Label>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Label>Dato</Label>
+                            {locked && (
+                              <Badge variant="secondary" className="gap-1 text-[10px] text-foreground">
+                                <Lock className="h-3 w-3" />
+                                {ORIGIN_LABELS[f.origin] || 'Plantilla'}
+                              </Badge>
+                            )}
+                            {f.semantic && (
+                              <Badge variant="outline" className="text-[10px] text-foreground">
+                                {semanticLabel(f.semantic)}
+                              </Badge>
+                            )}
+                          </div>
                           <Input
                             defaultValue={f.name}
                             onBlur={(e) => handleRenameField(f, e.target.value)}
                             placeholder="Ej: Nombre, Cantidad, Marca"
+                            disabled={locked && f.origin === 'system'}
                           />
                         </div>
 
                         <div className="grid gap-1.5">
                           <Label>Cómo se responde</Label>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {FIELD_TYPE_GUIDES.map((t) => {
-                              const TIcon = t.Icon
-                              const active = f.type === t.value
-                              return (
-                                <button
-                                  key={t.value}
-                                  type="button"
-                                  onClick={() => handleUpdateField(f.id, { type: t.value })}
-                                  className={`flex items-start gap-2 rounded-md border p-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                                    active
-                                      ? 'border-primary bg-primary/10 text-foreground'
-                                      : 'hover:bg-accent/50 text-muted-foreground'
-                                  }`}
-                                >
-                                  <TIcon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${active ? 'text-primary' : ''}`} />
-                                  <span className="leading-tight font-medium">{t.label}</span>
-                                </button>
-                              )
-                            })}
-                          </div>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                            <Icon className="h-3.5 w-3.5" />
-                            {guide.example}
-                          </p>
+                          {locked ? (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1.5 rounded-md border bg-muted/40 px-3 py-2">
+                              <Icon className="h-3.5 w-3.5" />
+                              {guide.label} — {guide.example}
+                            </p>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {FIELD_TYPE_GUIDES.map((t) => {
+                                  const TIcon = t.Icon
+                                  const active = f.type === t.value
+                                  return (
+                                    <button
+                                      key={t.value}
+                                      type="button"
+                                      onClick={() => handleUpdateField(f.id, { type: t.value })}
+                                      className={`flex items-start gap-2 rounded-md border p-2 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                                        active
+                                          ? 'border-primary bg-primary/10 text-foreground'
+                                          : 'hover:bg-accent/50 text-muted-foreground'
+                                      }`}
+                                    >
+                                      <TIcon className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${active ? 'text-primary' : ''}`} />
+                                      <span className="leading-tight font-medium">{t.label}</span>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <Icon className="h-3.5 w-3.5" />
+                                {guide.example}
+                              </p>
+                            </>
+                          )}
                         </div>
 
-                        {f.type === 'select' && (
+                        {f.type === 'select' && !locked && (
                           <div className="grid gap-1.5">
                             <Label>Opciones (separadas por comas)</Label>
                             <Input
@@ -346,13 +383,17 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
                         )}
 
                         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t">
-                          <label htmlFor={`field-req-${f.id}`} className="flex items-center gap-2 cursor-pointer select-none">
+                          <label htmlFor={`field-req-${f.id}`} className={`flex items-center gap-2 select-none ${locked ? 'opacity-60' : 'cursor-pointer'}`}>
                             <Checkbox
                               id={`field-req-${f.id}`}
                               checked={Boolean(f.required)}
-                              onCheckedChange={(checked) => handleUpdateField(f.id, { required: Boolean(checked) })}
+                              disabled={locked}
+                              onCheckedChange={(checked) => {
+                                if (locked) return
+                                handleUpdateField(f.id, { required: Boolean(checked) })
+                              }}
                             />
-                            <span className="text-sm">Hay que llenarlo sí o sí</span>
+                            <span className="text-sm text-foreground">Hay que llenarlo sí o sí</span>
                           </label>
                           <div className="flex items-center gap-1.5">
                             <Button
@@ -373,7 +414,14 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
                             >
                               <ArrowDown className="w-4 h-4" />
                             </Button>
-                            <Button variant="destructive" size="icon" onClick={() => handleDeleteField(f.id)} aria-label="Eliminar">
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              onClick={() => handleDeleteField(f.id)}
+                              aria-label="Eliminar"
+                              disabled={locked}
+                              title={locked ? 'Campo de plantilla: no se elimina' : 'Eliminar'}
+                            >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -392,24 +440,24 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
         <CardHeader className="pb-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
-              <CardTitle className="text-base">Agregar una pregunta</CardTitle>
-              <CardDescription>Di qué quieres saber y cómo se responde.</CardDescription>
+              <CardTitle className="text-base">Agregar un dato</CardTitle>
+              <CardDescription>Di qué quieres anotar y cómo se responde.</CardDescription>
             </div>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-auto shrink-0 gap-1.5 self-start px-2 text-primary hover:text-primary"
+              className="h-auto shrink-0 gap-1.5 self-start px-2 text-foreground hover:text-foreground"
               onClick={() => setHelpOpen(true)}
             >
-              <HelpCircle className="h-3.5 w-3.5" />
+              <HelpCircle className="h-3.5 w-3.5 text-primary" />
               ¿Necesitas ayuda?
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-1.5">
-            <Label htmlFor="new-field-name">Nombre de la pregunta</Label>
+            <Label htmlFor="new-field-name">Nombre del dato</Label>
             <Input
               id="new-field-name"
               value={newField.name}
@@ -466,11 +514,11 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
                 checked={newField.required}
                 onCheckedChange={(checked) => setNewField({ ...newField, required: Boolean(checked) })}
               />
-              <span className="text-sm">Hay que llenarlo sí o sí</span>
+              <span className="text-sm text-foreground">Hay que llenarlo sí o sí</span>
             </label>
             <Button className="w-full gap-2 sm:w-auto" onClick={handleAddField} disabled={adding}>
               {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Agregar pregunta
+              Agregar dato
             </Button>
           </div>
         </CardContent>
@@ -490,8 +538,8 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
           setConfirmOpen(o)
           if (!o) setPendingDeleteId(null)
         }}
-        title="¿Quitar esta pregunta?"
-        description="Los artículos que ya guardaste seguirán existiendo, pero esta pregunta dejará de pedirse."
+        title="¿Quitar este dato?"
+        description="Los artículos que ya guardaste seguirán existiendo, pero este dato dejará de pedirse."
         confirmText="Quitar"
         cancelText="Cancelar"
         tone="destructive"

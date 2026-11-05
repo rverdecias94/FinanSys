@@ -26,28 +26,28 @@ import {
 const STEPS = [
   {
     n: 1,
-    title: 'Piensa en una cosa que quieres saber',
-    body: 'Como cuando anotas en un cuaderno: “¿Cómo se llama?”, “¿Cuántos hay?”, “¿De qué color es?”. Esa es tu pregunta.'
+    title: 'Piensa en una cosa que quieres anotar',
+    body: 'Como cuando anotas en un cuaderno: el nombre, cuántos hay, de qué color es. Eso es un dato de tu lista.'
   },
   {
     n: 2,
-    title: 'Escríbela en “Nombre de la pregunta”',
+    title: 'Escríbelo en “Nombre del dato”',
     body: 'Pon palabras sencillas. Ejemplos buenos: Nombre, Cantidad, Marca, Ubicación. No hace falta código ni números raros.'
   },
   {
     n: 3,
     title: 'Elige cómo se responde',
-    body: 'Toca la opción que mejor encaja. Si es un nombre → Texto corto. Si es “cuántos” → Cantidad o número. Si son elementos que se pueden elegir de una lista → Elegir de una lista.'
+    body: 'Toca la opción que mejor encaja. Si es un nombre → Texto corto. Si es “cuántos” → Cantidad o número. Si son opciones fijas → Elegir de una lista.'
   },
   {
     n: 4,
     title: 'Decide si es obligatorio',
-    body: 'Si marcas “Hay que llenarlo sí o sí”, nadie podrá guardar el artículo sin esa respuesta. Si no lo marcas, se puede dejar vacío.'
+    body: 'Si marcas “Hay que llenarlo sí o sí”, nadie podrá guardar el artículo sin ese dato. Si no lo marcas, se puede dejar vacío.'
   },
   {
     n: 5,
-    title: 'Pulsa “Agregar pregunta”',
-    body: 'La pregunta se guarda arriba en “Tus preguntas”. Cuando vayas a Registrar, verás exactamente esas mismas preguntas.'
+    title: 'Pulsa “Agregar dato”',
+    body: 'El dato se guarda arriba en “Tus datos”. Cuando vayas a Registrar, verás exactamente esos mismos campos.'
   }
 ]
 
@@ -63,15 +63,19 @@ const ANSWER_TYPES = [
 
 const FAQS = [
   {
-    q: '¿Qué es una “pregunta”?',
-    a: 'Es un dato que quieres guardar de cada cosa. Como una fila en tu libreta. Ejemplo: “Nombre” o “Cantidad”.'
+    q: '¿Qué es un “dato”?',
+    a: 'Es algo que quieres guardar de cada artículo. Como una fila en tu libreta. Ejemplo: “Nombre” o “Cantidad”.'
   },
   {
     q: '¿Esto es lo mismo que Almacén?',
-    a: 'No. Almacén es para productos con stock y precios. Inventario (esta pantalla) es una libreta a tu medida: tú decides qué anotar.'
+    a: 'No. Almacén es para productos que compras y vendes (stock y costo). Inventario es para áreas, equipos y listas a tu medida. Si vas a vender mercancía, usa Almacén.'
   },
   {
-    q: '¿Tengo que agregar muchas preguntas?',
+    q: '¿Las “áreas” son ubicaciones del depósito?',
+    a: 'No. Un área es una categoría o lista (equipos, vajilla, suministros…). Las ubicaciones físicas del almacén (pasillos, estantes) viven en el módulo Almacén.'
+  },
+  {
+    q: '¿Tengo que agregar muchos datos?',
     a: 'No. Con 2 basta para empezar (Nombre y Cantidad). Luego puedes agregar más cuando quieras.'
   },
   {
@@ -84,31 +88,31 @@ const FAQS = [
   },
   {
     q: '¿Qué significa “Hay que llenarlo sí o sí”?',
-    a: 'Que esa pregunta no se puede saltar. Úsalo para lo importante (como el nombre). Déjalo sin marcar para cosas opcionales (como notas).'
+    a: 'Que ese dato no se puede saltar. Úsalo para lo importante (como el nombre). Déjalo sin marcar para cosas opcionales (como notas).'
   },
   {
-    q: '¿Puedo cambiar el orden de las preguntas?',
+    q: '¿Puedo cambiar el orden de los datos?',
     a: 'Sí. Arrastra con el icono de puntitos o usa las flechitas ↑ ↓. El orden de arriba es el que verás al registrar.'
   },
   {
-    q: '¿Puedo borrar una pregunta?',
-    a: 'Sí, con el botón rojo de la basura. Los artículos que ya guardaste no se borran; solo deja de pedirse esa pregunta.'
+    q: '¿Puedo borrar un dato?',
+    a: 'Sí, con el botón rojo de la basura (si no es de plantilla). Los artículos que ya guardaste no se borran; solo deja de pedirse ese dato.'
   },
   {
-    q: '¿Puedo renombrar una pregunta?',
+    q: '¿Puedo renombrar un dato?',
     a: 'Sí. Toca el nombre, cámbialo y sal del cuadro (o pulsa fuera). Se actualiza solo.'
   },
   {
     q: '¿Para qué sirven los modelos de “Empieza en un toque”?',
-    a: 'Son atajos. Un clic y ya tienes preguntas listas (por ejemplo Nombre + Cantidad). Luego las puedes editar.'
+    a: 'Son atajos. Un clic y ya tienes datos listos (por ejemplo Nombre + Cantidad). Luego los puedes editar o ampliar.'
   },
   {
     q: 'Ya armé mi lista. ¿Qué sigue?',
-    a: 'Pulsa “Listo — empezar a registrar” o la pestaña Registrar. Ahí llenas las preguntas y guardas cada artículo.'
+    a: 'Pulsa “Listo — empezar a registrar” o la pestaña Registrar. Ahí llenas los datos y guardas cada artículo.'
   },
   {
     q: 'Me equivoqué al crear el área. ¿Pasa algo?',
-    a: 'Puedes editar el nombre del área con el lápiz, o borrar el área si todavía no la necesitas. Las preguntas se configuran después, aquí.'
+    a: 'Puedes editar el nombre del área con el lápiz, o borrar el área si todavía no la necesitas. Los datos se configuran después, aquí.'
   },
   {
     q: '¿Mis datos se comparten con otros negocios?',
@@ -116,7 +120,7 @@ const FAQS = [
   },
   {
     q: '¿Se puede romper algo si experimento?',
-    a: 'Tranquilo: puedes agregar, quitar y reordenar preguntas. Si borras una pregunta, solo deja de pedirse; no borra tu negocio entero.'
+    a: 'Tranquilo: puedes agregar, quitar y reordenar datos. Si borras uno propio, solo deja de pedirse; no borra tu negocio entero.'
   }
 ]
 
@@ -161,23 +165,21 @@ export function FormBuilderHelpModal({ open, onOpenChange }) {
         </DialogHeader>
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4 sm:px-6">
-          {/* Idea clave */}
           <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
             <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium text-foreground">La idea en una frase</p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Tú decides las preguntas. Después, cada vez que registres un artículo, Gestia te las hace
-                otra vez — como un formulario hecho a tu medida.
+                Tú decides qué datos anotar. Después, cada vez que registres un artículo, Gestia te pide
+                exactamente eso — como una lista hecha a tu medida.
               </p>
             </div>
           </div>
 
-          {/* Pasos */}
           <section className="space-y-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <ListOrdered className="h-4 w-4 text-primary" />
-              Pasos para agregar una pregunta
+              Pasos para agregar un dato
             </h3>
             <ol className="space-y-3">
               {STEPS.map((step) => (
@@ -194,7 +196,6 @@ export function FormBuilderHelpModal({ open, onOpenChange }) {
             </ol>
           </section>
 
-          {/* Tipos */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-foreground">¿Cuál tarjeta de “cómo se responde” elijo?</h3>
             <ul className="space-y-2">
@@ -210,9 +211,8 @@ export function FormBuilderHelpModal({ open, onOpenChange }) {
             </ul>
           </section>
 
-          {/* FAQ */}
           <section className="space-y-1">
-            <h3 className="mb-2 text-sm font-semibold text-foreground">Preguntas que casi todos hacen</h3>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Dudas frecuentes</h3>
             <div className="rounded-lg border px-3">
               {FAQS.map((item, i) => (
                 <FaqItem

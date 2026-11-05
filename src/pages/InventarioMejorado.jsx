@@ -16,6 +16,7 @@ import { FormRunner } from '@/components/inventario/FormRunner'
 import { FormBuilder } from '@/components/inventario/FormBuilder'
 import { getAreaIcon } from '@/lib/areaIcons'
 import { notify } from '@/services/notifications'
+import { DOMAIN_LABELS } from '@/utils/inventoryFormUtils'
 
 export default function InventarioMejorado() {
   const { session } = useSession()
@@ -95,6 +96,9 @@ export default function InventarioMejorado() {
           </div>
           <div>
             Inventario
+            <p className="mt-1 text-sm font-normal text-muted-foreground">
+              Áreas, equipos y listas personalizadas (no es el stock de venta).
+            </p>
             <PlanLimitFeedback metric="areas" label="Áreas" currentCount={areas.length} className="mt-1" />
           </div>
         </h1>
@@ -112,18 +116,18 @@ export default function InventarioMejorado() {
         )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {loadingAreas ? (
           <Card>
             <CardContent className="py-10 text-muted-foreground">Cargando áreas...</CardContent>
           </Card>
         ) : areas.length === 0 ? (
-          <Card className="md:col-span-2 lg:col-span-3">
+          <Card className="sm:col-span-2 xl:col-span-3">
             <CardContent className="py-10 text-center space-y-3">
               <p className="text-base font-medium text-foreground">Crea tu primera área</p>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Un área es un lugar o categoría de tu negocio (cocina, depósito, equipos…).
-                Después armás qué quieres anotar de cada artículo.
+                Un área agrupa lo que quieres controlar (equipos, suministros, listas…).
+                Si vas a comprar y vender mercancía con stock y costo, usa Almacén.
               </p>
               {isOwner && (
                 <Button onClick={openCreateArea} className="gap-2" disabled={!canCreateArea}>
@@ -141,26 +145,30 @@ export default function InventarioMejorado() {
             return (
               <div
                 key={area.id}
-                className={`min-w-0 rounded-xl border p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 transition-colors ${active ? 'border-primary/50 bg-primary/5' : 'hover:bg-accent/30'}`}
+                className={`flex h-full min-w-0 flex-col gap-3 rounded-xl border p-4 transition-colors ${active ? 'border-primary/50 bg-primary/5' : 'hover:bg-accent/30'}`}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-muted shrink-0">
-                    <Icon className="w-5 h-5 text-muted-foreground" />
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="shrink-0 rounded-lg bg-muted p-2">
+                    <Icon className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="min-w-0">
-                    <div className="font-semibold truncate">{area.name}</div>
-                    {(active || locked) && (
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {active && <Badge variant="default">Activo</Badge>}
-                        {locked && <Badge variant="secondary">Bloqueada</Badge>}
-                      </div>
-                    )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-base font-semibold leading-snug break-words text-foreground">
+                      {area.name}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {area.domain_type && area.domain_type !== 'custom' && (
+                        <Badge variant="outline">{DOMAIN_LABELS[area.domain_type] || area.domain_type}</Badge>
+                      )}
+                      {active && <Badge variant="default">Activo</Badge>}
+                      {locked && <Badge variant="secondary">Bloqueada</Badge>}
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center justify-end gap-2 border-t pt-3 sm:border-0 sm:pt-0">
+                <div className="mt-auto flex items-center gap-2 border-t pt-3">
                   <Button
                     variant="outline"
+                    className="min-w-0 flex-1"
                     onClick={() => {
                       setSelectedAreaId(area.id)
                       setMode('use')
@@ -170,11 +178,11 @@ export default function InventarioMejorado() {
                   </Button>
                   {isOwner && (
                     <>
-                      <Button variant="outline" size="icon" onClick={() => openEditArea(area)} aria-label="Editar área" disabled={locked}>
-                        <Pencil className="w-4 h-4" />
+                      <Button variant="outline" size="icon" className="shrink-0" onClick={() => openEditArea(area)} aria-label="Editar área" disabled={locked}>
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="destructive" size="icon" onClick={() => requestDeleteArea(area.id)} aria-label="Eliminar área">
-                        <Trash2 className="w-4 h-4" />
+                      <Button variant="destructive" size="icon" className="shrink-0" onClick={() => requestDeleteArea(area.id)} aria-label="Eliminar área">
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </>
                   )}
@@ -188,8 +196,13 @@ export default function InventarioMejorado() {
       {selectedArea && (
         <div className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="text-lg font-semibold truncate">{selectedArea.name}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="text-lg font-semibold leading-snug break-words">{selectedArea.name}</div>
+              {selectedArea.domain_type && (
+                <Badge variant="outline" className="shrink-0">
+                  {DOMAIN_LABELS[selectedArea.domain_type] || selectedArea.domain_type}
+                </Badge>
+              )}
               {selectedArea.plan_locked === true && <Badge variant="secondary" className="shrink-0">Bloqueada</Badge>}
             </div>
 
@@ -267,7 +280,7 @@ export default function InventarioMejorado() {
                   <CardTitle>Acceso restringido</CardTitle>
                 </CardHeader>
                 <CardContent className="text-muted-foreground">
-                  Solo el dueño del negocio puede armar las preguntas de esta área.
+                  Solo el dueño del negocio puede armar los datos de esta área.
                 </CardContent>
               </Card>
             )
