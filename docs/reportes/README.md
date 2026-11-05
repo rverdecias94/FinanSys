@@ -25,4 +25,4 @@
 - **E4** (misma rama): existencias + Kardex con `unit_cost` histórico. Ver [E4_RESUMEN.md](./E4_RESUMEN.md).
 - **E5** (misma rama): fecha de corte, sourceRefs, auditoría. Ver [E5_RESUMEN.md](./E5_RESUMEN.md).
 - **E6** (misma rama): historial emitido + migración. Ver [E6_RESUMEN.md](./E6_RESUMEN.md).
-- **E7**: capacidades avanzadas acotadas.
+- **E7** (misma rama): conciliación venta–stock–cobro, rotación valorizada, FX sin consolidar. Ver [E7_RESUMEN.md](./E7_RESUMEN.md).

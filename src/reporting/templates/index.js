@@ -6,6 +6,7 @@ import { buildInventoryAreasDocument } from './inventoryAreas'
 import { buildExecutiveDocument } from './executive'
 import { buildGlobalDocument } from './global'
 import { buildAuditDocument } from './audit'
+import { buildReconcileDocument } from './reconcile'
 import { REPORT_TYPES, toLegacyReportShape } from '@/reporting/documentModel'
 import { resolvePeriodContext, cutoffMetadata } from '@/reporting/periodCutoff'
 
@@ -16,6 +17,7 @@ export const TEMPLATE_OPTIONS = [
   { id: 'kardex', type: REPORT_TYPES.KARDEX, label: 'Kardex', description: 'Libro de movimientos por producto' },
   { id: 'inventario', type: REPORT_TYPES.INVENTORY_AREAS, label: 'Inventario por áreas', description: 'Conteos por área' },
   { id: 'audit', type: REPORT_TYPES.AUDIT, label: 'Auditoría', description: 'Eventos audit_logs hasta la fecha de corte' },
+  { id: 'reconcile', type: REPORT_TYPES.RECONCILE, label: 'Conciliación venta–stock–cobro', description: 'E7 avanzado + rotación valorizada' },
   { id: 'global', type: REPORT_TYPES.GLOBAL, label: 'Global consolidado', description: 'Finanzas + almacén + inventario' },
 ]
 
@@ -69,6 +71,9 @@ export function buildReport(templateId, payload = {}, { asLegacy = true } = {}) 
     case 'audit':
       doc = buildAuditDocument(enriched)
       break
+    case 'reconcile':
+      doc = buildReconcileDocument(enriched)
+      break
     case 'global':
       doc = buildGlobalDocument(enriched)
       break
@@ -89,4 +94,5 @@ export {
   buildExecutiveDocument,
   buildGlobalDocument,
   buildAuditDocument,
+  buildReconcileDocument,
 }

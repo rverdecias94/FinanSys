@@ -13,6 +13,7 @@ export const REPORT_TYPES = {
   INVENTORY_AREAS: 'inventory_areas',
   AUDIT: 'audit',
   GLOBAL: 'global',
+  RECONCILE: 'reconcile',
 }
 
 export const DEFAULT_DISCLAIMER =
@@ -24,6 +25,8 @@ export const DEFAULT_METHODOLOGY = [
   'Monedas: totales siempre por moneda nativa; no se suman USD y CUP.',
   'Almacén: cantidades por producto; no se agregan unidades de medida distintas.',
   'Valoración de almacén: solo movements.unit_cost sellado; N/D si falta costo; no se usa products.avg_cost actual.',
+  'FX: no se consolidan monedas en reportes; fx_units_per_base solo informa si está sellado en el registro (no se inventa tipo de cambio).',
+  'Rotación de inventario (si se muestra): COGS valorizado / inventario medio; nunca salidas÷entradas en cantidad.',
 ]
 
 /**

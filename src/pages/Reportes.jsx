@@ -419,6 +419,26 @@ const Reportes = () => {
         })
         doc = buildReport('audit', { ...common, auditLogs: logsRes?.data || [] }, asDoc)
         fname = `informe_auditoria_${dateFilter?.type}`
+      } else if (type === 'reconcile') {
+        // E7: venta–stock–cobro + rotación valorizada. Pagos del período + paid_amount como respaldo.
+        const [tx, mov, settled] = await Promise.all([
+          fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId }),
+          fetchMovementsForReporting({
+            startDate: dateFilter.startDate,
+            endDate: dateFilter.endDate,
+            userId,
+            businessId,
+            scope: 'through_end',
+          }),
+          fetchSettledCashSources({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId }),
+        ])
+        doc = buildReport('reconcile', {
+          ...common,
+          transactions: tx,
+          movements: mov,
+          payments: settled?.payments || [],
+        }, asDoc)
+        fname = `informe_conciliacion_${dateFilter?.type}`
       } else if (type === 'global') {
         const prev = getPreviousRange(dateFilter)
         const [tx, prevTx, mov, inv] = await Promise.all([
@@ -555,6 +575,17 @@ const Reportes = () => {
               </Button>
             </PermissionGuard>
           )}
+          <PermissionGuard permission="reports.export" mode="disable">
+            <Button
+              onClick={() => handlePreview('reconcile')}
+              variant="outline"
+              className="w-full sm:w-auto sm:flex-1"
+              disabled={!dateFilter || previewLoading}
+            >
+              <ArrowLeftRight className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+              {isMobile ? 'Conciliar' : 'Conciliación venta–stock–cobro'}
+            </Button>
+          </PermissionGuard>
           <PermissionGuard permission="reports.export" mode="disable">
             <Button
               onClick={() => handlePreview('global')}
