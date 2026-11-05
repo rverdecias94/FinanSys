@@ -19,6 +19,10 @@ import { clearLocalCache } from '@/offline/localCache';
 import { supabase } from '@/config/supabase';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { registerPwaUpdate } from '@/offline/registerPwaUpdate';
+
+// PWA: actualizar y recargar en cuanto haya versión nueva (solo en build/preview).
+registerPwaUpdate();
 
 // Configuración del cliente de React Query
 const queryClient = new QueryClient({

@@ -10,9 +10,12 @@ export default defineConfig({
     // PWA (Capa A): la app se cachea y abre sin conexión, es instalable y se
     // actualiza sola. NO toca la lógica de negocio. Ver docs/PLAN_OFFLINE_PWA.md.
     VitePWA({
+      // autoUpdate + registerSW (src/offline/registerPwaUpdate.js) recarga sola
+      // al detectar un SW nuevo. injectRegister false evita doble registro.
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
-      includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
+      injectRegister: false,
+      // Sufijo -v2: fuerza URL nueva (Chrome/Windows cachean el icono PWA por ruta).
+      includeAssets: ['favicon-v2.ico', 'apple-touch-icon-180x180-v2.png'],
       manifest: {
         name: 'Gestia',
         short_name: 'Gestia',
@@ -25,10 +28,10 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
-          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'pwa-64x64-v2.png', sizes: '64x64', type: 'image/png' },
+          { src: 'pwa-192x192-v2.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512-v2.png', sizes: '512x512', type: 'image/png' },
+          { src: 'maskable-icon-512x512-v2.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
 import { CurrencyProvider } from '@/context/CurrencyContext'
@@ -10,6 +10,8 @@ import SidebarLayout from '@/layouts/SidebarLayout'
 import { Toaster } from '@/components/ui/sonner'
 import { GlobalProgressBar } from '@/components/common/GlobalProgressBar'
 import { AppInitializer } from '@/components/common/AppInitializer'
+import { notify } from '@/services/notifications'
+import { PWA_JUST_UPDATED_KEY } from '@/offline/registerPwaUpdate'
 
 // Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
 // descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
@@ -42,6 +44,16 @@ const PageLoader = () => (
 )
 
 export default function App() {
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(PWA_JUST_UPDATED_KEY) !== '1') return
+      sessionStorage.removeItem(PWA_JUST_UPDATED_KEY)
+      notify.success('Gestia se ha actualizado')
+    } catch {
+      // sessionStorage no disponible
+    }
+  }, [])
+
   return (
     <>
       <GlobalProgressBar />

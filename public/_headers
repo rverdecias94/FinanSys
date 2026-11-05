@@ -1,0 +1,23 @@
+# Service worker y manifest: nunca cachear en CDN/navegador agresivo,
+# para que la PWA detecte deploys nuevos lo antes posible.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Netlify-CDN-Cache-Control: no-store
+
+/workbox-*.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Netlify-CDN-Cache-Control: no-store
+
+/manifest.webmanifest
+  Cache-Control: no-cache, no-store, must-revalidate
+  Netlify-CDN-Cache-Control: no-store
+
+# Iconos PWA: cacheables pero con URL versionada (-v2) al cambiar de marca.
+/pwa-*-v2.png
+  Cache-Control: public, max-age=31536000, immutable
+/maskable-icon-*-v2.png
+  Cache-Control: public, max-age=31536000, immutable
+/favicon-v2.ico
+  Cache-Control: public, max-age=31536000, immutable
+/apple-touch-icon-*-v2.png
+  Cache-Control: public, max-age=31536000, immutable
