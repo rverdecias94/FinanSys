@@ -29,6 +29,7 @@ import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpe
 import { fetchMovementsForExport, fetchMovementsForReporting, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { buildReport, TEMPLATE_OPTIONS } from '@/reporting/templates'
+import { listAllAuditLogs } from '@/services/auditLogs'
 
 // Carga diferida de las utilidades de exportación (jspdf/xlsx/docx ~1.5MB): no entran
 // en el arranque; se descargan solo al exportar (ver vite.config manualChunks). Si la
@@ -99,6 +100,7 @@ const Reportes = () => {
   // Solo visible/consultable con finanzas.view (la RPC también lo exige server-side).
   const [agingTab, setAgingTab] = useState('receivable')
   const canViewFinanzas = canView('finanzas')
+  const canViewLogs = canView('logs')
   const { data: aging = [], isLoading: agingLoading } = useQuery({
     queryKey: ['aging', agingTab, effectiveUserId],
     queryFn: () => getAgingReport(agingTab),
@@ -394,6 +396,22 @@ const Reportes = () => {
           openPayableCount: openPayableRows.length,
         })
         fname = `informe_ejecutivo_${dateFilter?.type}`
+      } else if (type === 'audit') {
+        if (!canViewLogs) {
+          notify.error('No tienes permiso para ver auditoría (logs.view).')
+          return
+        }
+        if (!businessId) {
+          notify.error('No se pudo resolver el negocio para auditoría.')
+          return
+        }
+        const logsRes = await listAllAuditLogs({
+          businessId,
+          startDate: dateFilter.startDate,
+          endDate: dateFilter.endDate,
+        })
+        report = buildReport('audit', { ...common, auditLogs: logsRes?.data || [] })
+        fname = `informe_auditoria_${dateFilter?.type}`
       } else if (type === 'global') {
         const prev = getPreviousRange(dateFilter)
         const [tx, prevTx, mov, inv] = await Promise.all([
@@ -456,22 +474,35 @@ const Reportes = () => {
       </div>
 
       <DateRangeFilter onFilterChange={handleFilterChange}>
-        <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row">
+        <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
           <PermissionGuard permission="reports.export" mode="disable">
             <Button
               onClick={() => handlePreview('executive')}
               variant="outline"
-              className="w-full"
+              className="w-full sm:w-auto sm:flex-1"
               disabled={!dateFilter || previewLoading}
             >
               <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
               {isMobile ? 'Ejecutivo' : 'Resumen ejecutivo'}
             </Button>
           </PermissionGuard>
+          {canViewLogs && (
+            <PermissionGuard permission="reports.export" mode="disable">
+              <Button
+                onClick={() => handlePreview('audit')}
+                variant="outline"
+                className="w-full sm:w-auto sm:flex-1"
+                disabled={!dateFilter || previewLoading}
+              >
+                <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+                Auditoría
+              </Button>
+            </PermissionGuard>
+          )}
           <PermissionGuard permission="reports.export" mode="disable">
             <Button
               onClick={() => handlePreview('global')}
-              className="w-full bg-blue-600 text-white hover:bg-blue-700"
+              className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto sm:flex-1"
               disabled={!dateFilter || previewLoading}
             >
               <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />

@@ -23,4 +23,5 @@
 - **E2** (misma rama): motor `src/reporting/metrics/` + flujo registrado/liquidado + detalle CxC/CxP. Ver [E2_LIQUIDACION.md](./E2_LIQUIDACION.md).
 - **E3** (misma rama): `ReportDocument` + plantillas + `buildReport` / `toLegacyReportShape`. Ver [E3_RESUMEN.md](./E3_RESUMEN.md).
 - **E4** (misma rama): existencias + Kardex con `unit_cost` histórico. Ver [E4_RESUMEN.md](./E4_RESUMEN.md).
-- **E5–E7**: en curso / pendientes.
+- **E5** (misma rama): fecha de corte, sourceRefs, auditoría. Ver [E5_RESUMEN.md](./E5_RESUMEN.md).
+- **E6–E7**: siguientes.

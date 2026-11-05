@@ -11,6 +11,7 @@ export const REPORT_TYPES = {
   WAREHOUSE: 'warehouse',
   KARDEX: 'kardex',
   INVENTORY_AREAS: 'inventory_areas',
+  AUDIT: 'audit',
   GLOBAL: 'global',
 }
 
@@ -139,11 +140,20 @@ export function toLegacyReportShape(doc) {
   if (doc.id) {
     metadata.unshift({ label: 'ID documento', value: doc.id })
   }
+  if (doc.period?.cutoffAt && !metadata.some((m) => /fecha de corte/i.test(m.label || ''))) {
+    metadata.push({
+      label: 'Fecha de corte',
+      value: `${doc.period.cutoffAt}${doc.period.timezone ? ` (${doc.period.timezone})` : ''}`,
+    })
+  }
 
   return {
     title: doc.title,
     metadata,
     sections,
+    // Passthrough opcional para consumidores E5+ (Preview lo ignora).
+    period: doc.period,
+    kpis: doc.kpis,
   }
 }
 

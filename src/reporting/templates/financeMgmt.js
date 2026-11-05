@@ -8,6 +8,7 @@ import {
   REPORT_TYPES,
   DEFAULT_DISCLAIMER,
 } from '@/reporting/documentModel'
+import { buildSourceRefs } from '@/reporting/periodCutoff'
 
 /**
  * Informe financiero de gestión — base de registros operacionales.
@@ -22,14 +23,17 @@ export function buildFinanceMgmtDocument({
 } = {}) {
   const legacy = generateFinanceReport(transactions, dateFilter, comparison)
   const recorded = buildRecordedCashFlow(transactions)
-  const kpis = recorded.map((r) => ({
-    code: `recorded_net_${r.currency}`,
-    label: `Flujo neto registrado (${r.currency})`,
-    value: r.net,
-    unit: 'money',
-    currency: r.currency,
-    sourceRefs: [],
-  }))
+  const kpis = recorded.map((r) => {
+    const txs = (transactions || []).filter((t) => (t.currency || 'USD') === r.currency)
+    return {
+      code: `recorded_net_${r.currency}`,
+      label: `Flujo neto registrado (${r.currency})`,
+      value: r.net,
+      unit: 'money',
+      currency: r.currency,
+      sourceRefs: buildSourceRefs(txs, { table: 'transactions' }),
+    }
+  })
 
   const warnings = []
   const hasPending = (transactions || []).some(
