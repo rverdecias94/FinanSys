@@ -26,7 +26,7 @@ import { PositionPanel } from '@/components/finanzas/PositionPanel'
 import { agingToExportRows } from '@/utils/aging'
 import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRows } from '@/utils/financials'
 import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpenAccountRows, openAccountsToExportRows } from '@/reporting/metrics'
-import { fetchMovementsForExport, listMovements } from '@/services/almacen'
+import { fetchMovementsForExport, fetchMovementsForReporting, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { buildReport, TEMPLATE_OPTIONS } from '@/reporting/templates'
 
@@ -364,10 +364,17 @@ const Reportes = () => {
           comparison: { comparisonTransactions: prevRows, comparisonLabel: prev.label },
         })
         fname = `informe_finanzas_${dateFilter?.type}`
-      } else if (type === 'almacen') {
-        const rows = await fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId })
-        report = buildReport('almacen', { ...common, movements: rows })
-        fname = `informe_almacen_${dateFilter?.type}`
+      } else if (type === 'almacen' || type === 'kardex') {
+        // E4: historial hasta fin de período (saldo inicial + Kardex); valoración solo unit_cost.
+        const rows = await fetchMovementsForReporting({
+          startDate: dateFilter.startDate,
+          endDate: dateFilter.endDate,
+          userId,
+          businessId,
+          scope: 'through_end',
+        })
+        report = buildReport(type, { ...common, movements: rows })
+        fname = type === 'kardex' ? `informe_kardex_${dateFilter?.type}` : `informe_almacen_${dateFilter?.type}`
       } else if (type === 'inventario') {
         const summary = await fetchInventorySummaryForExport()
         report = buildReport('inventario', { ...common, inventorySummary: summary })
@@ -572,7 +579,10 @@ const Reportes = () => {
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
                   <PermissionGuard permission="reports.export" mode="disable">
-                    <ExportButton format="word" label="Resumen de Almacén" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
+                    <ExportButton format="word" label="Existencias" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
+                  </PermissionGuard>
+                  <PermissionGuard permission="reports.export" mode="disable">
+                    <ExportButton format="word" label="Kardex" disabled={previewLoading} onClick={() => handlePreview('kardex')} />
                   </PermissionGuard>
                   <PermissionGuard permission="reports.export" mode="disable">
                     <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')} />

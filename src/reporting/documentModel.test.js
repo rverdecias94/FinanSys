@@ -90,13 +90,37 @@ describe('templates E3', () => {
     ])
   })
 
-  it('buildReport asLegacy:false devuelve ReportDocument', () => {
-    const doc = buildReport('almacen', {
-      movements: mixedUomMovements,
+  it('buildReport asLegacy:false existencias/kardex devuelven Document', () => {
+    const stock = buildReport('almacen', {
+      movements: mixedUomMovements.map((m, i) => ({
+        ...m,
+        id: i + 1,
+        product_id: i + 1,
+        unit_cost: 2,
+        moved_at: '2026-01-10T00:00:00.000Z',
+        products: { name: m.products.name, sku: `S${i}`, currency: 'USD' },
+      })),
+      dateFilter: { ...dateFilter, startDate: '2026-01-01', endDate: '2026-01-31' },
+    }, { asLegacy: false })
+    expect(isReportDocument(stock)).toBe(true)
+    expect(stock.type).toBe(REPORT_TYPES.WAREHOUSE)
+    expect(JSON.stringify(stock)).toMatch(/Existencias|unit_cost|N\/D/i)
+
+    const kardex = buildReport('kardex', {
+      movements: [
+        {
+          id: 1,
+          product_id: 1,
+          type: 'in',
+          qty: 5,
+          unit_cost: 3,
+          moved_at: '2026-01-05',
+          products: { name: 'Café', sku: 'CAF', currency: 'USD' },
+        },
+      ],
       dateFilter,
     }, { asLegacy: false })
-    expect(isReportDocument(doc)).toBe(true)
-    expect(doc.type).toBe(REPORT_TYPES.WAREHOUSE)
-    expect(doc.kpis.length).toBeGreaterThan(0)
+    expect(kardex.type).toBe(REPORT_TYPES.KARDEX)
+    expect(kardex.sections.some((s) => /Kardex/i.test(s.title))).toBe(true)
   })
 })

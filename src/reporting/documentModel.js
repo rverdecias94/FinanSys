@@ -9,6 +9,7 @@ export const REPORT_TYPES = {
   EXECUTIVE: 'executive',
   FINANCE_MGMT: 'finance_mgmt',
   WAREHOUSE: 'warehouse',
+  KARDEX: 'kardex',
   INVENTORY_AREAS: 'inventory_areas',
   GLOBAL: 'global',
 }
@@ -21,6 +22,7 @@ export const DEFAULT_METHODOLOGY = [
   'Base liquidada (si se muestra en paneles): abonos por paid_at + altas al contado sin ledger; paid_amount es caché, no segunda fuente.',
   'Monedas: totales siempre por moneda nativa; no se suman USD y CUP.',
   'Almacén: cantidades por producto; no se agregan unidades de medida distintas.',
+  'Valoración de almacén: solo movements.unit_cost sellado; N/D si falta costo; no se usa products.avg_cost actual.',
 ]
 
 /**

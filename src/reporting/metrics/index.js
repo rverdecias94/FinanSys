@@ -28,3 +28,14 @@ export {
   openAccountsToExportRows,
   openBalanceByCurrency,
 } from './openAccountsMetrics'
+
+export {
+  buildKardexByProduct,
+  buildKardexForProduct,
+  buildWarehouseStockByProduct,
+  formatValuation,
+  movementEffectiveAt,
+  productKey,
+  sortMovementsChronologically,
+  splitMovementsByPeriod,
+} from './warehouseMetrics'
