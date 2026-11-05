@@ -29,7 +29,9 @@ import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpe
 import { fetchMovementsForExport, fetchMovementsForReporting, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
 import { buildReport, TEMPLATE_OPTIONS } from '@/reporting/templates'
+import { toLegacyReportShape } from '@/reporting/documentModel'
 import { listAllAuditLogs } from '@/services/auditLogs'
+import { saveReportInstance, registerReportExport } from '@/services/reportInstances'
 
 // Carga diferida de las utilidades de exportación (jspdf/xlsx/docx ~1.5MB): no entran
 // en el arranque; se descargan solo al exportar (ver vite.config manualChunks). Si la
@@ -84,8 +86,12 @@ const Reportes = () => {
   const [dateFilter, setDateFilter] = useState(null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewReport, setPreviewReport] = useState(null)
+  const [previewDocument, setPreviewDocument] = useState(null)
+  const [issuedPublicId, setIssuedPublicId] = useState(null)
+  const [issuedInstanceId, setIssuedInstanceId] = useState(null)
   const [filename, setFilename] = useState('')
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [issuing, setIssuing] = useState(false)
   /** E2: 'recorded' = transacciones del período; 'settled' = caja liquidada (abonos + contado). */
   const [cashBasis, setCashBasis] = useState('recorded')
 
@@ -351,20 +357,21 @@ const Reportes = () => {
     if (!dateFilter) return
     setPreviewLoading(true)
     try {
-      let report = null
+      let doc = null
       let fname = ''
       const companyPayload = company
       const common = { dateFilter, company: companyPayload }
+      const asDoc = { asLegacy: false }
 
       if (type === 'finanzas') {
         const rows = await fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId })
         const prev = getPreviousRange(dateFilter)
         const prevRows = await fetchTransactionsForExport({ from: prev.startDate, to: prev.endDate, userId, businessId })
-        report = buildReport('finanzas', {
+        doc = buildReport('finanzas', {
           ...common,
           transactions: rows,
           comparison: { comparisonTransactions: prevRows, comparisonLabel: prev.label },
-        })
+        }, asDoc)
         fname = `informe_finanzas_${dateFilter?.type}`
       } else if (type === 'almacen' || type === 'kardex') {
         // E4: historial hasta fin de período (saldo inicial + Kardex); valoración solo unit_cost.
@@ -375,11 +382,11 @@ const Reportes = () => {
           businessId,
           scope: 'through_end',
         })
-        report = buildReport(type, { ...common, movements: rows })
+        doc = buildReport(type, { ...common, movements: rows }, asDoc)
         fname = type === 'kardex' ? `informe_kardex_${dateFilter?.type}` : `informe_almacen_${dateFilter?.type}`
       } else if (type === 'inventario') {
         const summary = await fetchInventorySummaryForExport()
-        report = buildReport('inventario', { ...common, inventorySummary: summary })
+        doc = buildReport('inventario', { ...common, inventorySummary: summary }, asDoc)
         fname = `informe_inventario_${dateFilter?.type}`
       } else if (type === 'executive') {
         const [tx, mov, inv] = await Promise.all([
@@ -387,14 +394,14 @@ const Reportes = () => {
           fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
           fetchInventorySummaryForExport(),
         ])
-        report = buildReport('executive', {
+        doc = buildReport('executive', {
           ...common,
           transactions: tx,
           movements: mov,
           inventorySummary: inv,
           openReceivableCount: openReceivableRows.length,
           openPayableCount: openPayableRows.length,
-        })
+        }, asDoc)
         fname = `informe_ejecutivo_${dateFilter?.type}`
       } else if (type === 'audit') {
         if (!canViewLogs) {
@@ -410,7 +417,7 @@ const Reportes = () => {
           startDate: dateFilter.startDate,
           endDate: dateFilter.endDate,
         })
-        report = buildReport('audit', { ...common, auditLogs: logsRes?.data || [] })
+        doc = buildReport('audit', { ...common, auditLogs: logsRes?.data || [] }, asDoc)
         fname = `informe_auditoria_${dateFilter?.type}`
       } else if (type === 'global') {
         const prev = getPreviousRange(dateFilter)
@@ -420,20 +427,23 @@ const Reportes = () => {
           fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
           fetchInventorySummaryForExport()
         ])
-        report = buildReport('global', {
+        doc = buildReport('global', {
           ...common,
           transactions: tx,
           prevTransactions: prevTx,
           prevLabel: prev.label,
           movements: mov,
           inventorySummary: inv,
-        })
+        }, asDoc)
         fname = `informe_global_${dateFilter?.type}`
       } else {
         return
       }
 
-      setPreviewReport(report)
+      setPreviewDocument(doc)
+      setPreviewReport(toLegacyReportShape(doc))
+      setIssuedPublicId(null)
+      setIssuedInstanceId(null)
       setFilename(fname)
       setPreviewOpen(true)
     } finally {
@@ -444,7 +454,53 @@ const Reportes = () => {
   const handleDownloadDOCX = async () => {
     if (!canExportDocs) { notifyPremiumExport('Word'); return }
     await generateDOCX(previewReport, filename, { company })
+    if (issuedInstanceId && previewDocument) {
+      try {
+        const { hashReportDocument } = await import('@/services/reportInstances')
+        const contentHash = await hashReportDocument(previewDocument)
+        await registerReportExport({
+          instanceId: issuedInstanceId,
+          format: 'docx',
+          contentHash,
+          userId,
+          businessId,
+        })
+      } catch { /* la descarga no depende del registro de export */ }
+    }
     setPreviewOpen(false)
+  }
+
+  const handleIssueReport = async () => {
+    if (!canExportDocs) { notifyPremiumExport('emitir informes'); return }
+    if (!previewDocument) return
+    setIssuing(true)
+    try {
+      const saved = await saveReportInstance({
+        document: previewDocument,
+        status: 'issued',
+        company,
+        templateCode: previewDocument.type,
+        userId,
+        businessId,
+      })
+      setIssuedPublicId(saved.public_id)
+      setIssuedInstanceId(saved.id)
+      const stamped = saved.document || { ...previewDocument, id: saved.public_id }
+      setPreviewDocument(stamped)
+      setPreviewReport(toLegacyReportShape(stamped))
+      await registerReportExport({
+        instanceId: saved.id,
+        format: 'json',
+        contentHash: saved.content_hash,
+        userId,
+        businessId,
+      })
+      notify.success(`Informe emitido: ${saved.public_id}`)
+    } catch (err) {
+      notify.error(err?.message || 'No se pudo emitir el informe. ¿Aplicaste la migración E6?')
+    } finally {
+      setIssuing(false)
+    }
   }
 
   // Construye el resumen de inventario (áreas + nº de ítems en el periodo) para una
@@ -893,7 +949,9 @@ const Reportes = () => {
               <DialogHeader className="pr-8 text-left">
                 <DialogTitle>Previsualización del Informe</DialogTitle>
                 <DialogDescription>
-                  Así se verá el documento que descargarás en Word.
+                  {issuedPublicId
+                    ? `Emitido como ${issuedPublicId}. La descarga Word registra una exportación de la misma instancia.`
+                    : 'Consulta con fecha de corte. Emite para congelar el snapshot (E6) o descarga Word como borrador de trabajo.'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -905,13 +963,34 @@ const Reportes = () => {
                 <ReportPreview report={previewReport} company={company} />
               </div>
 
-              <DialogFooter className="mt-4 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+              <DialogFooter className="mt-4 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 {!canExportDocs && (
                   <p className="flex items-center gap-1 text-xs text-muted-foreground sm:mr-auto">
                     <Lock className="h-3 w-3 shrink-0" />
-                    La descarga en Word con tu marca es Premium.
+                    Emitir y Word branded son Premium.
                   </p>
                 )}
+                {issuedPublicId && (
+                  <p className="w-full text-xs text-muted-foreground sm:mr-auto sm:w-auto">ID: {issuedPublicId}</p>
+                )}
+                <PermissionGuard permission="reports.export" mode="disable">
+                  {canExportDocs ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      disabled={issuing || !!issuedPublicId}
+                      onClick={handleIssueReport}
+                    >
+                      {issuedPublicId ? 'Ya emitido' : (issuing ? 'Emitiendo…' : 'Emitir informe')}
+                    </Button>
+                  ) : (
+                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => notifyPremiumExport('emitir informes')}>
+                      <Lock className="mr-2 h-4 w-4" />
+                      Emitir (Premium)
+                    </Button>
+                  )}
+                </PermissionGuard>
                 <PermissionGuard permission="reports.export" mode="disable">
                   {canExportDocs ? (
                     <Button onClick={handleDownloadDOCX} className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto">

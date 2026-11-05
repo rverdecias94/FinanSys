@@ -24,4 +24,5 @@
 - **E3** (misma rama): `ReportDocument` + plantillas + `buildReport` / `toLegacyReportShape`. Ver [E3_RESUMEN.md](./E3_RESUMEN.md).
 - **E4** (misma rama): existencias + Kardex con `unit_cost` histórico. Ver [E4_RESUMEN.md](./E4_RESUMEN.md).
 - **E5** (misma rama): fecha de corte, sourceRefs, auditoría. Ver [E5_RESUMEN.md](./E5_RESUMEN.md).
-- **E6–E7**: siguientes.
+- **E6** (misma rama): historial emitido + migración. Ver [E6_RESUMEN.md](./E6_RESUMEN.md).
+- **E7**: capacidades avanzadas acotadas.
