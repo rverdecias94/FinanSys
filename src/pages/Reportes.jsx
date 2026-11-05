@@ -28,7 +28,7 @@ import { buildCashFlow, buildPosition, cashFlowToExportRows, positionToExportRow
 import { buildSettledCashFlow, cashFlowRowsToExport, CASH_BASIS_LABELS, buildOpenAccountRows, openAccountsToExportRows } from '@/reporting/metrics'
 import { fetchMovementsForExport, listMovements } from '@/services/almacen'
 import { listAreas, listItems } from '@/services/dynamicInventory'
-import { generateFinanceReport, generateWarehouseReport, generateInventoryReport, generateGlobalReport } from '@/utils/narrativeGenerator'
+import { buildReport, TEMPLATE_OPTIONS } from '@/reporting/templates'
 
 // Carga diferida de las utilidades de exportación (jspdf/xlsx/docx ~1.5MB): no entran
 // en el arranque; se descargan solo al exportar (ver vite.config manualChunks). Si la
@@ -351,21 +351,42 @@ const Reportes = () => {
     try {
       let report = null
       let fname = ''
+      const companyPayload = company
+      const common = { dateFilter, company: companyPayload }
 
       if (type === 'finanzas') {
         const rows = await fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId })
         const prev = getPreviousRange(dateFilter)
         const prevRows = await fetchTransactionsForExport({ from: prev.startDate, to: prev.endDate, userId, businessId })
-        report = generateFinanceReport(rows, dateFilter, { comparisonTransactions: prevRows, comparisonLabel: prev.label })
+        report = buildReport('finanzas', {
+          ...common,
+          transactions: rows,
+          comparison: { comparisonTransactions: prevRows, comparisonLabel: prev.label },
+        })
         fname = `informe_finanzas_${dateFilter?.type}`
       } else if (type === 'almacen') {
         const rows = await fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId })
-        report = generateWarehouseReport(rows, dateFilter)
+        report = buildReport('almacen', { ...common, movements: rows })
         fname = `informe_almacen_${dateFilter?.type}`
       } else if (type === 'inventario') {
         const summary = await fetchInventorySummaryForExport()
-        report = generateInventoryReport(summary, dateFilter)
+        report = buildReport('inventario', { ...common, inventorySummary: summary })
         fname = `informe_inventario_${dateFilter?.type}`
+      } else if (type === 'executive') {
+        const [tx, mov, inv] = await Promise.all([
+          fetchTransactionsForExport({ from: dateFilter.startDate, to: dateFilter.endDate, userId, businessId }),
+          fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
+          fetchInventorySummaryForExport(),
+        ])
+        report = buildReport('executive', {
+          ...common,
+          transactions: tx,
+          movements: mov,
+          inventorySummary: inv,
+          openReceivableCount: openReceivableRows.length,
+          openPayableCount: openPayableRows.length,
+        })
+        fname = `informe_ejecutivo_${dateFilter?.type}`
       } else if (type === 'global') {
         const prev = getPreviousRange(dateFilter)
         const [tx, prevTx, mov, inv] = await Promise.all([
@@ -374,7 +395,14 @@ const Reportes = () => {
           fetchMovementsForExport({ startDate: dateFilter.startDate, endDate: dateFilter.endDate, userId, businessId }),
           fetchInventorySummaryForExport()
         ])
-        report = generateGlobalReport({ transactions: tx, prevTransactions: prevTx, prevLabel: prev.label, movements: mov, inventorySummary: inv }, dateFilter)
+        report = buildReport('global', {
+          ...common,
+          transactions: tx,
+          prevTransactions: prevTx,
+          prevLabel: prev.label,
+          movements: mov,
+          inventorySummary: inv,
+        })
         fname = `informe_global_${dateFilter?.type}`
       } else {
         return
@@ -421,16 +449,34 @@ const Reportes = () => {
       </div>
 
       <DateRangeFilter onFilterChange={handleFilterChange}>
-        <PermissionGuard permission="reports.export" mode="disable">
-          <Button
-            onClick={() => handlePreview('global')}
-            className="bg-blue-600 text-white hover:bg-blue-700 w-full mt-1"
-            disabled={!dateFilter || previewLoading}
-          >
-            <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
-            Resumen General (DOCX)
-          </Button>
-        </PermissionGuard>
+        <div className="mt-1 flex w-full flex-col gap-2 sm:flex-row">
+          <PermissionGuard permission="reports.export" mode="disable">
+            <Button
+              onClick={() => handlePreview('executive')}
+              variant="outline"
+              className="w-full"
+              disabled={!dateFilter || previewLoading}
+            >
+              <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+              {isMobile ? 'Ejecutivo' : 'Resumen ejecutivo'}
+            </Button>
+          </PermissionGuard>
+          <PermissionGuard permission="reports.export" mode="disable">
+            <Button
+              onClick={() => handlePreview('global')}
+              className="w-full bg-blue-600 text-white hover:bg-blue-700"
+              disabled={!dateFilter || previewLoading}
+            >
+              <FileText className={isMobile ? 'h-4 w-4' : 'mr-2 h-4 w-4'} />
+              {isMobile ? 'Global' : 'Resumen General (DOCX)'}
+            </Button>
+          </PermissionGuard>
+        </div>
+        {!isMobile && (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Plantillas: {TEMPLATE_OPTIONS.map((t) => t.label).join(' · ')}
+          </p>
+        )}
       </DateRangeFilter>
 
       {dateFilter && (

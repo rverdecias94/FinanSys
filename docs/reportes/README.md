@@ -21,4 +21,5 @@
 
 - **E0–E1** (rama `feat/reportes-e0-e1-terminologia`): docs + baseline + corrección de terminología.
 - **E2** (misma rama): motor `src/reporting/metrics/` + flujo registrado/liquidado + detalle CxC/CxP. Ver [E2_LIQUIDACION.md](./E2_LIQUIDACION.md).
-- **E3–E7**: pendientes de autorización.
+- **E3** (misma rama): `ReportDocument` + plantillas + `buildReport` / `toLegacyReportShape`. Ver [E3_RESUMEN.md](./E3_RESUMEN.md).
+- **E4–E7**: pendientes de autorización.
