@@ -265,6 +265,26 @@ html.font-accessible {
   }
 }
 
+/* Tab bar móvil flotante: indicador desliza entre destinos (compositor-friendly). */
+.gestia-mobile-nav__indicator {
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gestia-mobile-nav__indicator {
+    transition: none;
+  }
+
+  .gestia-mobile-nav__item {
+    transition: color 150ms ease !important;
+  }
+
+  .gestia-mobile-nav__item:active {
+    transform: none !important;
+  }
+}
+
 /* ── Splash de entrada Gestia (AppInitializer) ─────────────────────────────
    Solo CSS + assets ya cacheados por la PWA. Pensado para redes lentas. */
 .gestia-splash {
