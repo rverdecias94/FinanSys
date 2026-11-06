@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { onlineManager } from '@tanstack/react-query'
 import { supabase } from '@/config/supabase'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
@@ -339,6 +340,14 @@ export const SubscriptionProvider = ({ children }) => {
     }
 
     if (currentUsage >= limit) {
+      // C3: offline no puede “pasar” el cupo local ni consultar el servidor.
+      if (!onlineManager.isOnline()) {
+        toast.error('Sin conexión no puedes superar el límite de tu plan.', {
+          description: `Llevas ${currentUsage} de ${limit} ${metricLabel}. Al reconectar podrás revisar tu plan.`,
+          action: goToPlans,
+        })
+        return false
+      }
       toast.error('Límite del plan alcanzado', {
         description: `Has utilizado ${currentUsage} de tus ${limit} ${metricLabel} disponibles en este periodo. Actualiza tu plan para continuar.`,
         action: goToPlans

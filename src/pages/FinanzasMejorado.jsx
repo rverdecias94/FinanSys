@@ -30,8 +30,12 @@ import { TX_CREATE_KEY, TX_UPDATE_KEY } from '@/offline/mutationDefaults'
 import { serializeTransactionPayload } from '@/offline/serializeMutation'
 import {
   applyOptimisticCreate,
+  applyOptimisticUpdate,
+  buildOptimisticUpdatePatch,
   buildPendingTransactionRow,
   clearOptimisticPending,
+  findTransactionInCache,
+  restoreTransactionRow,
 } from '@/offline/optimisticTransactions'
 import { countQueuedMutations } from '@/offline/syncEngine'
 import { isNetworkError } from '@/offline/isNetworkError'
@@ -140,7 +144,8 @@ export default function FinanzasMejorado() {
         notify.info(vars?.payload?.isSale
           ? 'Esta venta ya estaba registrada; no se duplicó.'
           : 'Esta transacción ya estaba registrada; no se duplicó.')
-      } else if (!ctx?.offline) {
+      } else {
+        // También tras sync de creates hechos offline (ctx.offline sigue true).
         recordUsage('monthly_transactions')
       }
     },
@@ -166,13 +171,21 @@ export default function FinanzasMejorado() {
   const updateMutation = useMutation({
     mutationKey: TX_UPDATE_KEY,
     onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findTransactionInCache(queryClient, id)
+      // Snapshot para rollback si el servidor rechaza (no red).
+      if (previous && !requeueGuardRef.current.has(`upd-${id}`)) {
+        const patch = buildOptimisticUpdatePatch(vars?.payload || {}, previous)
+        applyOptimisticUpdate(queryClient, id, patch)
+      }
       const offline = !onlineManager.isOnline()
       setModalOpen(false)
       setSelectedTransaction(null)
       if (offline) notifyOfflineQueued('Transacción')
-      return { offline, id: vars?.id }
+      return { offline, id, previous }
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars, ctx) => {
+      if (ctx?.id) requeueGuardRef.current.delete(`upd-${ctx.id}`)
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
@@ -181,17 +194,21 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['open-accounts-count'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
     },
-    onError: (error, vars) => {
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `upd-${id}`
       if (isNetworkError(error)) {
         markOffline()
         notifyOfflineQueued('Transacción')
-        const key = `upd-${vars?.id}`
-        if (!requeueGuardRef.current.has(key)) {
+        // Conserva el parche optimista (_pending) y reencola.
+        if (id != null && !requeueGuardRef.current.has(key)) {
           requeueGuardRef.current.add(key)
           queueMicrotask(() => updateMutation.mutate(vars))
         }
         return
       }
+      requeueGuardRef.current.delete(key)
+      restoreTransactionRow(queryClient, id, ctx?.previous)
       notify.error(getSupabaseErrorMessage(error))
     },
   })
@@ -207,17 +224,12 @@ export default function FinanzasMejorado() {
 
   // Handlers
   const handleCreate = () => {
-    // Cupo local: contar también creates ya en cola offline (decisión Capa C #2).
+    // C3: cupo local + creates ya en cola offline (no superar el tope sin red).
     const queuedCreates = countQueuedMutations(queryClient, TX_CREATE_KEY)
     const remaining = getRemainingUsage('monthly_transactions')
     if (remaining !== Infinity && remaining - queuedCreates <= 0) {
-      if (!onlineManager.isOnline()) {
-        notify.error('Sin conexión no puedes superar el límite de tu plan.')
-      } else if (!checkLimit('monthly_transactions')) {
-        return
-      } else {
-        notify.error('Límite del plan alcanzado')
-      }
+      // Override “lleno” → checkLimit muestra el toast (offline u online).
+      checkLimit('monthly_transactions', Number.MAX_SAFE_INTEGER)
       return
     }
     if (!checkLimit('monthly_transactions')) return

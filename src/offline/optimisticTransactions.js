@@ -89,15 +89,18 @@ function removeListingRow(old, matcher) {
 /** Fila optimista para un create offline/online (antes de respuesta del servidor). */
 export function buildPendingTransactionRow(payload, { userId, businessId }) {
   const clientUuid = payload.client_uuid
+  const saleAmount = payload.isSale
+    ? Number(payload.qty || 0) * Number(payload.unit_price || 0)
+    : null
   return {
     id: `pending-${clientUuid}`,
     client_uuid: clientUuid,
     date: payload.date,
-    amount: Number(payload.amount) || 0,
+    amount: saleAmount != null && Number.isFinite(saleAmount) ? saleAmount : (Number(payload.amount) || 0),
     currency: payload.currency,
     category: payload.category,
     description: payload.description,
-    type: payload.type,
+    type: payload.type || (payload.isSale ? 'income' : 'expense'),
     status: payload.status || 'paid',
     due_date: payload.due_date || null,
     paid_amount: payload.paid_amount,
@@ -109,14 +112,82 @@ export function buildPendingTransactionRow(payload, { userId, businessId }) {
       attachments: Array.isArray(payload.attachments)
         ? payload.attachments.filter((a) => typeof a === 'string')
         : [],
-      ...(payload.isSale ? { sale: true } : {}),
+      ...(payload.isSale
+        ? {
+            sale: true,
+            product_id: payload.product_id,
+            qty: payload.qty,
+            unit_price: payload.unit_price,
+          }
+        : {}),
     },
     _pending: true,
   }
 }
 
+/** Parche optimista para un update (LWW local hasta sync). */
+export function buildOptimisticUpdatePatch(payload, previous = {}) {
+  const attachments = Array.isArray(payload.attachments)
+    ? payload.attachments.filter((a) => typeof a === 'string')
+    : (previous.details?.attachments || [])
+  return {
+    date: payload.date ?? previous.date,
+    amount: payload.amount != null ? Number(payload.amount) : previous.amount,
+    currency: payload.currency ?? previous.currency,
+    category: payload.category ?? previous.category,
+    description: payload.description ?? previous.description,
+    type: payload.type ?? previous.type,
+    status: payload.status || previous.status || 'paid',
+    due_date: payload.due_date ?? previous.due_date ?? null,
+    contact_id: payload.contact_id ?? previous.contact_id ?? null,
+    paid_amount: payload.paid_amount ?? previous.paid_amount,
+    details: {
+      ...(previous.details || {}),
+      payment_method: payload.payment_method ?? previous.details?.payment_method ?? null,
+      notes: payload.notes ?? previous.details?.notes ?? null,
+      attachments,
+    },
+    _pending: true,
+    _offline_edited_at: new Date().toISOString(),
+  }
+}
+
+export function findTransactionInCache(queryClient, id) {
+  if (id == null) return null
+  const entries = queryClient.getQueriesData({ predicate: isTransactionsQuery })
+  for (const [, data] of entries) {
+    if (Array.isArray(data?.data)) {
+      const hit = data.data.find((t) => t.id === id)
+      if (hit) return hit
+    }
+    if (Array.isArray(data?.pages)) {
+      for (const page of data.pages) {
+        const hit = (page?.data || []).find((t) => t.id === id)
+        if (hit) return hit
+      }
+    }
+  }
+  return null
+}
+
 export function applyOptimisticCreate(queryClient, row) {
   queryClient.setQueriesData({ predicate: isTransactionsQuery }, (old) => prependToListingData(old, row))
+}
+
+export function applyOptimisticUpdate(queryClient, id, patch) {
+  if (id == null) return
+  queryClient.setQueriesData(
+    { predicate: isTransactionsQuery },
+    (old) => patchListingRow(old, (t) => t.id === id, patch),
+  )
+}
+
+export function restoreTransactionRow(queryClient, id, row) {
+  if (id == null || !row) return
+  queryClient.setQueriesData(
+    { predicate: isTransactionsQuery },
+    (old) => patchListingRow(old, (t) => t.id === id, { ...row, _pending: false }),
+  )
 }
 
 export function clearOptimisticPending(queryClient, clientUuid) {
