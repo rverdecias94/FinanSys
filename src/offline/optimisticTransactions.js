@@ -4,11 +4,13 @@
 const isTransactionsQuery = (query) =>
   Array.isArray(query.queryKey) && query.queryKey[0] === 'transactions'
 
+/** Anteponer fila; si no hay caché aún, sembrar listado desktop {data,count}. */
 function prependToListingData(old, row) {
-  if (!old) return old
+  if (!old) {
+    return { data: [row], count: 1 }
+  }
   // Desktop (useQuery): { data, count }
   if (Array.isArray(old.data)) {
-    // Evitar duplicar si ya está (mismo client_uuid / id pendiente).
     if (old.data.some((t) => t.id === row.id || (row.client_uuid && t.client_uuid === row.client_uuid))) {
       return old
     }
@@ -21,20 +23,21 @@ function prependToListingData(old, row) {
   // Móvil (useInfiniteQuery): { pages, pageParams }
   if (Array.isArray(old.pages)) {
     const pages = old.pages.map((p) => ({ ...p, data: [...(p?.data || [])] }))
-    if (pages[0]) {
-      const already = pages.some((p) =>
-        (p.data || []).some((t) => t.id === row.id || (row.client_uuid && t.client_uuid === row.client_uuid)),
-      )
-      if (already) return old
-      pages[0] = {
-        ...pages[0],
-        data: [row, ...(pages[0].data || [])],
-        count: Number(pages[0].count || 0) + 1,
-      }
+    if (pages.length === 0) {
+      return { pages: [{ data: [row], count: 1 }], pageParams: [1] }
+    }
+    const already = pages.some((p) =>
+      (p.data || []).some((t) => t.id === row.id || (row.client_uuid && t.client_uuid === row.client_uuid)),
+    )
+    if (already) return old
+    pages[0] = {
+      ...pages[0],
+      data: [row, ...(pages[0].data || [])],
+      count: Number(pages[0].count || 0) + 1,
     }
     return { ...old, pages }
   }
-  return old
+  return { data: [row], count: 1 }
 }
 
 function patchListingRow(old, matcher, patch) {
@@ -92,18 +95,23 @@ export function buildPendingTransactionRow(payload, { userId, businessId }) {
   const saleAmount = payload.isSale
     ? Number(payload.qty || 0) * Number(payload.unit_price || 0)
     : null
+  const amount = saleAmount != null && Number.isFinite(saleAmount) ? saleAmount : (Number(payload.amount) || 0)
+  const status = payload.status || 'paid'
+  const nowIso = new Date().toISOString()
   return {
     id: `pending-${clientUuid}`,
     client_uuid: clientUuid,
+    // date = fecha del HECHO (negocio). created_at = cuándo se registró en el sistema.
     date: payload.date,
-    amount: saleAmount != null && Number.isFinite(saleAmount) ? saleAmount : (Number(payload.amount) || 0),
+    created_at: nowIso,
+    amount,
     currency: payload.currency,
     category: payload.category,
     description: payload.description,
     type: payload.type || (payload.isSale ? 'income' : 'expense'),
-    status: payload.status || 'paid',
+    status,
     due_date: payload.due_date || null,
-    paid_amount: payload.paid_amount,
+    paid_amount: status === 'paid' ? amount : Number(payload.paid_amount || 0),
     contact_id: payload.contact_id || null,
     user_id: businessId || userId,
     details: {
@@ -170,8 +178,73 @@ export function findTransactionInCache(queryClient, id) {
   return null
 }
 
-export function applyOptimisticCreate(queryClient, row) {
-  queryClient.setQueriesData({ predicate: isTransactionsQuery }, (old) => prependToListingData(old, row))
+/**
+ * Inserta la fila en todas las queries de transactions ya montadas.
+ * Si no hay ninguna (offline sin caché), siembra `seedKeys` para que el listado la vea.
+ */
+export function applyOptimisticCreate(queryClient, row, { seedKeys = [] } = {}) {
+  const existing = queryClient.getQueryCache().findAll({
+    predicate: (q) => isTransactionsQuery(q),
+  })
+  if (existing.length === 0 && seedKeys.length > 0) {
+    for (const key of seedKeys) {
+      queryClient.setQueryData(key, (old) => prependToListingData(old, row))
+    }
+    return
+  }
+  for (const q of existing) {
+    queryClient.setQueryData(q.queryKey, (old) => prependToListingData(old, row))
+  }
+  // Por si el listado activo aún no tiene data pero sí está en caché vacía.
+  if (seedKeys.length > 0) {
+    for (const key of seedKeys) {
+      if (!queryClient.getQueryData(key)) {
+        queryClient.setQueryData(key, prependToListingData(undefined, row))
+      }
+    }
+  }
+}
+
+/** Si la tx queda pendiente, también aparece en Por cobrar / Por pagar. */
+export function applyOptimisticOpenAccount(queryClient, row, { seedKeys = [] } = {}) {
+  const status = row?.status || 'paid'
+  if (status === 'paid') return
+  const direction = row.type === 'income' ? 'receivable' : 'payable'
+  const accountRow = {
+    ...row,
+    paid_amount: Number(row.paid_amount || 0),
+    contact: row.contact || null,
+  }
+
+  const existing = queryClient.getQueryCache().findAll({
+    predicate: (q) =>
+      Array.isArray(q.queryKey)
+      && q.queryKey[0] === 'open-accounts'
+      && q.queryKey[1] === direction,
+  })
+
+  const write = (key) => {
+    queryClient.setQueryData(key, (old) => prependToListingData(old, accountRow))
+  }
+
+  if (existing.length === 0 && seedKeys.length > 0) {
+    seedKeys.forEach(write)
+  } else {
+    existing.forEach((q) => write(q.queryKey))
+    seedKeys.forEach((key) => {
+      if (!queryClient.getQueryData(key)) write(key)
+    })
+  }
+
+  queryClient.setQueriesData(
+    {
+      predicate: (q) =>
+        Array.isArray(q.queryKey)
+        && q.queryKey[0] === 'open-accounts-count'
+        && q.queryKey[1] === direction,
+    },
+    (old) => (typeof old === 'number' ? old + 1 : 1),
+  )
 }
 
 export function applyOptimisticUpdate(queryClient, id, patch) {
@@ -194,6 +267,10 @@ export function clearOptimisticPending(queryClient, clientUuid) {
   if (!clientUuid) return
   const matcher = (t) => t.client_uuid === clientUuid || t.id === `pending-${clientUuid}`
   queryClient.setQueriesData({ predicate: isTransactionsQuery }, (old) => removeListingRow(old, matcher))
+  queryClient.setQueriesData(
+    { predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'open-accounts' },
+    (old) => removeListingRow(old, matcher),
+  )
 }
 
 export function markOptimisticSynced(queryClient, clientUuid, serverRow) {

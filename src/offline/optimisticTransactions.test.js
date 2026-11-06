@@ -81,4 +81,27 @@ describe('optimisticTransactions', () => {
     expect(data.data[0].id).toBe('pending-abc')
     expect(data.count).toBe(2)
   })
+
+  it('applyOptimisticCreate siembra la lista si no hay caché', () => {
+    const key = ['transactions', { userId: 'a' }, 'rl-page', 1, 5]
+    const row = buildPendingTransactionRow(
+      {
+        client_uuid: 'seed-1',
+        amount: 10,
+        currency: 'USD',
+        category: 'Nómina',
+        description: 'Offline sin caché',
+        type: 'expense',
+        status: 'pending',
+        date: '2026-11-05',
+      },
+      { userId: 'a', businessId: 'b' },
+    )
+    applyOptimisticCreate(queryClient, row, { seedKeys: [key] })
+    const data = queryClient.getQueryData(key)
+    expect(data.data).toHaveLength(1)
+    expect(data.data[0].id).toBe('pending-seed-1')
+    expect(data.data[0].created_at).toBeTruthy()
+    expect(data.data[0].paid_amount).toBe(0)
+  })
 })

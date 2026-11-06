@@ -150,12 +150,24 @@ function LogDetailsDialog({ log, onClose, canViewFinance }) {
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Fecha y hora" value={format(new Date(log.created_at), "dd 'de' MMMM yyyy, HH:mm:ss", { locale: es })} />
+                <Field
+                  label="Registrado el"
+                  value={format(new Date(log.created_at), "dd 'de' MMMM yyyy, HH:mm:ss", { locale: es })}
+                />
                 <Field label="Usuario" value={log.user_email} />
                 <Field label="Área" value={log.area} />
                 <Field label="Acción" value={log.action} />
                 <Field label="Dirección IP" value={log.ip_address} />
+                {log?.new_value?.date ? (
+                  <Field
+                    label="Fecha del movimiento"
+                    value={format(new Date(log.new_value.date), "dd 'de' MMMM yyyy", { locale: es })}
+                  />
+                ) : null}
               </div>
+              <p className="text-xs text-muted-foreground">
+                “Registrado el” es cuándo se guardó en Gestia. “Fecha del movimiento” es cuándo ocurrió el hecho (si aplica).
+              </p>
 
               <div>
                 <p className="mb-2 text-sm font-semibold">Detalles</p>
@@ -276,7 +288,10 @@ export default function LogsMejorado() {
         <div className="min-w-0">
           <div className="font-medium break-words">{log.resource || log.action}</div>
           <div className="text-sm text-muted-foreground break-words">
-            {log.user_email || '-'} · {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+            {log.user_email || '-'} · Registrado {format(new Date(log.created_at), 'dd MMM yyyy HH:mm', { locale: es })}
+            {log?.new_value?.date ? (
+              <> · Movimiento {format(new Date(log.new_value.date), 'dd MMM yyyy', { locale: es })}</>
+            ) : null}
           </div>
         </div>
       </div>

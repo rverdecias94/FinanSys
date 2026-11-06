@@ -378,7 +378,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                     name="date"
                     render={({ field }) => (
                       <FormItem className="flex flex-col">
-                        <FormLabel>Fecha</FormLabel>
+                        <FormLabel>Fecha del movimiento</FormLabel>
                         <FormControl>
                           <Calendar
                             value={field.value}
@@ -387,6 +387,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                             className="h-11"
                           />
                         </FormControl>
+                        <FormDescription>
+                          Cuándo ocurrió el hecho (p. ej. la compra). La fecha en que lo registras en Gestia se guarda aparte (auditoría).
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -774,7 +777,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                     <span className="font-medium">Tipo:</span>
                     <span className="capitalize">{watchedValues.type === 'income' ? 'Ingreso' : 'Gasto'}</span>
 
-                    <span className="font-medium">Fecha:</span>
+                    <span className="font-medium">Fecha del movimiento:</span>
                     <span>{watchedValues.date ? format(watchedValues.date, 'PPP', { locale: es }) : 'Sin fecha'}</span>
 
                     <span className="font-medium">Categoría:</span>

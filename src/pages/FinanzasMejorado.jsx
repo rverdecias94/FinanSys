@@ -21,7 +21,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import DateRangeFilter from '@/components/common/DateRangeFilter'
-import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { ResponsiveListing, LISTING_PAGE_SIZE, LISTING_MOBILE_PAGE_SIZE } from '@/components/common/ResponsiveListing'
 import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { ExportButton } from '@/components/common/ExportButton'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
@@ -30,6 +30,7 @@ import { TX_CREATE_KEY, TX_UPDATE_KEY } from '@/offline/mutationDefaults'
 import { serializeTransactionPayload } from '@/offline/serializeMutation'
 import {
   applyOptimisticCreate,
+  applyOptimisticOpenAccount,
   applyOptimisticUpdate,
   buildOptimisticUpdatePatch,
   buildPendingTransactionRow,
@@ -37,6 +38,17 @@ import {
   findTransactionInCache,
   restoreTransactionRow,
 } from '@/offline/optimisticTransactions'
+
+/** Compara solo el día de calendario (ignora hora / TZ de ISO). */
+function sameCalendarDay(a, b) {
+  if (!a || !b) return true
+  const da = new Date(a)
+  const db = new Date(b)
+  if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return true
+  return da.getFullYear() === db.getFullYear()
+    && da.getMonth() === db.getMonth()
+    && da.getDate() === db.getDate()
+}
 import { countQueuedMutations } from '@/offline/syncEngine'
 import { isNetworkError } from '@/offline/isNetworkError'
 import { markOffline } from '@/offline/networkGuard'
@@ -119,7 +131,23 @@ export default function FinanzasMejorado() {
       // Si es reencolado tras fallo de red, la fila optimista ya está.
       if (!requeueGuardRef.current.has(clientUuid)) {
         const row = buildPendingTransactionRow(payload, { userId, businessId })
-        applyOptimisticCreate(queryClient, row)
+        const listingBase = ['transactions', { userId, businessId, currencyFilter, categoryFilter, dateKey }]
+        applyOptimisticCreate(queryClient, row, {
+          seedKeys: [
+            [...listingBase, 'rl-page', 1, LISTING_PAGE_SIZE],
+            [...listingBase, 'rl-infinite', LISTING_MOBILE_PAGE_SIZE],
+          ],
+        })
+        // Por cobrar / Por pagar: también debe verse offline si queda pendiente.
+        if (row.status && row.status !== 'paid') {
+          const dir = row.type === 'income' ? 'receivable' : 'payable'
+          applyOptimisticOpenAccount(queryClient, row, {
+            seedKeys: [
+              ['open-accounts', dir, businessId || userId, 'rl-page', 1, LISTING_PAGE_SIZE],
+              ['open-accounts', dir, businessId || userId, 'rl-infinite', LISTING_MOBILE_PAGE_SIZE],
+            ],
+          })
+        }
       }
       const offline = !onlineManager.isOnline()
       // Cerrar YA: no dejar el modal en loading mientras el DNS hace timeout.
@@ -538,7 +566,14 @@ export default function FinanzasMejorado() {
                   <div className="min-w-0">
                     <div className="font-medium break-words">{transaction.description}</div>
                     <div className="text-sm text-muted-foreground">
-                      {format(new Date(transaction.date), 'PPP', { locale: es })}
+                      <span className="block">
+                        {format(new Date(transaction.date), 'PPP', { locale: es })}
+                      </span>
+                      {transaction.created_at && !sameCalendarDay(transaction.date, transaction.created_at) ? (
+                        <span className="block text-xs opacity-80">
+                          Registrado el {format(new Date(transaction.created_at), 'PP', { locale: es })}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
