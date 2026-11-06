@@ -1,7 +1,8 @@
 import { defineConfig, minimal2023Preset } from '@vite-pwa/assets-generator/config'
 
-// Iconos PWA desde logo_ico_tight.png (G recortada, sin margen enorme).
-// - transparent / favicon: casi a lleno → se ve grande en pestaña y barra de tareas.
+// Iconos PWA desde logo_ico_fill.png (G recortada al contenido, sin margen muerto).
+// - any (transparent preset): fondo BLANCO sólido → Windows/Android rellenan el
+//   hueco de la barra; con transparencia el hexágono se ve diminuto vs PayPal/etc.
 // - maskable: padding amplio + fondo blanco (zona segura Android).
 // - apple: fondo blanco (iOS no admite transparencia).
 export default defineConfig({
@@ -10,20 +11,19 @@ export default defineConfig({
     ...minimal2023Preset,
     transparent: {
       sizes: [64, 192, 512],
-      // Margen mínimo: la G debe dominar el favicon/taskbar.
-      padding: 0.04,
-      resizeOptions: { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      padding: 0.06,
+      resizeOptions: { fit: 'contain', background: '#ffffff' },
     },
     maskable: {
       sizes: [512],
-      padding: 0.2,
+      padding: 0.18,
       resizeOptions: { background: '#ffffff', fit: 'contain' },
     },
     apple: {
       sizes: [180],
-      padding: 0.08,
+      padding: 0.06,
       resizeOptions: { background: '#ffffff', fit: 'contain' },
     },
   },
-  images: ['public/logo_ico_tight.png'],
+  images: ['public/logo_ico_fill.png'],
 })

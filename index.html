@@ -9,13 +9,17 @@
             <!-- PWA: fuentes (Outfit / JetBrains Mono) e iconos van auto-alojados
                  (ver src/main.jsx con @fontsource), sin CDNs externos, para que la
                  app funcione 100% offline. Ver docs/PLAN_OFFLINE_PWA.md. -->
-            <link rel="icon" href="/favicon-v3.ico" sizes="any" />
-            <link rel="icon" type="image/png" href="/pwa-64x64-v3.png" sizes="64x64" />
-            <link rel="apple-touch-icon" href="/apple-touch-icon-180x180-v3.png" />
-            <meta name="theme-color" content="#1aa06a" />
+            <link rel="icon" href="/favicon-v4.ico" sizes="any" />
+            <link rel="icon" type="image/png" href="/pwa-64x64-v4.png" sizes="64x64" />
+            <link rel="apple-touch-icon" href="/apple-touch-icon-180x180-v4.png" />
+            <!-- Barras del sistema = fondo de la app (no el verde de marca). ThemeContext las sincroniza. -->
+            <meta name="theme-color" content="#fcfcfc" media="(prefers-color-scheme: light)" />
+            <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
+            <meta name="theme-color" content="#fcfcfc" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
             <meta name="apple-mobile-web-app-status-bar-style" content="default" />
             <meta name="apple-mobile-web-app-title" content="Gestia" />
+            <meta name="color-scheme" content="light dark" />
             <title>Gestia</title>
       </head>
 

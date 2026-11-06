@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
-import { lazy, Suspense, useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
+import { lazyRetry } from '@/lib/lazyRetry'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
 import { CurrencyProvider } from '@/context/CurrencyContext'
 import { PermissionProvider } from '@/context/PermissionContext'
@@ -16,26 +17,26 @@ import { FullPageSkeleton } from '@/components/common/pageSkeletons'
 // Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
 // descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
 // y las libs pesadas (recharts, jspdf/xlsx/docx) se difieren hasta usarse.
-const Dashboard = lazy(() => import('@/pages/Dashboard'))
-const Login = lazy(() => import('@/pages/Login'))
-const Signup = lazy(() => import('@/pages/Signup'))
-const ForgotPassword = lazy(() => import('@/pages/ForgotPassword'))
-const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
-const FinanzasMejorado = lazy(() => import('@/pages/FinanzasMejorado'))
-const Contactos = lazy(() => import('@/pages/Contactos'))
-const CuentasMejorado = lazy(() => import('@/pages/CuentasMejorado'))
-const AlmacenMejorado = lazy(() => import('@/pages/AlmacenMejorado'))
-const InventarioMejorado = lazy(() => import('@/pages/InventarioMejorado'))
-const InventarioNuevo = lazy(() => import('@/pages/InventarioNuevo'))
-const InventarioItem = lazy(() => import('@/pages/InventarioItem'))
-const InventarioConfigFormulario = lazy(() => import('@/pages/InventarioConfigFormulario'))
-const Reportes = lazy(() => import('@/pages/Reportes'))
-const ConfiguracionMejorado = lazy(() => import('@/pages/ConfiguracionMejorado'))
-const LogsMejorado = lazy(() => import('@/pages/LogsMejorado'))
-const Herramientas = lazy(() => import('@/pages/Herramientas'))
-const AdminPlans = lazy(() => import('@/pages/AdminPlans'))
-const Terminos = lazy(() => import('@/pages/Terminos'))
-const Privacidad = lazy(() => import('@/pages/Privacidad'))
+const Dashboard = lazyRetry(() => import('@/pages/Dashboard'))
+const Login = lazyRetry(() => import('@/pages/Login'))
+const Signup = lazyRetry(() => import('@/pages/Signup'))
+const ForgotPassword = lazyRetry(() => import('@/pages/ForgotPassword'))
+const ResetPassword = lazyRetry(() => import('@/pages/ResetPassword'))
+const FinanzasMejorado = lazyRetry(() => import('@/pages/FinanzasMejorado'))
+const Contactos = lazyRetry(() => import('@/pages/Contactos'))
+const CuentasMejorado = lazyRetry(() => import('@/pages/CuentasMejorado'))
+const AlmacenMejorado = lazyRetry(() => import('@/pages/AlmacenMejorado'))
+const InventarioMejorado = lazyRetry(() => import('@/pages/InventarioMejorado'))
+const InventarioNuevo = lazyRetry(() => import('@/pages/InventarioNuevo'))
+const InventarioItem = lazyRetry(() => import('@/pages/InventarioItem'))
+const InventarioConfigFormulario = lazyRetry(() => import('@/pages/InventarioConfigFormulario'))
+const Reportes = lazyRetry(() => import('@/pages/Reportes'))
+const ConfiguracionMejorado = lazyRetry(() => import('@/pages/ConfiguracionMejorado'))
+const LogsMejorado = lazyRetry(() => import('@/pages/LogsMejorado'))
+const Herramientas = lazyRetry(() => import('@/pages/Herramientas'))
+const AdminPlans = lazyRetry(() => import('@/pages/AdminPlans'))
+const Terminos = lazyRetry(() => import('@/pages/Terminos'))
+const Privacidad = lazyRetry(() => import('@/pages/Privacidad'))
 
 export default function App() {
   useEffect(() => {

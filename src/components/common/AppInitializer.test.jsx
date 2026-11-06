@@ -31,12 +31,19 @@ describe('AppInitializer', () => {
     expect(screen.queryByText('CONTENIDO_APP')).toBeNull()
   })
 
-  it('con sesión y contextos cargando → loader', () => {
+  it('con sesión y negocio cargando → loader', () => {
     useSession.mockReturnValue({ session: { user: { id: 'u1' } }, loading: false })
     setContexts({ businessLoading: true })
     render(<AppInitializer><Child /></AppInitializer>)
     expect(screen.getByText('Gestia')).toBeInTheDocument()
     expect(screen.queryByText('CONTENIDO_APP')).toBeNull()
+  })
+
+  it('suscripción/monedas cargando NO bloquean el splash (cache-first)', () => {
+    useSession.mockReturnValue({ session: { user: { id: 'u1' } }, loading: false })
+    setContexts({ subscriptionLoading: true, currencyLoading: true })
+    render(<AppInitializer><Child /></AppInitializer>)
+    expect(screen.getByText('CONTENIDO_APP')).toBeInTheDocument()
   })
 
   it('sin sesión (login) → renderiza children, no bloquea', () => {

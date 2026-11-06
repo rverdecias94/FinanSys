@@ -1,6 +1,9 @@
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { isChunkLoadError } from '@/lib/lazyRetry'
+
+const CHUNK_RELOAD_KEY = 'gestia.chunk.boundary.reload'
 
 /**
  * Límite de error global. Captura errores de render de cualquier parte del árbol
@@ -20,6 +23,19 @@ export class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // Registro para depuración (no se expone nada técnico al usuario).
     console.error('ErrorBoundary capturó un error:', error, info)
+
+    // Tras un deploy, chunks viejos 404: un reload suele bastar (una sola vez).
+    if (!isChunkLoadError(error)) return
+    try {
+      if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1') {
+        sessionStorage.removeItem(CHUNK_RELOAD_KEY)
+        return
+      }
+      sessionStorage.setItem(CHUNK_RELOAD_KEY, '1')
+      window.location.reload()
+    } catch {
+      // ignore
+    }
   }
 
   handleReload = () => {

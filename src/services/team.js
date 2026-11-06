@@ -298,7 +298,12 @@ export async function acceptPendingInvitations(email) {
  * Get the business context for a user
  * Returns { businessId, isOwner, roleId, permissions }
  */
-export async function getBusinessContext(userId) {
+/**
+ * @param {string} userId
+ * @param {{ soft?: boolean }} [options] soft=true (default) traga errores → null.
+ *   soft=false propaga el error (arranque cache-first: no pisar caché de miembro).
+ */
+export async function getBusinessContext(userId, { soft = true } = {}) {
   if (!userId) {
     return null
   }
@@ -309,6 +314,7 @@ export async function getBusinessContext(userId) {
     })
 
     if (error) {
+      if (!soft) throw error
       return null
     }
 
@@ -322,7 +328,8 @@ export async function getBusinessContext(userId) {
     }
 
     return context
-  } catch {
+  } catch (err) {
+    if (!soft) throw err
     return null
   }
 }

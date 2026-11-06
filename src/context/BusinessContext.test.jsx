@@ -78,4 +78,18 @@ describe('BusinessContext (online · miembro de equipo)', () => {
     )
     expect(acceptPendingInvitations).toHaveBeenCalledWith('miembro@x.com')
   })
+
+  it('con caché online: desbloquea YA con el miembro y no cae a owner si la red falla', async () => {
+    writeLocalCache('business:u1', {
+      businessId: 'owner-7', isOwner: false, roleId: 'r1', roleName: 'Editor', permissions: ['finanzas.view'],
+    })
+    acceptPendingInvitations.mockResolvedValue(null)
+    getBusinessContext.mockRejectedValue(new Error('Failed to fetch'))
+
+    render(<BusinessProvider><Probe /></BusinessProvider>)
+
+    await waitFor(() =>
+      expect(screen.getByText('biz:owner-7;owner:false;role:Editor')).toBeInTheDocument()
+    )
+  })
 })

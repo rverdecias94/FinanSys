@@ -18,6 +18,13 @@ export function CurrencyProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchCurrencies = async () => {
+    // Cache-first: pintar monedas conocidas al instante; la red refresca detrás.
+    const cachedAvailable = readLocalCache('currencies:available')
+    const cachedBusiness = businessId ? readLocalCache(`currencies:business:${businessId}`) : null
+    if (cachedAvailable) setAvailableCurrencies(cachedAvailable)
+    if (cachedBusiness) setBusinessCurrencies(cachedBusiness)
+    if (cachedAvailable || cachedBusiness) setLoading(false)
+
     try {
       // Fetch all available currencies
       const { data: allCurrencies, error: allError } = await supabase
@@ -60,11 +67,15 @@ export function CurrencyProvider({ children }) {
     } catch (error) {
       // Offline/error: mostrar las monedas guardadas en vez de fallar. Solo
       // alarmar si SÍ hay conexión y no hay nada cacheado (problema real, no falta de red).
-      const cachedAvailable = readLocalCache('currencies:available')
-      const cachedBusiness = businessId ? readLocalCache(`currencies:business:${businessId}`) : null
-      if (cachedAvailable) setAvailableCurrencies(cachedAvailable)
-      if (cachedBusiness) setBusinessCurrencies(cachedBusiness)
-      if (navigator.onLine && !cachedAvailable) {
+      if (!cachedAvailable) {
+        const again = readLocalCache('currencies:available')
+        if (again) setAvailableCurrencies(again)
+      }
+      if (!cachedBusiness && businessId) {
+        const againBiz = readLocalCache(`currencies:business:${businessId}`)
+        if (againBiz) setBusinessCurrencies(againBiz)
+      }
+      if (navigator.onLine && !cachedAvailable && !readLocalCache('currencies:available')) {
         toast.error('Error al cargar configuración de monedas')
       }
     } finally {

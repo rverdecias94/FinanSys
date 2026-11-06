@@ -77,17 +77,19 @@ function BrandedLoader({ exiting = false }) {
 /**
  * Bloquea el render de la app con BrandedLoader mientras:
  *  - se comprueba la sesión, o
- *  - hay sesión y aún cargan los contextos (negocio/suscripción/monedas).
+ *  - hay sesión y aún no hay identidad de negocio (BusinessContext).
+ * Suscripción/monedas refrescan en segundo plano (cache-first): no deben
+ * dejar el splash colgado en mala conexión.
  * Si no hay sesión (login/signup), renderiza los children normalmente.
  */
 export function AppInitializer({ children }) {
   const { session, loading: sessionLoading } = useSession()
   const { loading: businessLoading } = useBusiness()
-  const { loading: subscriptionLoading } = useSubscription()
-  const { loading: currencyLoading } = useCurrency()
+  // Hooks reservados: mantienen el orden estable y la hidratación de providers.
+  useSubscription()
+  useCurrency()
 
-  const initializing = sessionLoading
-    || (!!session && (businessLoading || subscriptionLoading || currencyLoading))
+  const initializing = sessionLoading || (!!session && businessLoading)
 
   const [visible, setVisible] = useState(initializing)
   const [exiting, setExiting] = useState(false)

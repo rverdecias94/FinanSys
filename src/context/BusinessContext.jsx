@@ -5,6 +5,19 @@ import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 
 const BusinessContext = createContext({})
 
+/** Tope para no dejar el splash colgado en redes lentas (Cuba / H+). */
+const NETWORK_BUDGET_MS = 6000
+
+function withTimeout(promise, ms) {
+  let timer
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), ms)
+    }),
+  ])
+}
+
 function normalizeContext(raw, userId) {
   if (!raw) {
     return {
@@ -46,8 +59,17 @@ export function BusinessProvider({ children }) {
 
     const userId = session.user.id
     const email = session.user.email
-    setLoading(true)
     setError(null)
+
+    // Cache-first: si ya conocemos el negocio, desbloquear la UI YA y refrescar detrás.
+    // En mala conexión el await a Supabase podía dejar "Preparando tu negocio…" minutos.
+    const cached = readLocalCache(`business:${userId}`)
+    if (cached) {
+      setBusinessContext(cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
 
     try {
       // Vincular invitaciones pendientes ANTES de resolver el contexto, en CUALQUIER
@@ -58,36 +80,47 @@ export function BusinessProvider({ children }) {
       // se reintroduce aquí para que el flujo de miembro funcione en todas las vías.
       if (email && (typeof navigator === 'undefined' || navigator.onLine)) {
         try {
-          await acceptPendingInvitations(email)
+          await withTimeout(acceptPendingInvitations(email), NETWORK_BUDGET_MS)
         } catch {
           // No bloquear el arranque si la aceptación falla; se reintenta en la próxima carga.
         }
       }
 
-      const context = await getBusinessContext(userId)
+      let context
+      try {
+        // soft:false → error de red NO se confunde con "no hay equipo" (null OK).
+        context = await withTimeout(
+          getBusinessContext(userId, { soft: false }),
+          NETWORK_BUDGET_MS,
+        )
+      } catch {
+        // Timeout / red: conservar caché (miembro) o degradar a owner-default.
+        const fallback = cached || readLocalCache(`business:${userId}`)
+        setBusinessContext(fallback || normalizeContext(null, userId))
+        return
+      }
 
-      // Offline y sin respuesta del servidor: restaurar el contexto REAL guardado.
-      // Clave para miembros de equipo: si no, caerían a "owner por defecto" (escalada
-      // de privilegios + businessId equivocado). Para el owner sin caché, el
-      // owner-default es el comportamiento correcto.
-      if (context === null && typeof navigator !== 'undefined' && !navigator.onLine) {
-        const cached = readLocalCache(`business:${userId}`)
-        setBusinessContext(cached || normalizeContext(null, userId))
+      // null “exitoso” sin red: no pisar caché de miembro (mismo invariante de antes).
+      if (context == null && typeof navigator !== 'undefined' && !navigator.onLine) {
+        const fallback = cached || readLocalCache(`business:${userId}`)
+        setBusinessContext(fallback || normalizeContext(null, userId))
         return
       }
 
       const normalized = normalizeContext(context, userId)
       setBusinessContext(normalized)
       // Cachear solo contextos REALES del servidor (no el owner-default derivado de null).
-      if (context !== null) writeLocalCache(`business:${userId}`, normalized)
+      if (context != null) {
+        writeLocalCache(`business:${userId}`, normalized)
+      }
     } catch (err) {
       // Error inesperado: preferir el contexto guardado antes que bloquear la app.
-      const cached = readLocalCache(`business:${userId}`)
-      if (cached) {
-        setBusinessContext(cached)
+      const fallback = cached || readLocalCache(`business:${userId}`)
+      if (fallback) {
+        setBusinessContext(fallback)
       } else {
         setError(err)
-        setBusinessContext(null)
+        setBusinessContext(normalizeContext(null, userId))
       }
     } finally {
       setLoading(false)

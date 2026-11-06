@@ -150,6 +150,12 @@ export const SubscriptionProvider = ({ children }) => {
 
   useEffect(() => {
     if (session?.user && businessId && !businessLoading) {
+      // Cache-first: desbloquear UI con la última suscripción conocida.
+      const cached = readLocalCache(`subscription:${businessId}`)
+      if (cached) {
+        setSubscriptionRaw(normalizeExpiredPremium(cached))
+        setLoading(false)
+      }
       fetchSubscription()
       fetchBillingState()
       fetchPlanLimits()
