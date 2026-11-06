@@ -12,12 +12,12 @@
   Cache-Control: no-cache, no-store, must-revalidate
   Netlify-CDN-Cache-Control: no-store
 
-# Iconos PWA: cacheables pero con URL versionada (-v2) al cambiar de marca.
-/pwa-*-v2.png
+# Iconos PWA versionados (-v3): cacheables; al cambiar de marca se sube el sufijo.
+/pwa-*-v3.png
   Cache-Control: public, max-age=31536000, immutable
-/maskable-icon-*-v2.png
+/maskable-icon-*-v3.png
   Cache-Control: public, max-age=31536000, immutable
-/favicon-v2.ico
+/favicon-v3.ico
   Cache-Control: public, max-age=31536000, immutable
-/apple-touch-icon-*-v2.png
+/apple-touch-icon-*-v3.png
   Cache-Control: public, max-age=31536000, immutable
