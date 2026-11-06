@@ -36,12 +36,31 @@ export async function createContact(payload, userId, businessId) {
 
   return withCrud({ action: 'create', table: 'contacts' }, async () => {
     const effectiveUserId = getEffectiveUserId(userId, businessId)
+    const { client_uuid, ...rest } = payload || {}
+    const row = {
+      ...rest,
+      user_id: effectiveUserId,
+      client_uuid: client_uuid || null,
+    }
     const { data, error } = await supabase
       .from('contacts')
-      .insert({ ...payload, user_id: effectiveUserId })
+      .insert(row)
       .select()
       .single()
-    if (error) throw error
+    // Idempotencia outbox: mismo client_uuid → devolver existente.
+    if (error) {
+      if (error.code === '23505' && client_uuid) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .eq('client_uuid', client_uuid)
+          .maybeSingle()
+        if (fetchErr) throw fetchErr
+        if (existing) return { ...existing, idempotent: true }
+      }
+      throw error
+    }
     // S4: auditoría (incl. antes/después) vía trigger de BD audit_row_change.
     return data
   })

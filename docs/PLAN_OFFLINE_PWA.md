@@ -360,7 +360,9 @@ recargar. No cambia la lógica de las queries, solo persiste la caché de React 
    recordUsage también tras sync offline, PendingSyncRow en edits pendientes).
 4. ~~**C3** — Gate de límites offline~~ ✅
    (2026-11-06: `checkLimit` mensaje offline dedicado; Finanzas resta creates en cola).
-5. **C2b** — Contactos + cuentas/abonos.
+5. ~~**C2b** — Contactos + cuentas/abonos~~ ✅
+   (2026-11-06: client_uuid en contacts/account_payments, RPC abono idempotente,
+   outbox create/update/delete contactos + abonos con PendingSyncRow).
 6. **C2c** — Inventario (ítems/áreas según dependencia).
 7. **C5** — Almacén (productos ya sync → movimientos RPC idempotente → crear producto offline).
 8. **C2d** — Recurrentes y resto operativo pendiente.

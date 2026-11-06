@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient, onlineManager } from '@tanstack/react-query'
 import { Wallet, TrendingUp, TrendingDown, CalendarClock, AlertTriangle, HandCoins, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,15 +11,26 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useCurrency } from '@/context/CurrencyContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { listOpenAccounts, registerPayment, listAccountPayments, getAgingReport } from '@/services/finanzas'
+import { listOpenAccounts, listAccountPayments, getAgingReport } from '@/services/finanzas'
 import { AgingPanel } from '@/components/finanzas/AgingPanel'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import { PAYMENT_CREATE_KEY } from '@/offline/mutationDefaults'
+import {
+  applyOptimisticPayment,
+  findOpenAccountInCache,
+  restoreOpenAccountRow,
+} from '@/offline/optimisticPayments'
 
 function isOverdue(dueDate) {
   if (!dueDate) return false
@@ -44,7 +55,7 @@ function AccountsList({ direction, userId, businessId, enabled, formatCurrency, 
         const remaining = Math.max(0, total - paid)
         const overdue = isOverdue(t.due_date)
         return (
-          <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          <PendingSyncRow pending={Boolean(t._pending)}>
             <div className="flex min-w-0 items-start gap-3 sm:items-center">
               <div className={`shrink-0 rounded-full p-2 ${income ? 'bg-success/10' : 'bg-destructive/10'}`}>
                 {income ? <TrendingUp className="h-4 w-4 text-success" /> : <TrendingDown className="h-4 w-4 text-destructive" />}
@@ -73,12 +84,18 @@ function AccountsList({ direction, userId, businessId, enabled, formatCurrency, 
                   {overdue && <Badge variant="destructive" className="text-[10px]">Vencida</Badge>}
                 </div>
               </div>
-              <Button size="sm" variant="outline" className="shrink-0" onClick={() => onPay({ ...t, remaining })}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                disabled={Boolean(t._pending) || remaining <= 0}
+                onClick={() => onPay({ ...t, remaining })}
+              >
                 <HandCoins className="mr-1.5 h-4 w-4" />
                 {income ? 'Cobrar' : 'Pagar'}
               </Button>
             </div>
-          </div>
+          </PendingSyncRow>
         )
       }}
     />
@@ -96,6 +113,7 @@ export default function CuentasMejorado() {
   const [tab, setTab] = useState('receivable')
   const [payTarget, setPayTarget] = useState(null)
   const [payAmount, setPayAmount] = useState('')
+  const requeueGuardRef = useRef(new Set())
 
   // Historial de abonos de la cuenta abierta en el diálogo (libro account_payments).
   const { data: abonos = [] } = useQuery({
@@ -135,8 +153,19 @@ export default function CuentasMejorado() {
   })
 
   const paymentMutation = useMutation({
-    mutationFn: ({ id, amount }) => registerPayment(id, amount, userId, businessId),
-    onSuccess: () => {
+    mutationKey: PAYMENT_CREATE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.transactionId
+      const previous = findOpenAccountInCache(qc, id)
+      if (id != null && !requeueGuardRef.current.has(vars?.client_uuid)) {
+        applyOptimisticPayment(qc, id, vars?.amount)
+      }
+      setPayTarget(null)
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Abono')
+      return { id, previous, clientUuid: vars?.client_uuid }
+    },
+    onSuccess: (data, vars, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
       qc.invalidateQueries({ queryKey: ['open-accounts'] })
       qc.invalidateQueries({ queryKey: ['open-accounts-count'] })
       qc.invalidateQueries({ queryKey: ['transactions'] })
@@ -144,13 +173,34 @@ export default function CuentasMejorado() {
       qc.invalidateQueries({ queryKey: ['dashboard'] })
       qc.invalidateQueries({ queryKey: ['account-payments'] })
       qc.invalidateQueries({ queryKey: ['aging'] })
-      notify.success('Pago registrado correctamente')
-      setPayTarget(null)
+      if (data?.idempotent) {
+        notify.info('Este abono ya estaba registrado; no se duplicó.')
+      } else if (onlineManager.isOnline()) {
+        notify.success('Pago registrado correctamente')
+      }
     },
-    onError: (e) => notify.error(getSupabaseErrorMessage(e))
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Abono')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => paymentMutation.mutate(vars))
+        }
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      restoreOpenAccountRow(qc, ctx?.id ?? vars?.transactionId, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const openPay = (t) => {
+    if (t?._pending) {
+      notify.info('Hay un abono pendiente de sincronizar en esta cuenta. Espera a que se suba.')
+      return
+    }
     setPayTarget(t)
     setPayAmount(String(t.remaining ?? ''))
   }
@@ -161,7 +211,17 @@ export default function CuentasMejorado() {
       notify.error('Ingresa un monto válido mayor que cero')
       return
     }
-    paymentMutation.mutate({ id: payTarget.id, amount })
+    if (payTarget?.remaining != null && amount > Number(payTarget.remaining) + 0.005) {
+      notify.error('El abono excede el saldo pendiente')
+      return
+    }
+    paymentMutation.mutate({
+      transactionId: payTarget.id,
+      amount,
+      userId,
+      businessId,
+      client_uuid: genClientUuid(),
+    })
   }
 
   if (!permissionLoading && !canView('finanzas')) {
@@ -281,7 +341,7 @@ export default function CuentasMejorado() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayTarget(null)}>Cancelar</Button>
-            <Button onClick={confirmPay} loading={paymentMutation.isPending}>Confirmar</Button>
+            <Button onClick={confirmPay} loading={false}>Confirmar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

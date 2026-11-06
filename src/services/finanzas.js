@@ -323,7 +323,8 @@ export async function registerPayment(transactionId, abono, userId, businessId, 
     p_transaction_id: transactionId,
     p_amount: add,
     p_method: options.method || null,
-    p_note: options.note || null
+    p_note: options.note || null,
+    p_client_uuid: options.clientUuid || null,
   })
   if (error) throw error
   // S4: la actualización de la cuenta (paid_amount/status) la audita el trigger de BD.
