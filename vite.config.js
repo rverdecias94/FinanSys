@@ -14,8 +14,8 @@ export default defineConfig({
       // al detectar un SW nuevo. injectRegister false evita doble registro.
       registerType: 'autoUpdate',
       injectRegister: false,
-      // Sufijo -v4: G más grande + fondo blanco (taskbar Windows) + cache-bust.
-      includeAssets: ['favicon-v4.ico', 'apple-touch-icon-180x180-v4.png'],
+      // Sufijo -v5: any transparente (sin rayas blancas laterales) + cache-bust.
+      includeAssets: ['favicon-v5.ico', 'apple-touch-icon-180x180-v5.png'],
       manifest: {
         name: 'Gestia',
         short_name: 'Gestia',
@@ -29,10 +29,10 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: 'pwa-64x64-v4.png', sizes: '64x64', type: 'image/png' },
-          { src: 'pwa-192x192-v4.png', sizes: '192x192', type: 'image/png' },
-          { src: 'pwa-512x512-v4.png', sizes: '512x512', type: 'image/png' },
-          { src: 'maskable-icon-512x512-v4.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'pwa-64x64-v5.png', sizes: '64x64', type: 'image/png' },
+          { src: 'pwa-192x192-v5.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512-v5.png', sizes: '512x512', type: 'image/png' },
+          { src: 'maskable-icon-512x512-v5.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
