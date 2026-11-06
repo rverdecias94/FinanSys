@@ -522,7 +522,7 @@ export default function SidebarLayout() {
             <BrandLogo className="h-8 w-auto object-contain" />
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,calc(5.5rem+env(safe-area-inset-bottom,0px)))] sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,calc(6.25rem+env(safe-area-inset-bottom,0px)))] sm:p-6 lg:p-8">
             <Suspense fallback={<RouteOutletSkeleton />}>
               <Outlet />
             </Suspense>

@@ -22,8 +22,7 @@ export function isMobilePrimaryRoute(pathname) {
 }
 
 /**
- * Tab bar flotante estilo app nativa (solo < lg).
- * Material glass + indicador deslizante; targets ≥44px; feedback al press.
+ * Tab bar flotante: padding interior generoso, acento primary, indicador deslizante.
  */
 export function MobileBottomNav({ onMore }) {
   const { pathname } = useLocation()
@@ -38,13 +37,13 @@ export function MobileBottomNav({ onMore }) {
   const activeIndex = (() => {
     const i = tabs.findIndex((tab) => pathMatches(pathname, tab.to, tab.end))
     if (i >= 0) return i
-    return tabs.length // Más
+    return tabs.length
   })()
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 lg:hidden"
-      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))' }}
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 lg:hidden"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
     >
       <nav
         className="gestia-mobile-nav pointer-events-auto relative w-full max-w-md"
@@ -52,30 +51,39 @@ export function MobileBottomNav({ onMore }) {
       >
         <div
           className={cn(
-            'relative overflow-hidden rounded-full border border-border/60',
-            'bg-background/80 shadow-[0_8px_28px_-6px_rgba(0,0,0,0.18)]',
+            'relative overflow-hidden rounded-full',
+            'border-2 border-primary/25 bg-card/95',
+            'shadow-[0_10px_32px_-8px_rgba(0,0,0,0.22)]',
             'backdrop-blur-xl backdrop-saturate-150',
-            'dark:border-white/10 dark:bg-card/85 dark:shadow-[0_8px_28px_-6px_rgba(0,0,0,0.55)]',
+            'dark:border-primary/35 dark:bg-card/95',
+            'dark:shadow-[0_10px_32px_-8px_rgba(0,0,0,0.65)]',
           )}
         >
-          {/* Indicador deslizante (píldora bajo el tab activo) */}
+          {/* Acento de marca: borde superior sutil */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent"
+          />
+
           <span
             aria-hidden="true"
-            className="gestia-mobile-nav__indicator pointer-events-none absolute bottom-1.5 top-1.5 rounded-full bg-primary/12 dark:bg-primary/20"
+            className="gestia-mobile-nav__indicator pointer-events-none absolute bottom-2 top-2 rounded-full bg-primary/18 dark:bg-primary/28"
             style={{
-              width: `${100 / slotCount}%`,
-              transform: `translateX(${activeIndex * 100}%)`,
+              // Inset horizontal para que la píldora no roce los bordes del contenedor
+              left: 6,
+              width: `calc((100% - 12px) / ${slotCount})`,
+              transform: `translateX(calc(${activeIndex} * 100%))`,
             }}
           />
 
           <ul
-            className="relative grid h-14"
+            className="relative grid h-[3.75rem] px-1.5"
             style={{ gridTemplateColumns: `repeat(${slotCount}, minmax(0, 1fr))` }}
           >
             {tabs.map((tab) => {
               const Icon = tab.icon
               return (
-                <li key={tab.to} className="min-w-0">
+                <li key={tab.to} className="min-w-0 px-0.5">
                   <NavLink
                     to={tab.to}
                     end={tab.end}
@@ -83,29 +91,34 @@ export function MobileBottomNav({ onMore }) {
                     title={tab.label}
                     className={({ isActive }) =>
                       cn(
-                        'gestia-mobile-nav__item flex h-14 w-full flex-col items-center justify-center gap-1',
-                        'text-muted-foreground transition-[color,transform] duration-150 ease-out',
-                        'active:scale-95',
-                        isActive && 'text-primary',
+                        'gestia-mobile-nav__item flex h-[3.75rem] w-full flex-col items-center justify-center gap-0.5',
+                        'transition-[color,transform] duration-150 ease-out active:scale-95',
+                        isActive ? 'text-primary' : 'text-muted-foreground/80',
                       )
                     }
                   >
                     {({ isActive }) => (
                       <>
-                        <Icon
-                          className="h-5 w-5"
-                          strokeWidth={isActive ? 2.35 : 1.7}
-                          fill={isActive ? 'currentColor' : 'none'}
-                          fillOpacity={isActive ? 0.18 : 0}
-                          aria-hidden="true"
-                        />
                         <span
                           className={cn(
-                            'h-1 w-1 rounded-full transition-opacity duration-200',
-                            isActive ? 'bg-primary opacity-100' : 'opacity-0',
+                            'flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-200',
+                            isActive && 'bg-primary text-primary-foreground shadow-sm shadow-primary/30',
                           )}
-                          aria-hidden="true"
-                        />
+                        >
+                          <Icon
+                            className="h-[1.15rem] w-[1.15rem]"
+                            strokeWidth={isActive ? 2.4 : 1.65}
+                            aria-hidden="true"
+                          />
+                        </span>
+                        <span
+                          className={cn(
+                            'max-w-full truncate text-[9px] font-semibold tracking-wide',
+                            isActive ? 'text-primary' : 'text-muted-foreground/70',
+                          )}
+                        >
+                          {tab.label}
+                        </span>
                       </>
                     )}
                   </NavLink>
@@ -113,7 +126,7 @@ export function MobileBottomNav({ onMore }) {
               )
             })}
 
-            <li className="min-w-0">
+            <li className="min-w-0 px-0.5">
               <button
                 type="button"
                 onClick={onMore}
@@ -121,24 +134,32 @@ export function MobileBottomNav({ onMore }) {
                 title="Más"
                 aria-current={activeIndex === tabs.length ? 'page' : undefined}
                 className={cn(
-                  'gestia-mobile-nav__item flex h-14 w-full flex-col items-center justify-center gap-1',
-                  'text-muted-foreground transition-[color,transform] duration-150 ease-out',
-                  'active:scale-95',
-                  activeIndex === tabs.length && 'text-primary',
+                  'gestia-mobile-nav__item flex h-[3.75rem] w-full flex-col items-center justify-center gap-0.5',
+                  'transition-[color,transform] duration-150 ease-out active:scale-95',
+                  activeIndex === tabs.length ? 'text-primary' : 'text-muted-foreground/80',
                 )}
               >
-                <MoreHorizontal
-                  className="h-5 w-5"
-                  strokeWidth={activeIndex === tabs.length ? 2.35 : 1.7}
-                  aria-hidden="true"
-                />
                 <span
                   className={cn(
-                    'h-1 w-1 rounded-full transition-opacity duration-200',
-                    activeIndex === tabs.length ? 'bg-primary opacity-100' : 'opacity-0',
+                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-200',
+                    activeIndex === tabs.length &&
+                      'bg-primary text-primary-foreground shadow-sm shadow-primary/30',
                   )}
-                  aria-hidden="true"
-                />
+                >
+                  <MoreHorizontal
+                    className="h-[1.15rem] w-[1.15rem]"
+                    strokeWidth={activeIndex === tabs.length ? 2.4 : 1.65}
+                    aria-hidden="true"
+                  />
+                </span>
+                <span
+                  className={cn(
+                    'text-[9px] font-semibold tracking-wide',
+                    activeIndex === tabs.length ? 'text-primary' : 'text-muted-foreground/70',
+                  )}
+                >
+                  Más
+                </span>
               </button>
             </li>
           </ul>

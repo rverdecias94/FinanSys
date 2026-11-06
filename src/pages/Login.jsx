@@ -4,11 +4,12 @@ import { supabase } from '@/config/supabase'
 import { acceptPendingInvitations, getBusinessContext } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, Wallet, Package, BarChart3, Mail, Clock } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
 import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
-import BrandLogo from '@/components/BrandLogo'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { AuthDivider, GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -19,8 +20,6 @@ export default function Login() {
   const [error, setError] = useState(null)
   const [emailError, setEmailError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  // Reenvío del correo de confirmación: se ofrece cuando el login falla porque el
-  // correo aún no está confirmado (frecuente con proveedores lentos como nauta.cu).
   const [needsConfirmation, setNeedsConfirmation] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
@@ -35,8 +34,6 @@ export default function Login() {
     }
   }, [location.state, location.pathname, navigate])
 
-  // Cuenta atrás del reenvío para respetar el límite de envío de Supabase (~60 s)
-  // y no frustrar al usuario con un error de "demasiados correos".
   useEffect(() => {
     if (resendCooldown <= 0) return
     const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000)
@@ -50,25 +47,15 @@ export default function Login() {
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (fetchError) {
-      return
-    }
+    if (fetchError || existingSubscription) return
 
-    if (!existingSubscription) {
-      const { error: createError } = await supabase
-        .from('subscriptions')
-        .insert({
-          user_id: userId,
-          plan_id: 'free',
-          status: 'active',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-
-      if (createError) {
-        return
-      }
-    }
+    await supabase.from('subscriptions').insert({
+      user_id: userId,
+      plan_id: 'free',
+      status: 'active',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
   }
 
   const handleLogin = async (e) => {
@@ -84,8 +71,8 @@ export default function Login() {
     setNeedsConfirmation(false)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
+      const { data, error: signError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signError) throw signError
 
       await acceptPendingInvitations(email)
 
@@ -101,8 +88,8 @@ export default function Login() {
         {
           description: isTeamMember
             ? 'Has accedido a la cuenta del negocio con tu rol asignado.'
-            : 'Has iniciado sesión correctamente.'
-        }
+            : 'Has iniciado sesión correctamente.',
+        },
       )
 
       navigate('/')
@@ -118,10 +105,10 @@ export default function Login() {
     if (!email || resending || resendCooldown > 0) return
     setResending(true)
     try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email })
-      if (error) throw error
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email })
+      if (resendError) throw resendError
       toast.success('Correo de confirmación reenviado', {
-        description: 'Te enviamos otra vez el enlace. Revisa tu bandeja de entrada y la carpeta de spam.'
+        description: 'Te enviamos otra vez el enlace. Revisa tu bandeja de entrada y la carpeta de spam.',
       })
       setResendCooldown(60)
     } catch (err) {
@@ -132,200 +119,136 @@ export default function Login() {
   }
 
   return (
-    <div className="h-screen w-full flex bg-background overflow-hidden">
-      <div className="hidden lg:flex flex-1 flex-col justify-center bg-primary text-primary-foreground p-8 lg:p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-primary/20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent"></div>
-
-        <div className="relative z-10 max-w-lg space-y-6 mx-auto">
-          <h2 className="text-3xl lg:text-4xl font-bold tracking-tight">
-            Bienvenido a tu gestor de caja e inventario
-          </h2>
-          <p className="text-base text-primary-foreground/80 leading-relaxed">
-            Gestiona tus finanzas, controla tu inventario y analiza reportes detallados en una plataforma unificada diseñada para el crecimiento de tu negocio.
-          </p>
-
-          <div className="space-y-4 pt-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <Wallet className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Finanzas Claras</h3>
-                <p className="text-primary-foreground/70 text-xs">Monitorea ingresos y gastos al instante.</p>
-              </div>
+    <AuthShell
+      title="Iniciar sesión"
+      subtitle="Entra con tu correo o, si prefieres, con Google."
+    >
+      <div className="space-y-5">
+        <form className="space-y-4" onSubmit={handleLogin}>
+          {error && (
+            <div className="flex items-center rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive animate-in fade-in slide-in-from-top-1">
+              <span className="font-medium">{error}</span>
             </div>
+          )}
 
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <Package className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Inventario Inteligente</h3>
-                <p className="text-primary-foreground/70 text-xs">Control total sobre tus productos y almacenes.</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center shrink-0">
-                <BarChart3 className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Reportes Avanzados</h3>
-                <p className="text-primary-foreground/70 text-xs">Exporta datos y toma decisiones informadas.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24">
-        <div className="mx-auto w-full max-w-md space-y-6">
-
-          <div className="flex flex-col items-center space-y-2">
-            <div className="h-24 w-auto flex items-center justify-center mb-2">
-              <BrandLogo className="h-20 w-auto object-contain" />
-            </div>
-            <div className="text-center space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Iniciar Sesión
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Ingresa tus credenciales para acceder a tu cuenta
+          {needsConfirmation && (
+            <div className="space-y-2.5 rounded-lg border border-primary/20 bg-primary/5 p-3 animate-in fade-in slide-in-from-top-1">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                ¿No te llegó el correo? Revisa spam o pide que te enviemos otra vez el enlace.
               </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleResendConfirmation}
+                disabled={resending || resendCooldown > 0}
+                className="h-10 w-full text-sm font-medium"
+              >
+                {resending ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Enviando...
+                  </span>
+                ) : resendCooldown > 0 ? (
+                  <span className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Podrás reenviar en {resendCooldown} s
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Reenviar correo de confirmación
+                  </span>
+                )}
+              </Button>
             </div>
-          </div>
+          )}
 
-          <form className="space-y-4" onSubmit={handleLogin}>
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-center animate-in fade-in slide-in-from-top-1">
-                <span className="font-medium">{error}</span>
-              </div>
-            )}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label htmlFor="login-email" className="text-sm font-medium text-foreground">
+                Correo electrónico
+              </label>
+              <Input
+                id="login-email"
+                type="email"
+                placeholder="nombre@ejemplo.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (emailError) setEmailError('')
+                  if (needsConfirmation) setNeedsConfirmation(false)
+                }}
+                className="h-11 border-input bg-background/80 transition-all"
+                aria-invalid={!!emailError}
+                required
+              />
+              {emailError && <p className="text-xs text-destructive">{emailError}</p>}
+            </div>
 
-            {needsConfirmation && (
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-2.5 animate-in fade-in slide-in-from-top-1">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  ¿No te llegó el correo? Revisa tu carpeta de spam o pide que te enviemos otra vez el enlace de confirmación.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleResendConfirmation}
-                  disabled={resending || resendCooldown > 0}
-                  className="w-full h-10 text-sm font-medium"
-                >
-                  {resending ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Enviando...
-                    </span>
-                  ) : resendCooldown > 0 ? (
-                    <span className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      Podrás reenviar en {resendCooldown} s
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" />
-                      Reenviar correo de confirmación
-                    </span>
-                  )}
-                </Button>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label htmlFor="login-email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
-                  Correo Electrónico
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="login-password" className="text-sm font-medium text-foreground">
+                  Contraseña
                 </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
+              <div className="relative">
                 <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="nombre@ejemplo.com"
-                  value={email}
-                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); if (needsConfirmation) setNeedsConfirmation(false) }}
-                  className="h-10 bg-background border-input focus:bg-background transition-all duration-200"
-                  aria-invalid={!!emailError}
+                  id="login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-11 border-input bg-background/80 pr-10 transition-all"
                   required
                 />
-                {emailError && <p className="text-xs text-destructive">{emailError}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="login-password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-foreground">
-                    Contraseña
-                  </label>
-                  <Link
-                    to="/forgot-password"
-                    className="text-xs text-primary hover:text-primary/80 hover:underline transition-all duration-200"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="login-password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="h-10 bg-background border-input focus:bg-background transition-all duration-200 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                    aria-pressed={showPassword}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
+          </div>
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full h-10 text-base font-medium shadow-md hover:shadow-lg transition-all duration-200 mt-2"
-            >
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Iniciando sesión...</span>
-                </div>
-              ) : 'Iniciar Sesión'}
-            </Button>
+          <Button
+            type="submit"
+            disabled={loading}
+            className="mt-1 h-11 w-full text-base font-semibold shadow-md shadow-primary/20"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Iniciando sesión...
+              </span>
+            ) : (
+              'Iniciar sesión'
+            )}
+          </Button>
+        </form>
 
-            <div className="text-center text-sm text-muted-foreground pt-2">
-              ¿No tienes una cuenta?{' '}
-              <Link
-                to="/signup"
-                className="font-medium text-primary hover:text-primary/80 hover:underline transition-all duration-200"
-              >
-                Regístrate aquí
-              </Link>
-            </div>
-          </form>
+        <AuthDivider label="o continúa con" />
+        <GoogleAuthButton mode="login" />
 
-          <p className="text-center text-xs text-muted-foreground">
-            <Link to="/terminos" className="transition-colors hover:text-foreground hover:underline">
-              Términos
-            </Link>
-            <span className="mx-2">·</span>
-            <Link to="/privacidad" className="transition-colors hover:text-foreground hover:underline">
-              Privacidad
-            </Link>
-          </p>
-        </div>
+        <p className="text-center text-sm text-muted-foreground">
+          ¿No tienes una cuenta?{' '}
+          <Link
+            to="/signup"
+            className="font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+          >
+            Regístrate
+          </Link>
+        </p>
       </div>
-    </div>
+    </AuthShell>
   )
 }

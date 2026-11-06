@@ -3,10 +3,26 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/** Id único por build → version.json + __GESTIA_BUILD_ID__ (reload PWA rápido). */
+const GESTIA_BUILD_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __GESTIA_BUILD_ID__: JSON.stringify(GESTIA_BUILD_ID),
+  },
   plugins: [
     react(),
+    {
+      name: 'gestia-version-json',
+      generateBundle() {
+        this.emitFile({
+          type: 'asset',
+          fileName: 'version.json',
+          source: JSON.stringify({ buildId: GESTIA_BUILD_ID }),
+        });
+      },
+    },
     // PWA (Capa A): la app se cachea y abre sin conexión, es instalable y se
     // actualiza sola. NO toca la lógica de negocio. Ver docs/PLAN_OFFLINE_PWA.md.
     VitePWA({
@@ -43,7 +59,8 @@ export default defineConfig({
         // se cargan en el arranque (imports dinámicos en Reportes/almacen/inventario);
         // se descargan solo al exportar y quedan cacheadas (runtimeCaching abajo). Así
         // la instalación de la PWA es más ligera — clave en Cuba (datos caros).
-        globIgnores: ['**/export-vendor-*.js'],
+        // export-vendor: lazy CacheFirst. version.json: nunca precache (NetworkOnly).
+        globIgnores: ['**/export-vendor-*.js', '**/version.json'],
         // El bundle principal supera el tope por defecto (2 MiB) hasta resolver el
         // code-splitting; subimos el límite para que el precache no falle.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
@@ -52,6 +69,10 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.hostname.endsWith('supabase.co'),
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.endsWith('/version.json'),
             handler: 'NetworkOnly',
           },
           {

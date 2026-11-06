@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getSupabaseErrorMessage } from '@/services/notifications'
+import { AuthShell } from '@/components/auth/AuthShell'
+import { AuthDivider, GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
 
 export default function Signup() {
   const navigate = useNavigate()
@@ -98,26 +100,14 @@ export default function Signup() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm sm:p-10">
-
-        <div className="flex flex-col items-center space-y-4">
-          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-            <img src="/logo_ico.png" alt="Logo" className="h-10 w-10 object-contain" />
-          </div>
-          <div className="text-center space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Crear una cuenta
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Completa tus datos para registrarte en el sistema
-            </p>
-          </div>
-        </div>
-
-        <form className="space-y-6" onSubmit={handleSignup}>
+    <AuthShell
+      title="Crear cuenta"
+      subtitle="Regístrate con Google o con tu correo para empezar en Gestia."
+    >
+      <div className="space-y-5">
+        <form className="space-y-5" onSubmit={handleSignup}>
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-600 text-sm flex items-center animate-in fade-in slide-in-from-top-1">
+            <div className="flex items-center rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive animate-in fade-in slide-in-from-top-1">
               <span className="font-medium">{error}</span>
             </div>
           )}
@@ -282,27 +272,32 @@ export default function Signup() {
           <Button
             type="submit"
             disabled={loading || !isFormValid}
-            className="w-full h-11 text-base font-medium shadow-md hover:shadow-lg transition-all duration-200"
+            className="h-11 w-full text-base font-semibold shadow-md shadow-primary/20"
           >
             {loading ? (
-              <div className="flex items-center gap-2">
+              <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Registrando...</span>
-              </div>
-            ) : 'Crear Cuenta'}
+                Registrando...
+              </span>
+            ) : (
+              'Crear cuenta'
+            )}
           </Button>
-
-          <div className="text-center text-sm text-muted-foreground">
-            ¿Ya tienes una cuenta?{' '}
-            <Link
-              to="/login"
-              className="font-medium text-primary hover:text-primary/80 hover:underline transition-all duration-200"
-            >
-              Inicia sesión aquí
-            </Link>
-          </div>
         </form>
+
+        <AuthDivider label="o regístrate con" />
+        <GoogleAuthButton mode="signup" />
+
+        <p className="text-center text-sm text-muted-foreground">
+          ¿Ya tienes una cuenta?{' '}
+          <Link
+            to="/login"
+            className="font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+          >
+            Inicia sesión
+          </Link>
+        </p>
       </div>
-    </div>
+    </AuthShell>
   )
 }
