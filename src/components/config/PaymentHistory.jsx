@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useBusiness } from '@/context/BusinessContext'
 import { getMyPayments } from '@/services/billing'
 
@@ -41,8 +41,13 @@ export function PaymentHistory({ alwaysShow = false }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="space-y-2" role="status" aria-label="Cargando pagos">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-lg border p-3 space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            ))}
           </div>
         ) : payments.length === 0 ? (
           <div className="py-6 text-center text-sm text-muted-foreground">Aún no hay pagos registrados.</div>

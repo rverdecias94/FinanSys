@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -138,7 +139,11 @@ export function CurrenciesPanel() {
 
           <div className="grid gap-3">
             {loading ? (
-              <div className="text-sm text-muted-foreground">Cargando monedas...</div>
+              <div className="space-y-2" role="status" aria-label="Cargando monedas">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 w-full rounded-md" />
+                ))}
+              </div>
             ) : (
               availableCurrencies.map((curr) => {
                 const isActive = activeSet.has(curr.code)

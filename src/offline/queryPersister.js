@@ -18,7 +18,7 @@ export const queryPersister = createAsyncStoragePersister({
 
 // Versión de la caché persistida. SUBIR este valor si cambia la FORMA de los datos
 // de alguna query (invalida la caché vieja y evita rehidratar estructuras incompatibles).
-export const CACHE_BUSTER = 'gestia-rq-v1'
+export const CACHE_BUSTER = 'gestia-rq-v2'
 
 // Cuánto tiempo se considera válida la caché persistida (y cuánto sobrevive en
 // memoria: gcTime). 7 días: suficiente para trabajar offline varios días.

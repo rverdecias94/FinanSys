@@ -45,6 +45,7 @@ import {
 } from 'lucide-react'
 import { useChartAnimation } from '@/hooks/useChartAnimation'
 import { deriveDashboardView } from '@/utils/dashboardView'
+import { DashboardBodySkeleton } from '@/components/common/pageSkeletons'
 
 // Paleta del donut "Por categoría": ingresos en VERDES y gastos en ROJOS/NARANJAS,
 // con un tono distinto por categoría dentro de cada familia. El PRIMER tono de cada
@@ -295,7 +296,9 @@ export default function Dashboard() {
         )}
       </div>
 
-      {showOnboarding ? (
+      {!ready ? (
+        <DashboardBodySkeleton />
+      ) : showOnboarding ? (
         /* ---------- Estado de primer uso (empty state guiado) ---------- */
         <>
           <Card>

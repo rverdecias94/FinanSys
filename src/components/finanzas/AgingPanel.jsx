@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { AGING_BUCKETS, agingOverdue, agingHasData } from '@/utils/aging'
 
 // Tono por tramo cuando hay saldo (>0): "por vencer" neutro; severidad creciente
@@ -16,7 +17,12 @@ const BUCKET_TONE = {
 // 375px y se expanden a 5 en desktop, todos de igual altura (grid + flex-col).
 export function AgingPanel({ rows = [], formatCurrency, income = true, loading = false, emptyMessage }) {
   if (loading) {
-    return <p className="py-2 text-sm text-muted-foreground">Cargando antigüedad…</p>
+    return (
+      <div className="space-y-3" role="status" aria-label="Cargando antigüedad">
+        <Skeleton className="h-28 w-full rounded-lg" />
+        <Skeleton className="h-28 w-full rounded-lg" />
+      </div>
+    )
   }
   if (!agingHasData(rows)) {
     return (

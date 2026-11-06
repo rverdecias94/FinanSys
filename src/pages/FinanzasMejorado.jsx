@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { createTransaction, updateTransaction, listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions, registerSale } from '@/services/finanzas'
+import { useMemo, useState, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query'
+import { listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
 import { listProductsForSelection } from '@/services/almacen'
 import { listContacts } from '@/services/contacts'
 import { Button } from '@/components/ui/button'
 import { Wallet, Plus, TrendingUp, TrendingDown, Pencil, Eye } from 'lucide-react'
+import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
@@ -13,6 +14,7 @@ import { PermissionGuard, usePermissionCheck, ActionButtons } from '@/components
 import { TransactionModal } from '@/components/finanzas/TransactionModal'
 import { RecurringPanel } from '@/components/finanzas/RecurringPanel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { format } from 'date-fns'
@@ -23,11 +25,22 @@ import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { ExportButton } from '@/components/common/ExportButton'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
+import { TX_CREATE_KEY, TX_UPDATE_KEY } from '@/offline/mutationDefaults'
+import { serializeTransactionPayload } from '@/offline/serializeMutation'
+import {
+  applyOptimisticCreate,
+  buildPendingTransactionRow,
+  clearOptimisticPending,
+} from '@/offline/optimisticTransactions'
+import { countQueuedMutations } from '@/offline/syncEngine'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
 
 export default function FinanzasMejorado() {
   const { session } = useSession()
   const { businessId, loading: businessLoading } = useBusiness()
-  const { checkLimit, recordUsage } = useSubscription()
+  const { checkLimit, recordUsage, getRemainingUsage } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { canView, canEdit, canCreate, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
@@ -76,7 +89,7 @@ export default function FinanzasMejorado() {
     enabled: !!userId && !!businessId && !businessLoading,
   })
 
-  const { data: filteredTotals } = useQuery({
+  const { data: filteredTotals, isLoading: totalsLoading } = useQuery({
     queryKey: ['filteredTotals', { userId: businessId || userId, currency: currencyFilter, category: categoryFilter, dateKey }],
     queryFn: () => getFilteredTotals({
       userId,
@@ -89,28 +102,31 @@ export default function FinanzasMejorado() {
     enabled: !!userId && !!businessId && !businessLoading && !permissionLoading,
   })
 
-  // Mutaciones
+  // Evita reencolar en bucle si un reintento offline vuelve a fallar al instante.
+  const requeueGuardRef = useRef(new Set())
+
+  // Mutaciones (outbox C1): mutationFn vive en mutationDefaults; aquí solo
+  // variables serializables + UI optimista / toasts offline.
   const createMutation = useMutation({
-    mutationFn: async (payload) => {
-      // Venta de producto (S7): operación atómica única (crea el ingreso, descuenta
-      // stock y sella el COGS). Se depura el payload a campos serializables (sin Files);
-      // la RPC resuelve moneda y monto.
-      if (payload.isSale) {
-        const salePayload = {
-          date: payload.date instanceof Date ? payload.date.toISOString() : (payload.date || ''),
-          category: payload.category,
-          description: payload.description,
-          contact_id: payload.contact_id != null ? String(payload.contact_id) : '',
-          status: payload.status,
-          due_date: payload.due_date instanceof Date ? payload.due_date.toISOString() : (payload.due_date || ''),
-          payment_method: payload.payment_method || '',
-        }
-        return registerSale(salePayload, payload.product_id, payload.qty, payload.unit_price, payload.client_uuid)
+    mutationKey: TX_CREATE_KEY,
+    onMutate: async (vars) => {
+      const payload = vars?.payload || {}
+      const clientUuid = payload.client_uuid
+      // Si es reencolado tras fallo de red, la fila optimista ya está.
+      if (!requeueGuardRef.current.has(clientUuid)) {
+        const row = buildPendingTransactionRow(payload, { userId, businessId })
+        applyOptimisticCreate(queryClient, row)
       }
-      const fullPayload = { ...payload, user_id: userId }
-      return createTransaction(fullPayload, userId, businessId)
+      const offline = !onlineManager.isOnline()
+      // Cerrar YA: no dejar el modal en loading mientras el DNS hace timeout.
+      setModalOpen(false)
+      setSelectedTransaction(null)
+      if (offline) notifyOfflineQueued('Transacción')
+      return { clientUuid, offline }
     },
-    onSuccess: (data) => {
+    onSuccess: (data, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
+      if (uuid) requeueGuardRef.current.delete(uuid)
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['filteredTotals'] })
@@ -119,27 +135,42 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['open-accounts'] })
       queryClient.invalidateQueries({ queryKey: ['open-accounts-count'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
-      // Reintento idempotente de una venta (la respuesta se había perdido): la venta ya
-      // existía, así que avisamos y NO volvemos a contar el uso (no se creó otra tx).
+      // Reintento idempotente: ya existía → avisar y NO contar uso otra vez.
       if (data?.idempotent) {
-        notify.info('Esta venta ya estaba registrada; no se duplicó.')
-      } else {
+        notify.info(vars?.payload?.isSale
+          ? 'Esta venta ya estaba registrada; no se duplicó.'
+          : 'Esta transacción ya estaba registrada; no se duplicó.')
+      } else if (!ctx?.offline) {
         recordUsage('monthly_transactions')
       }
-      setModalOpen(false)
-      setSelectedTransaction(null)
     },
-    onError: (error) => {
-      const msg = getSupabaseErrorMessage(error)
-      notify.error(msg)
-    }
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
+      // Windows a veces dice "online" sin Internet → el fetch falla.
+      // Marcamos offline, conservamos la fila y reencolamos (queda paused).
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Transacción')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticPending(queryClient, uuid)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: async (payload) => {
-      const { id, ...rest } = payload
-      const fullPayload = { ...rest, user_id: userId }
-      return updateTransaction(id, fullPayload, userId, businessId)
+    mutationKey: TX_UPDATE_KEY,
+    onMutate: async (vars) => {
+      const offline = !onlineManager.isOnline()
+      setModalOpen(false)
+      setSelectedTransaction(null)
+      if (offline) notifyOfflineQueued('Transacción')
+      return { offline, id: vars?.id }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] })
@@ -149,23 +180,56 @@ export default function FinanzasMejorado() {
       queryClient.invalidateQueries({ queryKey: ['open-accounts'] })
       queryClient.invalidateQueries({ queryKey: ['open-accounts-count'] })
       queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
-      setModalOpen(false)
-      setSelectedTransaction(null)
     },
-    onError: (error) => {
-      const msg = getSupabaseErrorMessage(error)
-      notify.error(msg)
-    }
+    onError: (error, vars) => {
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Transacción')
+        const key = `upd-${vars?.id}`
+        if (!requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => updateMutation.mutate(vars))
+        }
+        return
+      }
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
+
+  const handleTransactionSubmit = (rawPayload) => {
+    const payload = serializeTransactionPayload(rawPayload)
+    if (selectedTransaction?.id && !String(selectedTransaction.id).startsWith('pending-')) {
+      updateMutation.mutate({ id: selectedTransaction.id, payload, userId, businessId })
+      return
+    }
+    createMutation.mutate({ payload, userId, businessId })
+  }
 
   // Handlers
   const handleCreate = () => {
+    // Cupo local: contar también creates ya en cola offline (decisión Capa C #2).
+    const queuedCreates = countQueuedMutations(queryClient, TX_CREATE_KEY)
+    const remaining = getRemainingUsage('monthly_transactions')
+    if (remaining !== Infinity && remaining - queuedCreates <= 0) {
+      if (!onlineManager.isOnline()) {
+        notify.error('Sin conexión no puedes superar el límite de tu plan.')
+      } else if (!checkLimit('monthly_transactions')) {
+        return
+      } else {
+        notify.error('Límite del plan alcanzado')
+      }
+      return
+    }
     if (!checkLimit('monthly_transactions')) return
     setSelectedTransaction(null)
     setModalOpen(true)
   }
 
   const handleEdit = (transaction) => {
+    if (transaction?._pending) {
+      notify.info('Esta operación aún no se ha subido. Espera a que se sincronice para editarla.')
+      return
+    }
     // Una venta de producto (S7) está ligada a Almacén (sale_items + COGS sellado):
     // editar el monto aquí desincronizaría el margen, así que se abre en solo lectura.
     if (transaction?.details?.sale) {
@@ -339,13 +403,17 @@ export default function FinanzasMejorado() {
             <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-success break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
-                  + {formatCurrency(item.income, item.code)}
-                </div>
-              ))}
-            </div>
+            {totalsLoading ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <div className="space-y-1">
+                {financeSummary.map(item => (
+                  <div key={item.code} className={`font-bold text-success break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                    + {formatCurrency(item.income, item.code)}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -355,13 +423,17 @@ export default function FinanzasMejorado() {
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {financeSummary.map(item => (
-                <div key={item.code} className={`font-bold text-destructive break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
-                  − {formatCurrency(item.expense, item.code)}
-                </div>
-              ))}
-            </div>
+            {totalsLoading ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <div className="space-y-1">
+                {financeSummary.map(item => (
+                  <div key={item.code} className={`font-bold text-destructive break-words tabular-nums ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}>
+                    − {formatCurrency(item.expense, item.code)}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -371,16 +443,20 @@ export default function FinanzasMejorado() {
             <Wallet className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
-              {financeSummary.map(item => (
-                <div
-                  key={item.code}
-                  className={`font-bold break-words tabular-nums ${item.net >= 0 ? 'text-success' : 'text-destructive'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
-                >
-                  {formatCurrency(item.net, item.code)}
-                </div>
-              ))}
-            </div>
+            {totalsLoading ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <div className="space-y-1">
+                {financeSummary.map(item => (
+                  <div
+                    key={item.code}
+                    className={`font-bold break-words tabular-nums ${item.net >= 0 ? 'text-success' : 'text-destructive'} ${financeSummary.length > 1 ? 'text-lg' : 'text-2xl'}`}
+                  >
+                    {formatCurrency(item.net, item.code)}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -390,9 +466,13 @@ export default function FinanzasMejorado() {
             <div className="flex h-4 w-4 items-center justify-center font-bold text-muted-foreground">#</div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">
-              {txCount}
-            </div>
+            {totalsLoading && txCount === 0 ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold text-foreground">
+                {txCount}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -433,7 +513,7 @@ export default function FinanzasMejorado() {
             emptyMessage="No hay transacciones registradas"
             loadingMessage="Cargando transacciones..."
             renderItem={(transaction) => (
-              <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <PendingSyncRow pending={Boolean(transaction._pending)}>
                 {/* Icono + descripción + fecha (ancho completo en móvil) */}
                 <div className="flex min-w-0 items-start gap-3 sm:items-center">
                   <div className={`shrink-0 rounded-full p-2 ${transaction.type === 'income' ? 'bg-success/10' : 'bg-destructive/10'
@@ -467,6 +547,7 @@ export default function FinanzasMejorado() {
                         variant="ghost"
                         size="sm"
                         action="edit"
+                        disabled={Boolean(transaction._pending)}
                         onClick={() => handleEdit(transaction)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -483,7 +564,7 @@ export default function FinanzasMejorado() {
                     </ActionButtons>
                   </div>
                 </div>
-              </div>
+              </PendingSyncRow>
             )}
           />
         </CardContent>
@@ -494,13 +575,14 @@ export default function FinanzasMejorado() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         transaction={selectedTransaction}
-        onSubmit={selectedTransaction?.id ? updateMutation.mutate : createMutation.mutate}
+        onSubmit={handleTransactionSubmit}
         categories={categories}
         paymentMethods={paymentMethods}
         currencies={businessCurrencies}
         contacts={contactsData?.data || []}
         products={productsData || []}
-        submitting={createMutation.isPending || updateMutation.isPending}
+        submitting={false}
+
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />
     </div>

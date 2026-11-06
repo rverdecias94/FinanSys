@@ -1,4 +1,5 @@
 import { ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Flujo (Q5/E2): una tarjeta por moneda. Labels configurables para base registrada vs liquidada.
 export function CashFlowPanel({
@@ -11,7 +12,12 @@ export function CashFlowPanel({
   outflowLabel = 'Salidas',
 }) {
   if (loading) {
-    return <p className="py-2 text-sm text-muted-foreground">Cargando flujo…</p>
+    return (
+      <div className="space-y-3" role="status" aria-label="Cargando flujo">
+        <Skeleton className="h-28 w-full rounded-lg" />
+        <Skeleton className="h-28 w-full rounded-lg" />
+      </div>
+    )
   }
   if (!rows.length) {
     return <p className="py-2 text-sm text-muted-foreground">{emptyMessage || 'No hay movimientos en el período seleccionado.'}</p>

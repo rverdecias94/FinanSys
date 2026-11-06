@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   getWarehouseKpis,
   listReorderAlerts,
@@ -83,7 +84,9 @@ export function WarehouseInsightsPanel({ userId, businessId, products = [], enab
     <div className="space-y-4">
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         {loadingKpis ? (
-          <p className="text-sm text-muted-foreground col-span-2">Cargando indicadores...</p>
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))
         ) : (
           kpiItems.map((k) => (
             <Card key={k.label}>
@@ -103,7 +106,10 @@ export function WarehouseInsightsPanel({ userId, businessId, products = [], enab
         </CardHeader>
         <CardContent className="space-y-2">
           {loadingAlerts ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full rounded-md" />
+              <Skeleton className="h-14 w-full rounded-md" />
+            </div>
           ) : alerts.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin alertas de reposición.</p>
           ) : (
@@ -135,7 +141,10 @@ export function WarehouseInsightsPanel({ userId, businessId, products = [], enab
         </CardHeader>
         <CardContent className="space-y-2">
           {loadingTasks ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full rounded-md" />
+              <Skeleton className="h-14 w-full rounded-md" />
+            </div>
           ) : tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay tareas abiertas.</p>
           ) : (

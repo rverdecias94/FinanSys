@@ -6,6 +6,9 @@ import * as z from 'zod'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Upload, Check, X, Eye } from 'lucide-react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { genClientUuid } from '@/offline/clientUuid'
+import { notify } from '@/services/notifications'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -36,17 +39,6 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Switch } from '@/components/ui/switch'
-
-// UUID de idempotencia para la venta: identifica un intento de venta para que un reintento
-// (tras perder la respuesta por mala conexión) no cree una venta duplicada. crypto.randomUUID
-// en navegadores modernos; fallback v4 con Math.random (basta: solo debe ser único, no seguro).
-const genSaleUuid = () => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
-  })
-}
 
 const DEFAULT_CATEGORIES = {
   income: [
@@ -113,6 +105,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
   const [deletedAttachments, setDeletedAttachments] = useState([])
+  const online = useOnlineStatus()
 
   const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
 
@@ -138,10 +131,10 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
     },
   })
 
-  const isEditing = Boolean(transaction?.id)
-  // UUID de idempotencia de la venta: se genera en el primer envío y se conserva mientras
-  // el modal siga abierto, para que un reintento use el mismo (no duplica la venta).
-  const saleUuidRef = useRef(null)
+  const isEditing = Boolean(transaction?.id) && !String(transaction?.id).startsWith('pending-')
+  // UUID de idempotencia (create / venta): se genera en el primer envío y se conserva
+  // mientras el modal siga abierto, para que un reintento no duplique la fila.
+  const clientUuidRef = useRef(null)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -231,6 +224,11 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   )
 
   const handleFileChange = (e) => {
+    if (!online) {
+      notify.info('Sin conexión no se pueden adjuntar archivos. Guarda la operación y añade el comprobante cuando vuelvas a estar en línea.')
+      e.target.value = ''
+      return
+    }
     if (e.target.files) {
       setFiles(Array.from(e.target.files))
     }
@@ -247,8 +245,14 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       setIsPreview(true)
       return
     }
-    // Final submit
-    const mergedAttachments = [...existingAttachments, ...files]
+    // Adjuntos offline: bloquear File/Blob (decisión Capa C #4). Solo URLs string.
+    if (!online && files.length > 0) {
+      notify.info('Sin conexión no se pueden adjuntar archivos. Se guardará la operación sin comprobantes nuevos.')
+      setFiles([])
+    }
+    const mergedAttachments = online
+      ? [...existingAttachments, ...files]
+      : [...existingAttachments]
     const payload = {
       ...data,
       id: transaction?.id,
@@ -257,7 +261,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       // Conservar abonos previos al editar (el servicio recalcula 'partial'/'paid').
       paid_amount: transaction?.paid_amount,
       attachments: mergedAttachments,
-      deleted_attachments: deletedAttachments
+      deleted_attachments: online ? deletedAttachments : [],
     }
     // Venta de producto (S7): adjunta la línea; el padre detecta isSale y llama register_sale.
     if (data.isSale) {
@@ -265,9 +269,11 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       payload.product_id = Number(data.sale_product_id)
       payload.qty = Number(data.sale_qty)
       payload.unit_price = Number(data.sale_unit_price)
-      // Reutiliza el mismo UUID en los reintentos de esta venta (idempotencia).
-      if (!saleUuidRef.current) saleUuidRef.current = genSaleUuid()
-      payload.client_uuid = saleUuidRef.current
+    }
+    // Idempotencia outbox: mismo UUID en reintentos de este create (venta o normal).
+    if (!isEditing) {
+      if (!clientUuidRef.current) clientUuidRef.current = genClientUuid()
+      payload.client_uuid = clientUuidRef.current
     }
     onSubmit(payload)
   }
@@ -277,9 +283,6 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
     const amount = Number(watchedValues.amount)
     return Number.isFinite(amount) && amount > 0 ? amount : 0
   }
-
-  const isViewableUrl = (value) =>
-    typeof value === 'string' && (/^https?:\/\//i.test(value) || /^data:image\//i.test(value))
 
   const isImageAttachment = (value) => {
     if (typeof value !== 'string') return false
@@ -297,7 +300,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
         setDeletedAttachments([])
         setFiles([])
         setIsPreview(false)
-        saleUuidRef.current = null
+        clientUuidRef.current = null
       }
     }}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
@@ -659,7 +662,11 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
                 <div className="space-y-2">
                   <FormLabel>Adjuntar Comprobantes (Opcional)</FormLabel>
-                  {files.length === 0 && existingAttachments.length === 0 ? (
+                  {!online ? (
+                    <div className="rounded-md border border-dashed border-warning/40 bg-warning/5 p-4 text-sm text-muted-foreground">
+                      Sin conexión no se pueden adjuntar comprobantes. Guarda la operación y añade la foto cuando vuelvas a estar en línea.
+                    </div>
+                  ) : files.length === 0 && existingAttachments.length === 0 ? (
                     <div className="border-2 border-dashed rounded-md p-6 flex flex-col items-center justify-center text-muted-foreground hover:bg-accent/50 transition-colors cursor-pointer relative overflow-hidden">
                       <Input
                         type="file"

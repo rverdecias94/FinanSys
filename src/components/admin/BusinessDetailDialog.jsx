@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, Ban, RotateCcw, Trash2 } from 'lucide-react'
+import { Ban, RotateCcw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getBusinessDetail, CYCLE_LABEL, PAYMENT_STATE } from '@/services/adminBusinesses'
 import { ACCOUNT_STATE } from '@/services/adminUsers'
@@ -50,8 +51,12 @@ export function BusinessDetailDialog({ open, onOpenChange, businessId, onSetStat
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="grid gap-3 py-2" role="status" aria-label="Cargando detalle">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-10 w-40" />
           </div>
         ) : (
           <div className="grid gap-4 text-sm">

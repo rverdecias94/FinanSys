@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query'
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { InfiniteScrollTrigger } from '@/components/common/InfiniteScrollTrigger'
+import { ListingRowsSkeleton } from '@/components/common/pageSkeletons'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Patrón ÚNICO de listado de la plataforma (uniformidad visual):
 // - Desktop: lista de "tarjetas-fila" (estilo Finanzas) con 5 elementos por página
@@ -80,9 +82,11 @@ export function ResponsiveListing({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-        <Loader2 className="h-8 w-8 animate-spin" />
-        {loadingMessage ? <span className="text-sm">{loadingMessage}</span> : null}
+      <div className="space-y-3" role="status" aria-label={loadingMessage || 'Cargando listado'}>
+        {loadingMessage ? (
+          <p className="text-sm text-muted-foreground">{loadingMessage}</p>
+        ) : null}
+        <ListingRowsSkeleton rows={isMobile ? 6 : desktopPageSize} />
       </div>
     )
   }
@@ -114,8 +118,9 @@ export function ResponsiveListing({
             className="mt-2"
           />
           {isFetchingMore && (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="space-y-2 py-2" aria-label="Cargando más">
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <Skeleton className="h-14 w-full rounded-lg" />
             </div>
           )}
         </>

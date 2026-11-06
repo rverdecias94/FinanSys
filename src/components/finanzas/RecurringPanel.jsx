@@ -17,6 +17,7 @@ import { es } from 'date-fns/locale'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PermissionGuard } from '@/components/common/PermissionGuard'
@@ -185,7 +186,15 @@ export function RecurringPanel({
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="py-4 text-sm text-muted-foreground">Cargando repeticiones…</p>
+            <div className="space-y-3" role="status" aria-label="Cargando repeticiones">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 sm:p-4 space-y-3">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-3 w-56" />
+                  <Skeleton className="h-8 w-24" />
+                </div>
+              ))}
+            </div>
           ) : items.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-center sm:p-6">
               <p className="text-sm text-muted-foreground">

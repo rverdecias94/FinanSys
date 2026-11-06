@@ -109,12 +109,17 @@ export async function createTransaction(payload, userId, businessId) {
   const {
     date, amount, currency, category, description, type,
     payment_method, bank_account_id, reference_number, notes, attachments,
-    contact_id, status, due_date, paid_amount
+    contact_id, status, due_date, paid_amount, client_uuid
   } = payload
 
+  // Offline outbox: nunca subir File/Blob aquí; solo URLs string ya existentes.
+  const safeAttachments = Array.isArray(attachments)
+    ? attachments.filter((a) => typeof a === 'string' && a.trim() !== '')
+    : []
+
   let finalAttachments = [];
-  if (attachments && attachments.length > 0) {
-    finalAttachments = await uploadAttachments(attachments, effectiveUserId);
+  if (safeAttachments.length > 0) {
+    finalAttachments = await uploadAttachments(safeAttachments, effectiveUserId);
   }
 
   // CxC/CxP (Fase 1): por defecto 'paid' (efectivo, realidad cubana). Si queda
@@ -141,6 +146,7 @@ export async function createTransaction(payload, userId, businessId) {
     due_date: finalStatus === 'paid' ? null : (due_date || null),
     paid_amount: finalPaid,
     image_url: finalAttachments.length > 0 ? finalAttachments[0] : null,
+    client_uuid: client_uuid || null,
     details: {
       payment_method: payment_method || null,
       bank_account_id: bank_account_id || null,
@@ -152,7 +158,20 @@ export async function createTransaction(payload, userId, businessId) {
 
   return await withCrud({ action: 'create', table: 'transactions' }, async () => {
     const { data, error } = await supabase.from('transactions').insert(dbPayload).select().single()
-    if (error) throw error
+    // Idempotencia (outbox): reintento con el mismo client_uuid → devolver la fila existente.
+    if (error) {
+      if (error.code === '23505' && client_uuid) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .eq('client_uuid', client_uuid)
+          .maybeSingle()
+        if (fetchErr) throw fetchErr
+        if (existing) return { ...existing, idempotent: true }
+      }
+      throw error
+    }
     // S4: la auditoría (incl. antes/después) la registra el trigger de BD audit_row_change.
     return data
   })

@@ -6,6 +6,7 @@ import { ArrowLeft, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
@@ -117,7 +118,14 @@ export default function InventarioItem({ forceNew = false }) {
         <>
           {loadingItem ? (
             <Card>
-              <CardContent className="py-10 text-muted-foreground">Cargando ítem...</CardContent>
+              <CardContent className="space-y-4 py-6">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-10 w-32" />
+              </CardContent>
             </Card>
           ) : (
             <FormRunner

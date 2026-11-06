@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -447,7 +448,14 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           </CardHeader>
           <CardContent>
             {loadingFields ? (
-              <div className="text-muted-foreground">Cargando…</div>
+              <div className="space-y-3" role="status" aria-label="Cargando formulario">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ))}
+              </div>
             ) : fields.length === 0 ? (
               <div className="rounded-lg border border-dashed p-6 text-center space-y-3">
                 <p className="text-sm font-medium text-foreground">Todavía no hay datos que anotar</p>

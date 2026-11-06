@@ -7,7 +7,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CalendarRange,
-  Loader2,
   Package,
   Radar,
   Wallet,
@@ -22,6 +21,7 @@ import {
   YAxis,
 } from 'recharts'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
@@ -146,9 +146,13 @@ export function CashRadar({ isElite = false }) {
 
         <CardContent className="space-y-4">
           {radarQuery.isLoading && (
-            <div className="flex min-h-[200px] items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              Calculando proyección…
+            <div className="space-y-4" role="status" aria-label="Calculando proyección">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-xl" />
+              </div>
+              <Skeleton className="h-[200px] w-full rounded-xl" />
             </div>
           )}
 

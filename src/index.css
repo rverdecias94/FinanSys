@@ -254,6 +254,115 @@ html.font-accessible {
   }
 }
 
+/* ── Splash de entrada Gestia (AppInitializer) ─────────────────────────────
+   Solo CSS + assets ya cacheados por la PWA. Pensado para redes lentas. */
+.gestia-splash {
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 38%, hsl(var(--primary) / 0.12), transparent 70%),
+    hsl(var(--background));
+  transition: opacity 0.3s ease-out;
+}
+
+.gestia-splash--exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gestia-splash__glow {
+  position: absolute;
+  width: min(18rem, 70vw);
+  height: min(18rem, 70vw);
+  border-radius: 9999px;
+  background: radial-gradient(circle, hsl(var(--primary) / 0.22), transparent 68%);
+  filter: blur(8px);
+  animation: gestia-splash-glow 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.gestia-splash__ico-wrap {
+  animation: gestia-splash-mark-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.gestia-splash__ico {
+  filter: drop-shadow(0 8px 20px hsl(var(--primary) / 0.28));
+}
+
+.gestia-splash__wordmark-wrap {
+  animation: gestia-splash-word-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+}
+
+.gestia-splash__status {
+  animation: gestia-splash-word-in 0.45s ease-out 0.5s both;
+}
+
+.gestia-splash__bar {
+  animation: gestia-splash-bar 1.15s ease-in-out infinite;
+}
+
+.gestia-splash__msg {
+  animation: gestia-splash-msg 0.35s ease-out both;
+}
+
+@keyframes gestia-splash-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.72);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes gestia-splash-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gestia-splash-glow {
+  from { opacity: 0.55; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1.06); }
+}
+
+@keyframes gestia-splash-bar {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+@keyframes gestia-splash-msg {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gestia-splash,
+  .gestia-splash__glow,
+  .gestia-splash__ico-wrap,
+  .gestia-splash__wordmark-wrap,
+  .gestia-splash__status,
+  .gestia-splash__bar,
+  .gestia-splash__msg {
+    animation: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .gestia-splash__bar {
+    width: 100%;
+    opacity: 0.7 !important;
+  }
+}
+
 /* ── Border-radius uniforme (5px) en componentes de TERCEROS ───────────────
    Los componentes propios usan los tokens de Tailwind, ya unificados a 5px
    (ver tailwind.config.js + --radius). Aquí forzamos 5px en widgets de

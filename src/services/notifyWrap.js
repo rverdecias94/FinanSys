@@ -1,4 +1,5 @@
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { isNetworkError } from '@/offline/isNetworkError'
 
 const LABELS = {
   products: 'Producto',
@@ -17,14 +18,23 @@ const SUCCESS_BY_ACTION = {
   register: (label) => `${label} registrado correctamente`
 }
 
+/** Toast honesto cuando la mutación queda en cola offline (outbox). */
+export function notifyOfflineQueued(label = 'Operación') {
+  notify.info(`${label} guardada. Se sincronizará al reconectar.`)
+}
+
 export async function withCrud({ action, table }, fn) {
   const label = LABELS[table] || 'Operación'
   try {
     const result = await fn()
+    // Reintento idempotente (mismo client_uuid): no celebrar un "alta" nueva.
+    if (result?.idempotent) return result
     const successMessage = (SUCCESS_BY_ACTION[action] || (() => 'Operación realizada correctamente'))(label)
     notify.success(successMessage)
     return result
   } catch (error) {
+    // Fallo de red: lo maneja el outbox (sin toast rojo engañoso).
+    if (isNetworkError(error)) throw error
     const msg = getSupabaseErrorMessage(error)
     notify.error(msg)
     throw error

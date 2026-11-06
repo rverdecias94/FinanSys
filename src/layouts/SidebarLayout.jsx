@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText,
-  ShieldAlert, Shield, ShieldCheck, Loader2, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
+  ShieldAlert, Shield, ShieldCheck, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
   Sparkles, Crown, ChevronDown,
 } from 'lucide-react'
+import { RouteOutletSkeleton } from '@/components/common/pageSkeletons'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import PermissionGuard from '@/components/SubscriptionGuard' // Actually PermissionGuard
@@ -523,11 +524,7 @@ export default function SidebarLayout() {
           </header>
 
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            <Suspense fallback={
-              <div className="flex min-h-[60vh] w-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            }>
+            <Suspense fallback={<RouteOutletSkeleton />}>
               <Outlet />
             </Suspense>
           </main>

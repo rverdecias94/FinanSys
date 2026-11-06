@@ -1,6 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
 import { lazy, Suspense, useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
 import { CurrencyProvider } from '@/context/CurrencyContext'
 import { PermissionProvider } from '@/context/PermissionContext'
@@ -12,6 +11,7 @@ import { GlobalProgressBar } from '@/components/common/GlobalProgressBar'
 import { AppInitializer } from '@/components/common/AppInitializer'
 import { notify } from '@/services/notifications'
 import { PWA_JUST_UPDATED_KEY } from '@/offline/registerPwaUpdate'
+import { FullPageSkeleton } from '@/components/common/pageSkeletons'
 
 // Code-splitting por ruta (P3.5): cada página es su propio chunk y solo se
 // descarga al visitarla → el bundle inicial (login/dashboard) es mucho menor
@@ -37,12 +37,6 @@ const AdminPlans = lazy(() => import('@/pages/AdminPlans'))
 const Terminos = lazy(() => import('@/pages/Terminos'))
 const Privacidad = lazy(() => import('@/pages/Privacidad'))
 
-const PageLoader = () => (
-  <div className="flex min-h-screen w-full items-center justify-center bg-background">
-    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-  </div>
-)
-
 export default function App() {
   useEffect(() => {
     try {
@@ -62,7 +56,7 @@ export default function App() {
         <CurrencyProvider>
           <PermissionProvider>
             <AppInitializer>
-            <Suspense fallback={<PageLoader />}>
+            <Suspense fallback={<FullPageSkeleton />}>
             <Routes>
               <Route element={<ProtectedRoute />}>
                 <Route element={<SidebarLayout />}>

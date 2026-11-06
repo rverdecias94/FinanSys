@@ -6,10 +6,13 @@ import { CheckCircle, AlertTriangle, XCircle, Info } from "lucide-react"
  */
 export const notify = {
   success: (message, options = {}) => {
+    const { duration, ...rest } = options
     toast.success(message, {
       icon: <CheckCircle className="h-4 w-4 text-green-500" />,
       className: "border-green-500/20 bg-card",
-      ...options,
+      // Nunca Infinity: si se actualiza un toast.loading, Sonner puede heredarla.
+      duration: duration === Infinity || duration == null ? 3500 : duration,
+      ...rest,
     })
   },
   error: (message, options = {}) => {
@@ -33,6 +36,17 @@ export const notify = {
       className: "border-blue-500/20 bg-card",
       ...options,
     })
+  },
+  /** Toast persistente (p. ej. sincronización offline). Usar el mismo `id` para actualizarlo. */
+  loading: (message, options = {}) => {
+    return toast.loading(message, {
+      className: "border-primary/20 bg-card",
+      duration: Infinity,
+      ...options,
+    })
+  },
+  dismiss: (id) => {
+    toast.dismiss(id)
   },
   promise: (promise, messages = {}) => {
     return toast.promise(promise, {

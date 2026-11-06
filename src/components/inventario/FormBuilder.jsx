@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Trash2, Plus, ArrowUp, ArrowDown, GripVertical, Sparkles, Loader2, HelpCircle, Lock } from 'lucide-react'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -274,7 +275,14 @@ export function FormBuilder({ areaId, userId, onReadyToRegister }) {
         </CardHeader>
         <CardContent className="space-y-3">
           {isLoading ? (
-            <div className="text-sm text-muted-foreground py-6 text-center">Cargando…</div>
+            <div className="space-y-3 py-2" role="status" aria-label="Cargando campos">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2">
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="h-3 w-52" />
+                </div>
+              ))}
+            </div>
           ) : isEmpty ? (
             <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               Todavía no hay datos.<br />

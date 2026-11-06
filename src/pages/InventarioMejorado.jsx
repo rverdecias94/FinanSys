@@ -17,6 +17,7 @@ import { FormBuilder } from '@/components/inventario/FormBuilder'
 import { getAreaIcon } from '@/lib/areaIcons'
 import { notify } from '@/services/notifications'
 import { DOMAIN_LABELS } from '@/utils/inventoryFormUtils'
+import { CardsBodySkeleton } from '@/components/common/pageSkeletons'
 
 export default function InventarioMejorado() {
   const { session } = useSession()
@@ -116,12 +117,11 @@ export default function InventarioMejorado() {
         )}
       </div>
 
+      {loadingAreas ? (
+        <CardsBodySkeleton cards={6} />
+      ) : (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {loadingAreas ? (
-          <Card>
-            <CardContent className="py-10 text-muted-foreground">Cargando áreas...</CardContent>
-          </Card>
-        ) : areas.length === 0 ? (
+        {areas.length === 0 ? (
           <Card className="sm:col-span-2 xl:col-span-3">
             <CardContent className="py-10 text-center space-y-3">
               <p className="text-base font-medium text-foreground">Crea tu primera área</p>
@@ -192,6 +192,7 @@ export default function InventarioMejorado() {
           })
         )}
       </div>
+      )}
 
       {selectedArea && (
         <div className="space-y-4">

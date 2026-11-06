@@ -12,10 +12,14 @@ import '@fontsource/jetbrains-mono/400.css';
 import './index.css';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
-import { QueryClient, MutationCache, QueryCache } from '@tanstack/react-query';
+import { QueryClient, MutationCache, QueryCache, defaultShouldDehydrateMutation } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryPersister, CACHE_BUSTER, CACHE_MAX_AGE } from '@/offline/queryPersister';
 import { clearLocalCache } from '@/offline/localCache';
+import { registerMutationDefaults } from '@/offline/mutationDefaults';
+import { setupSyncEngine } from '@/offline/syncEngine';
+import { setupNetworkGuard, markOffline } from '@/offline/networkGuard';
+import { isNetworkError, shouldTreatAsOffline } from '@/offline/isNetworkError';
 import { supabase } from '@/config/supabase';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -23,16 +27,18 @@ import { registerPwaUpdate } from '@/offline/registerPwaUpdate';
 
 // PWA: actualizar y recargar en cuanto haya versión nueva (solo en build/preview).
 registerPwaUpdate();
+// Antes que cualquier fetch: alinea onlineManager con fallos reales de red.
+setupNetworkGuard();
 
 // Configuración del cliente de React Query
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: (error) => {
-      // Offline (Capa B): no alarmar con "Error de carga"; se está sirviendo de la
-      // caché persistida. Solo notificar errores reales cuando SÍ hay conexión.
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return
-      // Solo notificar errores de queries si son críticos o inesperados
-      // Evitar notificar 404s que a veces son esperados
+      // Offline real (navigator o Failed to fetch / DNS): no alarmar; hay caché.
+      if (shouldTreatAsOffline(error) || isNetworkError(error)) {
+        if (isNetworkError(error)) markOffline()
+        return
+      }
       const msg = getSupabaseErrorMessage(error)
       notify.error(`Error de carga: ${msg}`)
     },
@@ -48,8 +54,11 @@ const queryClient = new QueryClient({
       }
     },
     onError: (error, variables, context, mutation) => {
-      // Si la mutación tiene un mensaje de error específico en meta, usarlo
-      // Si no, parsear el error de Supabase
+      // Red caída: el outbox / onError de la página reencola; no spamear toasts.
+      if (isNetworkError(error) || shouldTreatAsOffline(error)) {
+        markOffline()
+        return
+      }
       const errorMessage = mutation.meta?.errorMessage || getSupabaseErrorMessage(error);
       notify.error(errorMessage);
     },
@@ -62,8 +71,16 @@ const queryClient = new QueryClient({
       // persistirse/rehidratarse desde IndexedDB (si no, se recolectan a los 5 min).
       gcTime: CACHE_MAX_AGE,
     },
+    // Capa C: mutaciones sin red se pausan (outbox) y se reanudan al volver online.
+    mutations: {
+      networkMode: 'online',
+    },
   },
 });
+
+// Outbox: mutationFn reconstruible tras recargar + resume al reconectar.
+registerMutationDefaults(queryClient);
+setupSyncEngine(queryClient);
 
 // Seguridad de la caché offline (Capa B): la caché persistida en IndexedDB podría
 // dejar ver datos de un usuario a otro en un dispositivo compartido. Por eso:
@@ -106,7 +123,13 @@ root.render(
             dehydrateOptions: {
               // Solo persistir queries con datos correctos (no errores/pendientes).
               shouldDehydrateQuery: (query) => query.state.status === 'success',
+              // Outbox: persistir mutaciones pausadas (sin red) para sobrevivir al reload.
+              shouldDehydrateMutation: defaultShouldDehydrateMutation,
             },
+          }}
+          onSuccess={() => {
+            // Tras rehidratar mutaciones pausadas, reanudar si ya hay red.
+            queryClient.resumePausedMutations()
           }}
         >
           <ErrorBoundary>

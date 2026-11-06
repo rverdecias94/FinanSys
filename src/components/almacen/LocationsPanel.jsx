@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -93,7 +94,11 @@ export function LocationsPanel({ userId, businessId, enabled = true }) {
         </CardHeader>
         <CardContent className="space-y-4">
           {loadingWh ? (
-            <p className="text-sm text-muted-foreground">Cargando...</p>
+            <div className="flex flex-wrap gap-2">
+              <Skeleton className="h-7 w-28 rounded-full" />
+              <Skeleton className="h-7 w-24 rounded-full" />
+              <Skeleton className="h-7 w-32 rounded-full" />
+            </div>
           ) : (
             <div className="flex flex-wrap gap-2">
               {warehouses.map((w) => (
@@ -144,7 +149,11 @@ export function LocationsPanel({ userId, businessId, enabled = true }) {
           </Select>
 
           {loadingLoc ? (
-            <p className="text-sm text-muted-foreground">Cargando ubicaciones...</p>
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full rounded-md" />
+              <Skeleton className="h-10 w-full rounded-md" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
           ) : locations.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aún no hay ubicaciones. Puedes operar solo con el almacén principal.</p>
           ) : (

@@ -315,34 +315,50 @@ recargar. No cambia la lógica de las queries, solo persiste la caché de React 
 
 - Base de datos local replicada tipo PowerSync/ElectricSQL (cambio arquitectónico mayor; solo si
   esto se queda corto en el futuro).
-- Offline para reportes/exportación PDF-Excel, panel admin, gestión de equipo/planes.
-- Resolución de conflictos avanzada (merge campo a campo); usamos last-write + reconciliación.
+- Offline para: login nuevo, panel admin, cambio de plan, invitaciones de equipo, OCR/IA Copiloto,
+  exportación PDF/Excel (pueden seguir en caché de lectura si ya se usaron).
+- Resolución de conflictos campo a campo / merge manual.
+- **Adjuntos (fotos) offline:** bloqueados (decisión 2026-11-05). Online sí; sin red el campo
+  de imagen se deshabilita con mensaje claro.
 
 ---
 
 ## 6. Decisiones
 
-**Resueltas con Roberto (2026-06-19):**
+**Resueltas con Roberto (2026-06-19) — Capa A/B (identidad PWA, fuentes):** cumplidas en código.
 
-3. ✅ **Alcance de la escritura offline (C):** **Solo Finanzas** en el primer corte. Almacén (C5)
-   queda como fase posterior opcional.
-4. ✅ **Adjuntos offline (C4):** **Diferir la imagen.** Offline se guarda la transacción sin imagen
-   y/o la subida de la imagen se hace automáticamente al reconectar. No bloquea el primer corte.
-5. ✅ **Límites de plan offline (C3):** **Permitir y reconciliar.** Offline se permite crear; el
-   conteo (`recordUsage`) se aplica al sincronizar. Puede superar el límite temporalmente — aceptado.
+**Resueltas con Roberto (2026-11-05) — Capa C (escritura offline). SUSTITUYEN las de 2026-06-19:**
 
-**Pendientes (resolver antes de la Capa A):**
+1. ✅ **Alcance:** **Todo lo operativo del negocio** (finanzas, contactos, cuentas, almacén,
+   inventario, recurrentes…). No admin/planes/equipo/IA. Se entrega **por fases** (mismo outbox;
+   entidades de menos a más riesgo), no en un solo PR.
+2. ✅ **Límites de plan offline:** **Bloquear create** si el conteo local (caché de uso / límites)
+   indica que ya se alcanzó el tope. Mensaje claro: “Sin conexión no puedes superar el límite
+   de tu plan.” No crear optimista por encima del cupo.
+3. ✅ **Conflictos:** **Última escritura gana** (last-write-wins). Al sincronizar, el update más
+   reciente (por `updated_at` / orden de cola + servidor) prevalece; si el servidor rechaza, se
+   avisa y se ofrece reintentar/descartar. Sin merge manual.
+4. ✅ **Adjuntos offline:** **Bloquear.** No encolar Blobs; UI deshabilita foto/adjunto sin red.
 
-1. **PWA — identidad:** `name`, `short_name` y `theme_color` de la app instalada. ¿Uso `public/logo.png`
-   como icono o tienes una versión en mayor resolución?
-2. **Fuentes/iconos offline (A2):** ¿auto-alojar fuentes y revisar si Font Awesome/Material Icons
-   se pueden eliminar (ya hay `lucide-react`)? (Recomendado: sí.)
+**Implicaciones técnicas de “todo”:**
+- C1 (infra) debe nacer **genérica** (outbox multi-entidad + `client_uuid` en tablas que crean).
+- Orden de entidades (riesgo creciente): finanzas → contactos → cuentas/abonos → inventario
+  (ítems) → almacén (productos sync’d primero; movimientos con RPC idempotente) → recurrentes.
+- Almacén sigue siendo el caso difícil (stock optimista + remap FK); no se salta el orden.
 
 ---
 
-## 7. Orden sugerido de sesiones
+## 7. Orden sugerido de sesiones (estado 2026-11-05)
 
-1. **A1** (PWA base) → 2. **A2** (recursos offline) → 3. **A3** (UX update)
-4. **B1** (persistencia caché) → 5. **B2** (UX datos guardados)
-6. **C1** (infra outbox + migración idempotencia) → 7. **C2** (finanzas offline) → 8. **C3** (límites)
-9. *(opcional)* **C4** (adjuntos) → 10. *(opcional)* **C5** (almacén)
+1. ~~A1–A3~~ ✅ · ~~B1–B3~~ ✅
+2. ~~**C1** — Infra outbox genérica + `resumePausedMutations` + migración `client_uuid`~~ ✅
+   (2026-11-05: `mutationDefaults`, `syncEngine`, persist paused mutations, `client_uuid` en
+   transactions ya existía desde S7 / ensure migration; Finanzas create/update cableado con
+   badge Pendiente + bloqueo adjuntos offline + contador en OfflineBanner).
+3. **C2** — Finanzas create/edit: pulir edge cases (edit optimista, ventas offline) si quedan.
+4. **C3** — Gate de límites offline (hoy ya resta creates en cola; endurecer mensaje/UX).
+5. **C2b** — Contactos + cuentas/abonos.
+6. **C2c** — Inventario (ítems/áreas según dependencia).
+7. **C5** — Almacén (productos ya sync → movimientos RPC idempotente → crear producto offline).
+8. **C2d** — Recurrentes y resto operativo pendiente.
+9. ~~C4 adjuntos~~ — **No aplica** (bloqueados por decisión).

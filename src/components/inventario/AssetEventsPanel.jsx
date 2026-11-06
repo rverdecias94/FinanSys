@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { usePermissions } from '@/context/PermissionContext'
 import { format } from 'date-fns'
@@ -128,7 +129,14 @@ export function AssetEventsPanel({ itemId, userId, itemStatus, readOnly = false 
         <div className="space-y-2">
           <div className="text-sm font-medium">Historial</div>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <div className="space-y-2" role="status" aria-label="Cargando historial">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ))}
+            </div>
           ) : events.length === 0 ? (
             <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-4 text-center">
               Aún no hay eventos.

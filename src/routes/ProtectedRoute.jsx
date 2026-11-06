@@ -1,10 +1,10 @@
 import { Navigate, Outlet } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
 import { usePermissions } from '@/context/PermissionContext'
 import { useBusiness } from '@/context/BusinessContext'
 import { isSystemAdmin } from '@/services/planRequests'
+import { FullPageSkeleton, PageContentSkeleton } from '@/components/common/pageSkeletons'
 
 /**
  * Protected Route with RBAC support
@@ -24,11 +24,11 @@ export default function ProtectedRoute({ requiredPermission, systemAdminOnly }) 
   })
 
   if (sessionLoading || permLoading || businessLoading || (systemAdminOnly && adminQuery.isLoading)) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    )
+    // Ruta anidada (ya hay sidebar): skeleton de contenido.
+    // Ruta raíz de auth: skeleton a pantalla completa.
+    return requiredPermission || systemAdminOnly
+      ? <PageContentSkeleton />
+      : <FullPageSkeleton />
   }
 
   if (!session) {

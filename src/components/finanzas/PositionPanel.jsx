@@ -1,4 +1,5 @@
 import { Wallet } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Posición simplificada (Q5): una tarjeta por moneda. El saldo de GESTIA es DEVENGADO
 // (ya incluye lo pendiente), así que la cifra destacada es la CAJA REAL hoy
@@ -6,7 +7,12 @@ import { Wallet } from 'lucide-react'
 // desbordar con saldos grandes.
 export function PositionPanel({ rows = [], formatCurrency, loading = false, emptyMessage }) {
   if (loading) {
-    return <p className="py-2 text-sm text-muted-foreground">Cargando posición…</p>
+    return (
+      <div className="space-y-3" role="status" aria-label="Cargando posición">
+        <Skeleton className="h-28 w-full rounded-lg" />
+        <Skeleton className="h-28 w-full rounded-lg" />
+      </div>
+    )
   }
   if (!rows.length) {
     return <p className="py-2 text-sm text-muted-foreground">{emptyMessage || 'Aún no hay saldos ni cuentas para mostrar.'}</p>

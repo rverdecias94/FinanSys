@@ -1,20 +1,18 @@
 import { useSyncExternalStore } from 'react'
+import { onlineManager } from '@tanstack/react-query'
 
-// Estado de conexión del navegador (Capa B/C offline). Se suscribe a los eventos
-// online/offline; en SSR/primer render asume online.
+// Fuente de verdad = onlineManager (React Query), no solo navigator.onLine.
+// networkGuard ajusta onlineManager cuando un fetch falla por DNS/red aunque
+// Windows siga diciendo "online".
+
 function subscribe(callback) {
-  window.addEventListener('online', callback)
-  window.addEventListener('offline', callback)
-  return () => {
-    window.removeEventListener('online', callback)
-    window.removeEventListener('offline', callback)
-  }
+  return onlineManager.subscribe(callback)
 }
 
 export function useOnlineStatus() {
   return useSyncExternalStore(
     subscribe,
-    () => navigator.onLine,
+    () => onlineManager.isOnline(),
     () => true,
   )
 }

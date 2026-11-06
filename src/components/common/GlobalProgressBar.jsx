@@ -3,12 +3,14 @@ import { useIsFetching, useIsMutating } from '@tanstack/react-query'
 
 // Barra de progreso global en el top de la página.
 // - No bloquea la pantalla (pointer-events: none) ni usa backdrop.
-// - Se enciende automáticamente cuando hay CUALQUIER query o mutación de React
-//   Query en curso (cubre toda la app sin tocar cada componente).
-// - Pequeño retardo al apagar para que la animación se vea fluida y no parpadee.
+// - Se enciende con queries/mutaciones EN CURSO.
+// - Ignora mutaciones pausadas del outbox offline (si no, la barra nunca se apaga).
 export function GlobalProgressBar() {
   const fetching = useIsFetching()
-  const mutating = useIsMutating()
+  const mutating = useIsMutating({
+    predicate: (mutation) =>
+      mutation.state.status === 'pending' && !mutation.state.isPaused,
+  })
   const active = fetching + mutating > 0
 
   const [visible, setVisible] = useState(false)

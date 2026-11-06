@@ -69,11 +69,13 @@ export default function Herramientas() {
           label="Páginas de importación"
           used={usage.doc_pages_used}
           limit={usage.doc_pages_limit ?? (isElite ? 100 : 20)}
+          loading={usageQuery.isLoading}
         />
         <QuotaBadge
           label="Consultas al asistente"
           used={usage.calc_queries_used}
           limit={usage.calc_queries_limit ?? (isElite ? 50 : 15)}
+          loading={usageQuery.isLoading}
         />
       </div>
 

@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Package, AlertTriangle, Activity } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip,
@@ -11,7 +12,17 @@ import { useChartAnimation } from '@/hooks/useChartAnimation'
 export function AlmacenDashboard({ stats, loading }) {
   // El hook va antes de los early-return para no romper las reglas de hooks.
   const chartAnim = useChartAnimation()
-  if (loading) return <div className="text-sm text-muted-foreground">Cargando dashboard...</div>
+  if (loading) {
+    return (
+      <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4" role="status" aria-label="Cargando dashboard">
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="col-span-2 h-[240px] w-full rounded-xl" />
+        <Skeleton className="col-span-2 h-[320px] w-full rounded-xl" />
+        <Skeleton className="col-span-2 h-[320px] w-full rounded-xl" />
+      </div>
+    )
+  }
   if (!stats) return null
 
   const CHART_COLORS = [
