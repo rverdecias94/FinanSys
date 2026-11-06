@@ -265,6 +265,79 @@ html.font-accessible {
   }
 }
 
+/* Auth: orbes suaves detrás del cristal (sin distraer). */
+@keyframes gestia-auth-orb {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.9; }
+  50% { transform: translate3d(2%, -3%, 0) scale(1.06); opacity: 1; }
+}
+
+.gestia-auth-shell__orb {
+  animation: gestia-auth-orb 14s ease-in-out infinite;
+}
+
+.gestia-auth-shell__orb--b {
+  animation-delay: -4s;
+  animation-duration: 18s;
+}
+
+.gestia-auth-shell__orb--c {
+  animation-delay: -8s;
+  animation-duration: 16s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gestia-auth-shell__orb {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .gestia-auth-shell__glass {
+    background: hsl(var(--card) / 0.96) !important;
+    backdrop-filter: none !important;
+  }
+}
+
+/* Auth: en ventanas bajas compacta el copy/form sin zoom ni F11. */
+@media (max-height: 820px) {
+  .gestia-auth-shell__hero {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .gestia-auth-shell__hero-inner h2 {
+    margin-top: 1.25rem;
+    font-size: 1.65rem;
+  }
+
+  .gestia-auth-shell__hero-inner ul {
+    margin-top: 1.25rem;
+  }
+
+  .gestia-auth-shell__panel {
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .gestia-auth-shell__body {
+    gap: 1rem;
+  }
+
+  .gestia-auth-shell__legal {
+    margin-top: 1rem;
+  }
+}
+
+@media (max-height: 700px) {
+  .gestia-auth-shell__hero-inner p.mt-4 {
+    display: none;
+  }
+
+  .gestia-auth-shell__subtitle {
+    display: none;
+  }
+}
+
 /* Tab bar móvil flotante: indicador desliza entre destinos (compositor-friendly). */
 .gestia-mobile-nav__indicator {
   transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);

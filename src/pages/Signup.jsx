@@ -102,7 +102,7 @@ export default function Signup() {
   return (
     <AuthShell
       title="Crear cuenta"
-      subtitle="Regístrate con Google o con tu correo para empezar en Gestia."
+      subtitle="Empieza tu espacio de trabajo en Gestia."
     >
       <div className="space-y-5">
         <form className="space-y-5" onSubmit={handleSignup}>

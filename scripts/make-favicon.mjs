@@ -35,6 +35,6 @@ entries.forEach((entry, i) => {
   buffers.push(entry.data)
 })
 
-const out = path.join(pub, 'favicon-v3.ico')
+const out = path.join(pub, 'favicon-v5.ico')
 fs.writeFileSync(out, Buffer.concat([header, ...buffers]))
 console.log(`Wrote ${out} (${fs.statSync(out).size} bytes)`)

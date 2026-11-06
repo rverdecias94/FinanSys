@@ -4,12 +4,15 @@ import { supabase } from '@/config/supabase'
 import { acceptPendingInvitations, getBusinessContext } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, Mail, Clock } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Clock, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
 import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { AuthDivider, GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
+
+const fieldClass =
+  'h-12 border-border/70 bg-muted/50 pl-10 shadow-none transition-all focus-visible:bg-background dark:bg-white/5 dark:border-white/10'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -119,10 +122,7 @@ export default function Login() {
   }
 
   return (
-    <AuthShell
-      title="Iniciar sesión"
-      subtitle="Entra con tu correo o, si prefieres, con Google."
-    >
+    <AuthShell title="Iniciar sesión" subtitle="Accede a tu espacio de trabajo.">
       <div className="space-y-5">
         <form className="space-y-4" onSubmit={handleLogin}>
           {error && (
@@ -168,20 +168,26 @@ export default function Login() {
               <label htmlFor="login-email" className="text-sm font-medium text-foreground">
                 Correo electrónico
               </label>
-              <Input
-                id="login-email"
-                type="email"
-                placeholder="nombre@ejemplo.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (emailError) setEmailError('')
-                  if (needsConfirmation) setNeedsConfirmation(false)
-                }}
-                className="h-11 border-input bg-background/80 transition-all"
-                aria-invalid={!!emailError}
-                required
-              />
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Input
+                  id="login-email"
+                  type="email"
+                  placeholder="nombre@ejemplo.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    if (emailError) setEmailError('')
+                    if (needsConfirmation) setNeedsConfirmation(false)
+                  }}
+                  className={fieldClass}
+                  aria-invalid={!!emailError}
+                  required
+                />
+              </div>
               {emailError && <p className="text-xs text-destructive">{emailError}</p>}
             </div>
 
@@ -198,13 +204,17 @@ export default function Login() {
                 </Link>
               </div>
               <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
                 <Input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-11 border-input bg-background/80 pr-10 transition-all"
+                  className={`${fieldClass} pr-10`}
                   required
                 />
                 <button
@@ -223,7 +233,7 @@ export default function Login() {
           <Button
             type="submit"
             disabled={loading}
-            className="mt-1 h-11 w-full text-base font-semibold shadow-md shadow-primary/20"
+            className="mt-1 h-12 w-full text-base font-semibold shadow-md shadow-primary/25"
           >
             {loading ? (
               <span className="flex items-center gap-2">

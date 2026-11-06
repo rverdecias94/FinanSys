@@ -17,9 +17,9 @@ export function GoogleAuthButton({ mode = 'login', className }) {
       type="button"
       variant="outline"
       onClick={handleClick}
-      className={`h-12 w-full gap-3 border-border/80 bg-background/80 text-[15px] font-medium shadow-sm hover:bg-accent/60 ${className || ''}`}
+      className={`h-12 w-full gap-3 border-border/80 bg-background/70 text-[15px] font-medium shadow-sm hover:bg-accent/60 ${className || ''}`}
     >
-      <GoogleGlyph className="h-7 w-7 shrink-0" />
+      <GoogleGlyph className="h-6 w-6 shrink-0" />
       <span>{label}</span>
     </Button>
   )
@@ -55,7 +55,9 @@ export function AuthDivider({ label = 'o continúa con' }) {
         <div className="w-full border-t border-border/70" />
       </div>
       <div className="relative flex justify-center text-[11px] uppercase tracking-wider">
-        <span className="bg-card px-3 font-medium text-muted-foreground">{label}</span>
+        <span className="rounded-full bg-white/70 px-3 font-medium text-muted-foreground backdrop-blur-sm dark:bg-[hsl(0_0%_12%/0.9)]">
+          {label}
+        </span>
       </div>
     </div>
   )
