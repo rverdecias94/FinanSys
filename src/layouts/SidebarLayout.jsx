@@ -91,15 +91,35 @@ function readOpenGroups() {
   }
 }
 
-function defaultOpenGroups(pathname) {
+function labeledGroupIds() {
+  return NAV_GROUPS.filter((g) => g.label).map((g) => g.id)
+}
+
+/** Acordeón: como máximo una categoría abierta. */
+function accordionOpenGroups(pathname, preferredId = null) {
   const open = {}
-  for (const g of NAV_GROUPS) {
-    if (!g.label) continue
-    open[g.id] = groupContainsPath(g, pathname)
-  }
-  // Si ninguna ruta de grupo coincide, abrir Dinero por defecto (flujo típico)
-  if (!Object.values(open).some(Boolean)) open.dinero = true
+  for (const id of labeledGroupIds()) open[id] = false
+
+  const activeId =
+    preferredId ||
+    NAV_GROUPS.find((g) => g.label && groupContainsPath(g, pathname))?.id ||
+    'dinero'
+
+  if (activeId && activeId in open) open[activeId] = true
   return open
+}
+
+function defaultOpenGroups(pathname) {
+  return accordionOpenGroups(pathname)
+}
+
+/** Normaliza un estado guardado (puede tener varias abiertas) a una sola. */
+function normalizeOpenGroups(saved, pathname) {
+  if (!saved || typeof saved !== 'object') return defaultOpenGroups(pathname)
+  const activeId = NAV_GROUPS.find((g) => g.label && groupContainsPath(g, pathname))?.id
+  if (activeId) return accordionOpenGroups(pathname, activeId)
+  const firstOpen = labeledGroupIds().find((id) => saved[id])
+  return accordionOpenGroups(pathname, firstOpen || 'dinero')
 }
 
 function SidebarTooltip({ label, children }) {
@@ -179,11 +199,12 @@ export default function SidebarLayout() {
     }
   })
   const [openGroups, setOpenGroups] = useState(() => {
-    const saved = readOpenGroups()
-    const base = defaultOpenGroups(typeof window !== 'undefined' ? window.location.pathname : '/')
-    return saved ? { ...base, ...saved } : base
+    const path = typeof window !== 'undefined' ? window.location.pathname : '/'
+    return normalizeOpenGroups(readOpenGroups(), path)
   })
-  const [adminOpen, setAdminOpen] = useState(true)
+  const [adminOpen, setAdminOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.location.pathname.startsWith('/admin') : false,
+  )
 
   const isAdminQuery = useQuery({
     queryKey: ['isSystemAdmin'],
@@ -192,15 +213,27 @@ export default function SidebarLayout() {
     staleTime: 5 * 60 * 1000
   })
 
-  // Al navegar, forzar abierta la categoría de la ruta activa
+  // Al navegar: solo la categoría de la ruta activa (acordeón)
   useEffect(() => {
+    if (location.pathname.startsWith('/admin')) {
+      setAdminOpen(true)
+      setOpenGroups((prev) => {
+        const next = {}
+        for (const id of labeledGroupIds()) next[id] = false
+        // Evitar setState inútil si ya estaban todas cerradas
+        if (labeledGroupIds().every((id) => !prev[id])) return prev
+        return next
+      })
+      return
+    }
     const activeId = NAV_GROUPS.find((g) => g.label && groupContainsPath(g, location.pathname))?.id
     if (!activeId) return
+    setAdminOpen(false)
     setOpenGroups((prev) => {
-      if (prev[activeId]) return prev
-      return { ...prev, [activeId]: true }
+      const already = labeledGroupIds().every((id) => !!prev[id] === (id === activeId))
+      if (already) return prev
+      return accordionOpenGroups(location.pathname, activeId)
     })
-    if (location.pathname.startsWith('/admin')) setAdminOpen(true)
   }, [location.pathname])
 
   useEffect(() => {
@@ -228,7 +261,30 @@ export default function SidebarLayout() {
   }
 
   const toggleGroup = (id) => {
-    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
+    setAdminOpen(false)
+    setOpenGroups((prev) => {
+      // Si ya estaba abierta → cerrarla (ninguna abierta).
+      // Si estaba cerrada → abrir solo esa.
+      if (prev[id]) {
+        const next = { ...prev }
+        for (const gid of labeledGroupIds()) next[gid] = false
+        return next
+      }
+      return accordionOpenGroups(location.pathname, id)
+    })
+  }
+
+  const toggleAdmin = () => {
+    if (adminOpen) {
+      setAdminOpen(false)
+      return
+    }
+    setAdminOpen(true)
+    setOpenGroups(() => {
+      const closed = {}
+      for (const gid of labeledGroupIds()) closed[gid] = false
+      return closed
+    })
   }
 
   const linkClass = ({ isActive }) =>
@@ -267,7 +323,7 @@ export default function SidebarLayout() {
   const renderNavItems = (mode) => (
     <>
       {NAV_GROUPS.map((group) => {
-        const isOpen = !group.label || openGroups[group.id] !== false
+        const isOpen = !group.label || !!openGroups[group.id]
 
         if (mode === 'icon') {
           return (
@@ -331,7 +387,7 @@ export default function SidebarLayout() {
           <div className="mb-1.5 mt-1">
             <button
               type="button"
-              onClick={() => setAdminOpen((v) => !v)}
+              onClick={toggleAdmin}
               className={categoryButtonClass()}
               aria-expanded={adminOpen}
             >
