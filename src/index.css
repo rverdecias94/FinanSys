@@ -149,6 +149,15 @@
     text-size-adjust: 100%;
   }
 
+  /* Android/Chrome: color-scheme ayuda a pintar la barra de navegación del sistema. */
+  html.light {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
@@ -156,6 +165,8 @@
     font-variant-numeric: tabular-nums;
     min-height: 100dvh;
     overflow-x: hidden;
+    /* Extiende el fondo bajo el notch / home indicator (PWA edge-to-edge). */
+    background-color: hsl(var(--background));
   }
 
   h1,

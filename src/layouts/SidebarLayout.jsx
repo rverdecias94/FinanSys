@@ -6,7 +6,7 @@ import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  Wallet, Settings, LogOut, Menu, X, ChartArea, Warehouse, Layers, FileText,
+  Wallet, Settings, LogOut, X, ChartArea, Warehouse, Layers, FileText,
   ShieldAlert, Shield, ShieldCheck, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
   Sparkles, Crown, ChevronDown,
 } from 'lucide-react'
@@ -22,6 +22,7 @@ import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
 import { cn } from '@/lib/utils'
 import BrandLogo from '@/components/BrandLogo'
+import { MobileBottomNav } from '@/components/navigation/MobileBottomNav'
 
 const SIDEBAR_COLLAPSED_KEY = 'gestia.sidebarCollapsed'
 const SIDEBAR_GROUPS_KEY = 'gestia.sidebarGroupsOpen'
@@ -369,7 +370,7 @@ export default function SidebarLayout() {
   return (
     <TooltipProvider>
       <div
-        className={`h-screen lg:grid lg:overflow-hidden bg-background transition-[grid-template-columns] duration-300 ease-out ${
+        className={`h-dvh bg-background lg:grid lg:overflow-hidden transition-[grid-template-columns] duration-300 ease-out ${
           collapsed ? 'lg:grid-cols-[72px_1fr]' : 'lg:grid-cols-[240px_1fr]'
         }`}
       >
@@ -381,7 +382,7 @@ export default function SidebarLayout() {
 
         {/* Sidebar */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-64 -translate-x-full border-r bg-card flex flex-col p-4 transition-[transform,padding] duration-300 ease-out lg:translate-x-0 lg:static lg:h-screen lg:w-auto ${
+          className={`fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] -translate-x-full flex-col border-r bg-card p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] transition-[transform,padding] duration-300 ease-out lg:static lg:h-screen lg:w-auto lg:translate-x-0 lg:pt-4 lg:pb-4 ${
             sidebarOpen ? 'translate-x-0' : ''
           } ${collapsed ? 'lg:p-2' : ''}`}
         >
@@ -510,24 +511,24 @@ export default function SidebarLayout() {
         </aside>
 
         {/* Main Content */}
-        <div className="flex flex-col h-screen overflow-hidden">
+        <div className="flex h-dvh flex-col overflow-hidden bg-background">
           <OfflineBanner />
           <PaymentReminderBanner />
-          <header className="sticky top-0 z-30 flex items-center border-b bg-background px-4 py-3 lg:hidden">
+          {/* Top bar móvil: solo marca (la navegación va abajo, como app nativa). */}
+          <header
+            className="sticky top-0 z-30 flex items-center border-b border-border/80 bg-background/90 px-4 py-2.5 backdrop-blur-xl lg:hidden"
+            style={{ paddingTop: 'max(0.625rem, env(safe-area-inset-top, 0px))' }}
+          >
             <BrandLogo className="h-8 w-auto object-contain" />
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-sm font-semibold">Menú</span>
-              <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-                <Menu className="w-5 h-5" />
-              </Button>
-            </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))] sm:p-6 lg:p-8">
             <Suspense fallback={<RouteOutletSkeleton />}>
               <Outlet />
             </Suspense>
           </main>
+
+          <MobileBottomNav onMore={() => setSidebarOpen(true)} />
         </div>
 
         <AccountGate />
