@@ -33,17 +33,6 @@ vi.mock('@/services/exchangeRates', () => ({
   }),
   upsertExchangeRate: vi.fn().mockResolvedValue({}),
 }))
-vi.mock('@/services/informalFxRates', () => ({
-  fetchInformalFxSuggestions: vi.fn().mockResolvedValue({
-    ok: true,
-    suggestions: { CUP: 930 },
-    missing: [],
-    attribution: 'elTOQUE (TRMI · mercado informal)',
-    sourceUrl: 'https://eltoque.com/tasas-de-cambio-cuba/mercado-informal',
-    asOf: '2026-11-07T08:00:00',
-    cached: false,
-  }),
-}))
 vi.mock('@/utils/dailyFxReminder', async () => {
   const actual = await vi.importActual('@/utils/dailyFxReminder')
   return {
@@ -52,11 +41,11 @@ vi.mock('@/utils/dailyFxReminder', async () => {
   }
 })
 
-function renderModal() {
+function renderModal(props = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <DailyFxRateModal />
+      <DailyFxRateModal {...props} />
     </QueryClientProvider>
   )
 }
@@ -64,34 +53,32 @@ function renderModal() {
 describe('DailyFxRateModal', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('muestra el modal, sugiere tasa y exige confirmación para guardar', async () => {
+  it('muestra el modal soft con Más tarde y exige confirmación', async () => {
     const user = userEvent.setup()
     renderModal()
     expect(await screen.findByText(/A cuánto está el dólar hoy/i)).toBeInTheDocument()
-
-    expect(await screen.findByText(/Sugerencia automática/i)).toBeInTheDocument()
-    expect(screen.getByDisplayValue('930')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Más tarde/i })).toBeInTheDocument()
 
     const save = screen.getByRole('button', { name: /Guardar tasa de hoy/i })
     expect(save).toBeDisabled()
 
+    const input = screen.getByLabelText(/Tasa CUP de hoy/i)
+    await user.clear(input)
+    await user.type(input, '930')
     await user.click(screen.getByLabelText(/Confirmo que estas cifras/i))
     expect(save).toBeEnabled()
   })
 
-  it('si falla la consulta automática, pide tasa manual', async () => {
-    const { fetchInformalFxSuggestions } = await import('@/services/informalFxRates')
-    fetchInformalFxSuggestions.mockResolvedValueOnce({
-      ok: false,
-      error: 'Sin clave de elTOQUE',
+  it('en modo obligatorio no ofrece Más tarde', async () => {
+    renderModal({
+      requiredGate: { reason: 'Para registrar esta entrada necesitamos la tasa de hoy.' },
     })
-    renderModal()
-    expect(await screen.findByText(/No pudimos obtener la tasa automática/i)).toBeInTheDocument()
-    expect(screen.getByText(/Sin clave de elTOQUE/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Guardar tasa de hoy/i })).toBeDisabled()
+    expect(await screen.findByRole('heading', { name: /Necesitamos la tasa de hoy/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Más tarde/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Cancelar operación/i })).toBeInTheDocument()
   })
 
-  it('no muestra el modal si la tasa de hoy ya existe', async () => {
+  it('no muestra el modal soft si la tasa de hoy ya existe', async () => {
     const { getExchangeRates } = await import('@/services/exchangeRates')
     getExchangeRates.mockResolvedValueOnce({
       CUP: { units_per_base: 800, effective_date: '2026-11-07' },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  hasTodayFxRates,
   normalizeFxSettings,
   shouldShowDailyFxModal,
   todayLocalIso,
@@ -60,6 +61,30 @@ describe('shouldShowDailyFxModal', () => {
     expect(shouldShowDailyFxModal({
       ...base,
       ratesMap: { CUP: { units_per_base: 800, effective_date: '2026-11-06' } },
+    })).toBe(true)
+  })
+})
+
+describe('hasTodayFxRates', () => {
+  const today = '2026-11-07'
+
+  it('true si no hay monedas cotizadas', () => {
+    expect(hasTodayFxRates({ ratedCurrencyCodes: [], ratesMap: {}, today })).toBe(true)
+  })
+
+  it('false si falta la tasa de hoy', () => {
+    expect(hasTodayFxRates({
+      ratedCurrencyCodes: ['CUP'],
+      ratesMap: { CUP: { units_per_base: 800, effective_date: '2026-11-06' } },
+      today,
+    })).toBe(false)
+  })
+
+  it('true si todas tienen effective_date = hoy', () => {
+    expect(hasTodayFxRates({
+      ratedCurrencyCodes: ['CUP'],
+      ratesMap: { CUP: { units_per_base: 800, effective_date: today } },
+      today,
     })).toBe(true)
   })
 })

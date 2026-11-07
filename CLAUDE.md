@@ -63,9 +63,9 @@
 ## 5.1 Dólar diario + precio de reposición (verificado 2026-11-07)
 - **No es un módulo de menú nuevo.** Vive en Configuración → Monedas + modal al abrir + Almacén.
 - Preferencias en `business_settings.fx`: `daily_fx_reminder` (default true), `target_margin_pct`, `last_fx_prompt_date`.
-- Modal `DailyFxRateModal` en `SidebarLayout` (después del splash/onboarding): pide tasa del día si el recordatorio está ON y falta tasa de hoy.
-- **Sugerencia automática:** Edge Function `informal-fx-rates` → 1) API TRMI elTOQUE (`ELTOQUE_API_KEY`) 2) si no hay clave/falla → **CambioCUP** público (USD/CUP, sin EUR). Si ambas fallan, pide tasa a mano. **Nunca guarda sola:** checkbox «Confirmo que estas cifras…» obligatorio. Misma lógica en `CurrenciesPanel` («Sugerir tasa informal»).
-- Switch + texto de consecuencias si se apaga: en `CurrenciesPanel`.
+- Modal `DailyFxRateModal` vía `FxGateProvider` en `SidebarLayout`: al entrar pide la tasa del día (manual, postergable). **Sin APIs externas.**
+- **Gate obligatorio** (`ensureTodayFx`): si falta la tasa de hoy y la operación la necesita (entrada de almacén, aplicar reposición, movimiento financiero no-base con fecha de hoy), abre el mismo modal sin «Más tarde».
+- Switch + texto de consecuencias si se apaga: en `CurrenciesPanel` (el gate obligatorio sigue activo).
 - Entradas de almacén sellan `movements.fx_units_per_base` vía `create_and_post_quick_movement(..., p_fx_units_per_base)` — **no reescribe `avg_cost`/COGS**.
 - UI `ReplacementMarginPanel` en Almacén: Inicial = solo lectura; Negocio = aplicar 1 a 1; Élite = lote + escenario de tasa.
 - Cálculo puro: `src/utils/replacementPricing.js` (+ tests caso refrescos 800→1000→sugerido 1250).

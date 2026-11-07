@@ -1,6 +1,6 @@
 /**
  * Reglas del recordatorio diario de tipo de cambio.
- * No inventa tasas: solo decide si mostrar el modal.
+ * Soft al entrar (se puede postergar); obligatorio si una operación depende de la tasa de hoy.
  */
 
 export const DEFAULT_TARGET_MARGIN_PCT = 25
@@ -23,7 +23,18 @@ export function todayLocalIso(date = new Date()) {
   return `${y}-${m}-${d}`
 }
 
+/** True si todas las monedas cotizadas tienen tasa con effective_date = hoy. */
+export function hasTodayFxRates({
+  ratedCurrencyCodes = [],
+  ratesMap = {},
+  today = todayLocalIso(),
+} = {}) {
+  if (!ratedCurrencyCodes.length) return true
+  return ratedCurrencyCodes.every((code) => ratesMap?.[code]?.effective_date === today)
+}
+
 /**
+ * Recordatorio suave al entrar: se puede postergar con "Más tarde".
  * @param {object} opts
  * @param {boolean} opts.reminderEnabled
  * @param {string|null} opts.lastPromptDate — día en que eligió "Más tarde"
@@ -46,14 +57,23 @@ export function shouldShowDailyFxModal({
   if (!reminderEnabled) return false
   if (!ratedCurrencyCodes.length) return false
   if (lastPromptDate === today) return false
+  return !hasTodayFxRates({ ratedCurrencyCodes, ratesMap, today })
+}
 
-  const missingToday = ratedCurrencyCodes.some((code) => {
-    const effective = ratesMap?.[code]?.effective_date
-    return !effective || effective !== today
-  })
-
-  return missingToday
+/**
+ * Operaciones que sellan o usan la tasa vigente de hoy (no basta una tasa vieja).
+ * - warehouse_in: entrada de almacén sella fx_units_per_base
+ * - replacement_price: precios sugeridos de reposición
+ * - finance_today_fx: movimiento financiero en moneda no-base con fecha de hoy
+ */
+export const FX_REQUIRED_REASONS = {
+  warehouse_in:
+    'Para registrar esta entrada necesitamos la tasa de hoy: se sella con el movimiento y no se puede inventar después.',
+  replacement_price:
+    'Para aplicar precios de reposición necesitamos la tasa de hoy; si no, el sugerido quedaría descuadrado.',
+  finance_today_fx:
+    'Esta operación en otra moneda usa la tasa del día. Regístrala ahora para sellarla bien.',
 }
 
 export const FX_REMINDER_OFF_CONSEQUENCES =
-  'Si desactivas el recordatorio, Gestia no te pedirá el dólar al abrir. El panel consolidado, las alertas de margen y los precios sugeridos pueden usar una tasa vieja: actualízala a mano en Monedas cuando cambie el mercado.'
+  'Si desactivas el recordatorio, Gestia no te pedirá el dólar al abrir. Cuando hagas una entrada de almacén, un precio de reposición o un movimiento en otra moneda, sí te lo pedirá de forma obligatoria para no descuadrar.'

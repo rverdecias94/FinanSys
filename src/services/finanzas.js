@@ -391,8 +391,15 @@ export async function getPeriodLock(userId, businessId) {
 export async function setPeriodLock(through, userId) {
   if (!userId) throw new Error('User ID is required')
   let p = null
-  if (through instanceof Date) p = through.toISOString().slice(0, 10)
-  else if (typeof through === 'string' && through) p = through.slice(0, 10)
+  if (through instanceof Date) {
+    // Fecha de calendario LOCAL (no toISOString: en zonas UTC+ puede restar un día).
+    const y = through.getFullYear()
+    const m = String(through.getMonth() + 1).padStart(2, '0')
+    const d = String(through.getDate()).padStart(2, '0')
+    p = `${y}-${m}-${d}`
+  } else if (typeof through === 'string' && through) {
+    p = through.slice(0, 10)
+  }
   const { data, error } = await supabase.rpc('set_period_lock', { p_through: p })
   if (error) throw error
   return data

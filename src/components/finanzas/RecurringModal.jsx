@@ -5,6 +5,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { format } from 'date-fns'
 
+import { PeriodLockedBanner } from '@/components/common/PeriodLockedBanner'
+import { isDateInClosedPeriod } from '@/utils/periodLock'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -82,6 +84,7 @@ export function RecurringModal({
   currencies = [],
   contacts = [],
   submitting = false,
+  closedThrough = null,
 }) {
   const defaultCurrency =
     currencies.find((c) => c.is_default)?.code || currencies[0]?.code || 'USD'
@@ -106,6 +109,8 @@ export function RecurringModal({
   })
 
   const type = form.watch('type')
+  const nextRun = form.watch('next_run')
+  const nextRunLocked = isDateInClosedPeriod(nextRun, closedThrough)
   const categoryOptions = useMemo(() => {
     const list = categories?.[type] || []
     return Array.isArray(list) ? list : []
@@ -149,6 +154,7 @@ export function RecurringModal({
   }, [open, item, defaultCurrency, form])
 
   const handleSubmit = (values) => {
+    if (isDateInClosedPeriod(values.next_run, closedThrough)) return
     onSubmit({
       id: item?.id,
       type: values.type,
@@ -176,6 +182,10 @@ export function RecurringModal({
             Ejemplos: alquiler, nómina, internet. Gestia lo anotará solo cuando llegue la fecha.
           </DialogDescription>
         </DialogHeader>
+
+        {nextRunLocked && (
+          <PeriodLockedBanner closedThrough={closedThrough} variant="create" />
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -467,7 +477,7 @@ export function RecurringModal({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting || nextRunLocked}>
                 {submitting ? 'Guardando…' : item?.id ? 'Guardar cambios' : 'Crear repetición'}
               </Button>
             </DialogFooter>

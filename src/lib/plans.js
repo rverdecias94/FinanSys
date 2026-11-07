@@ -18,6 +18,13 @@ export function planLabel(planId) {
   return PLAN_LABEL[planId] || planId || '—'
 }
 
+/** Etiqueta de UI con prefijo "Plan …" (Inicial / Negocio / Élite). */
+export function planDisplayName(planId) {
+  const label = planLabel(planId)
+  if (!label || label === '—') return 'Plan'
+  return label.startsWith('Plan ') ? label : `Plan ${label}`
+}
+
 export function isPaidPlanId(planId) {
   return planId === 'premium' || planId === 'ultra'
 }

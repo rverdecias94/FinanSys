@@ -10,6 +10,7 @@ import { getPeriodLock, setPeriodLock } from '@/services/finanzas'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { parseDateOnlyLocal } from '@/utils/periodLock'
 
 // S5 (Q17): cierre de período. Bloquea crear/editar/eliminar movimientos con fecha
 // <= la fecha de cierre (los cobros/pagos siguen permitidos). Reabrir queda en Auditoría.
@@ -45,14 +46,20 @@ export function PeriodLockSection({ isOwner }) {
           Cierre de período
         </CardTitle>
         <CardDescription>
-          Bloquea fechas pasadas: no podrás crear ni editar movimientos con fecha igual o anterior a la de cierre.
-          Los cobros y pagos sobre cuentas antiguas siguen permitidos. Reabrir queda registrado en Auditoría.
+          Bloquea fechas pasadas: al abrir un movimiento de ese período verás el detalle en solo lectura (sin Guardar).
+          Tampoco podrás crear movimientos con fecha igual o anterior a la de cierre. Los cobros y pagos sobre cuentas antiguas siguen permitidos. Reabrir queda en Auditoría.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-md border bg-muted/20 p-3 text-sm">
           {closedThrough ? (
-            <>Período cerrado hasta <span className="font-semibold">{format(new Date(closedThrough), 'PP', { locale: es })}</span>.</>
+            <>
+              Período cerrado hasta{' '}
+              <span className="font-semibold">
+                {format(parseDateOnlyLocal(closedThrough) || new Date(), 'PP', { locale: es })}
+              </span>
+              .
+            </>
           ) : (
             'No hay período cerrado. Todas las fechas están abiertas.'
           )}

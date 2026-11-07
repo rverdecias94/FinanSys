@@ -20,7 +20,7 @@ import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner
 import { AccountGate } from '@/components/auth/AccountGate'
 import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
-import { DailyFxRateModal } from '@/components/config/DailyFxRateModal'
+import { FxGateProvider } from '@/context/FxGateContext'
 import { cn } from '@/lib/utils'
 import BrandLogo from '@/components/BrandLogo'
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav'
@@ -184,12 +184,25 @@ function PlanBadge({ planId }) {
   )
 }
 
+function SidebarAccountMeta({ planId, isOwner, roleName }) {
+  const role = isOwner ? 'Propietario' : (roleName || 'Miembro')
+  return (
+    <div className="space-y-1.5">
+      <PlanBadge planId={planId} />
+      <div className="flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+        <Shield className="h-3 w-3 shrink-0" aria-hidden="true" />
+        <span className="truncate">{role}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function SidebarLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { subscription } = useSubscription()
   const { session } = useSession()
-  const { isOwner, roleName, roleId } = useBusiness()
+  const { isOwner, roleName } = useBusiness()
   const email = session?.user?.email || 'Usuario Local'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(() => {
@@ -424,7 +437,7 @@ export default function SidebarLayout() {
 
   const planId = subscription?.plan_id
 
-  return (
+  const layout = (
     <TooltipProvider>
       <div
         className={`h-dvh bg-background lg:grid lg:overflow-hidden transition-[grid-template-columns] duration-300 ease-out ${
@@ -521,38 +534,29 @@ export default function SidebarLayout() {
                 </Button>
               </div>
 
-              {isOwner && (
-                <div className="flex flex-col gap-2">
-                  <PlanBadge planId={planId} />
-                  {planId !== 'premium' && planId !== 'ultra' && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-full text-xs font-bold uppercase"
-                      onClick={() => navigate('/configuracion')}
-                    >
-                      MEJORAR PLAN
-                    </Button>
-                  )}
-                  {planId === 'premium' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs font-bold uppercase"
-                      onClick={() => navigate('/configuracion')}
-                    >
-                      Subir a Élite
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {!isOwner && (roleName || roleId) && (
-                <div className="flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-md text-center border border-blue-500/30 bg-blue-500/10 text-blue-800 dark:text-blue-200">
-                  <Shield className="h-3.5 w-3.5 shrink-0" />
-                  <span>{roleName || 'Miembro'}</span>
-                </div>
-              )}
+              <div className="flex flex-col gap-2">
+                <SidebarAccountMeta planId={planId} isOwner={isOwner} roleName={roleName} />
+                {isOwner && planId !== 'premium' && planId !== 'ultra' && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="w-full text-xs font-bold uppercase"
+                    onClick={() => navigate('/configuracion')}
+                  >
+                    Mejorar plan
+                  </Button>
+                )}
+                {isOwner && planId === 'premium' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-bold uppercase"
+                    onClick={() => navigate('/configuracion')}
+                  >
+                    Subir a Élite
+                  </Button>
+                )}
+              </div>
 
               <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground">
                 <Link to="/terminos" className="transition-colors hover:text-foreground hover:underline">
@@ -590,9 +594,10 @@ export default function SidebarLayout() {
 
         <AccountGate />
         <OnboardingWizard />
-        <DailyFxRateModal />
         <LegalConsentGate />
       </div>
     </TooltipProvider>
   )
+
+  return <FxGateProvider>{layout}</FxGateProvider>
 }

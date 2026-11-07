@@ -23,6 +23,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PermissionGuard } from '@/components/common/PermissionGuard'
 import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { RecurringModal } from '@/components/finanzas/RecurringModal'
+import { usePeriodLock } from '@/hooks/usePeriodLock'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { notifyOfflineQueued } from '@/services/notifyWrap'
 import {
@@ -72,6 +73,7 @@ export function RecurringPanel({
   canCreate,
 }) {
   const queryClient = useQueryClient()
+  const { closedThrough } = usePeriodLock()
   const requeueGuardRef = useRef(new Set())
   const [modalOpen, setModalOpen] = useState(false)
   const [selected, setSelected] = useState(null)
@@ -476,6 +478,7 @@ export function RecurringPanel({
         currencies={currencies}
         contacts={contacts}
         submitting={submitting}
+        closedThrough={closedThrough}
       />
 
       <ConfirmDialog

@@ -26,6 +26,7 @@ import { PlanLimitFeedback } from '@/components/common/PlanLimitFeedback'
 import { ExportButton } from '@/components/common/ExportButton'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { notifyOfflineQueued } from '@/services/notifyWrap'
+import { usePeriodLock } from '@/hooks/usePeriodLock'
 import { TX_CREATE_KEY, TX_UPDATE_KEY } from '@/offline/mutationDefaults'
 import { serializeTransactionPayload } from '@/offline/serializeMutation'
 import {
@@ -77,6 +78,7 @@ export default function FinanzasMejorado() {
   const { checkLimit, recordUsage, getRemainingUsage } = useSubscription()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { canView, canEdit, canCreate, canExport, loading: permissionLoading } = usePermissionCheck()
+  const { closedThrough, isDateLocked } = usePeriodLock()
   const queryClient = useQueryClient()
   const isRestoring = useIsRestoring()
   const online = useOnlineStatus()
@@ -379,6 +381,12 @@ export default function FinanzasMejorado() {
     // editar el monto aquí desincronizaría el margen, así que se abre en solo lectura.
     if (transaction?.details?.sale) {
       notify.info('Esta venta está ligada a Almacén; se abre en modo lectura. Para corregirla, registra un ajuste de inventario o una nueva operación.')
+      setSelectedTransaction({ ...transaction, readonly: true })
+      setModalOpen(true)
+      return
+    }
+    // Período cerrado: abre en solo lectura (banner + sin Guardar), sin toast de error al guardar.
+    if (isDateLocked(transaction?.date)) {
       setSelectedTransaction({ ...transaction, readonly: true })
       setModalOpen(true)
       return
@@ -747,7 +755,7 @@ export default function FinanzasMejorado() {
         contacts={contactsData?.data || []}
         products={productsData || []}
         submitting={false}
-
+        closedThrough={closedThrough}
         readonly={selectedTransaction?.readonly || !canEdit('finanzas')}
       />
     </div>

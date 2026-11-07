@@ -14,6 +14,7 @@ import { BusinessProfileSection } from '@/components/config/general/BusinessProf
 import { RegionFormatsSection } from '@/components/config/general/RegionFormatsSection'
 import { Button } from '@/components/ui/button'
 import { companySchema, validateForm } from '@/utils/formSchemas'
+import { getClientDateFormat, getClientTimeZone } from '@/utils/localeDefaults'
 
 function toDecimalInput(value) {
   if (value === null || value === undefined) return ''
@@ -63,8 +64,8 @@ export function GeneralSettingsPanel() {
   const [valuationMethod, setValuationMethod] = useState('fifo')
 
   const [fontSize, setFontSize] = useState('normal')
-  const [dateFormat, setDateFormat] = useState('DD/MM/AAAA')
-  const [timeZone, setTimeZone] = useState('America/Havana')
+  const [dateFormat, setDateFormat] = useState(() => getClientDateFormat())
+  const [timeZone, setTimeZone] = useState(() => getClientTimeZone())
   const [numberFormat, setNumberFormat] = useState('es-ES')
 
   const [company, setCompany] = useState({
@@ -103,20 +104,34 @@ export function GeneralSettingsPanel() {
     }
   }, [])
 
+  // Zona y formato de fecha SIEMPRE desde la PC (no desde Havana u otro valor guardado).
+  useEffect(() => {
+    setDateFormat(getClientDateFormat())
+    setTimeZone(getClientTimeZone())
+  }, [])
+
   useEffect(() => {
     if (!settingsQuery.data || hasEdits) return
     const s = settingsQuery.data
+    const clientDateFormat = getClientDateFormat()
+    const clientTimeZone = getClientTimeZone()
 
     if (s.valuation_method) setValuationMethod(s.valuation_method)
     if (s.company) setCompany((prev) => ({ ...prev, ...s.company }))
-    if (s.region?.dateFormat) setDateFormat(s.region.dateFormat)
-    if (s.region?.timeZone) setTimeZone(s.region.timeZone)
+    setDateFormat(clientDateFormat)
+    setTimeZone(clientTimeZone)
     if (s.region?.numberFormat) setNumberFormat(s.region.numberFormat)
 
+    // Snapshot conserva lo guardado en BD. Si tz/fecha viejos (p. ej. Havana)
+    // difieren del dispositivo, isDirty=true y "Guardar" actualiza la BD.
     setSavedSnapshot({
       valuationMethod: s.valuation_method || 'fifo',
       company: s.company || {},
-      region: s.region || {}
+      region: {
+        dateFormat: s.region?.dateFormat || clientDateFormat,
+        timeZone: s.region?.timeZone || clientTimeZone,
+        numberFormat: s.region?.numberFormat || 'es-ES',
+      }
     })
   }, [hasEdits, settingsQuery.data])
 
@@ -141,17 +156,6 @@ export function GeneralSettingsPanel() {
     }
     setInitialBalances(next)
   }, [balances])
-
-  const timeZones = useMemo(() => {
-    const fallback = ['America/Havana', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid', 'UTC']
-    const supported = typeof Intl?.supportedValuesOf === 'function'
-    if (!supported) return fallback
-    try {
-      return Intl.supportedValuesOf('timeZone')
-    } catch {
-      return fallback
-    }
-  }, [])
 
   const settingsPayload = useMemo(() => {
     return {
@@ -342,16 +346,7 @@ export function GeneralSettingsPanel() {
       <RegionFormatsSection
         isOwner={isOwner}
         dateFormat={dateFormat}
-        onDateFormat={(v) => {
-          setHasEdits(true)
-          setDateFormat(v)
-        }}
         timeZone={timeZone}
-        onTimeZone={(v) => {
-          setHasEdits(true)
-          setTimeZone(v)
-        }}
-        timeZones={timeZones}
         numberFormat={numberFormat}
         onNumberFormat={(v) => {
           setHasEdits(true)

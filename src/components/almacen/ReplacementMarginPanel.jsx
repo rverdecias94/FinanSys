@@ -22,6 +22,7 @@ import {
 import { normalizeFxSettings } from '@/utils/dailyFxReminder'
 import { computeReplacementPricing } from '@/utils/replacementPricing'
 import { perPieceFromBox, stockUnitShort } from '@/utils/stockUnit'
+import { useFxGate } from '@/context/FxGateContext'
 import { toast } from 'sonner'
 
 function planTier(planId) {
@@ -39,6 +40,7 @@ export function ReplacementMarginPanel({ onApplied }) {
   const { businessId } = useBusiness()
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { subscription } = useSubscription()
+  const { ensureTodayFx } = useFxGate()
   const queryClient = useQueryClient()
   const userId = session?.user?.id
   const tier = planTier(subscription?.plan_id)
@@ -140,6 +142,20 @@ export function ReplacementMarginPanel({ onApplied }) {
     },
     onError: () => toast.error('No se pudieron aplicar los precios'),
   })
+
+  const applyWithFxGate = async (updates) => {
+    // Escenario Élite usa tasa simulada: no exige la de hoy.
+    const usingLiveRate = !(canBatch && scenarioRate !== '' && Number(scenarioRate) > 0)
+    if (usingLiveRate) {
+      try {
+        const ok = await ensureTodayFx({ reasonKey: 'replacement_price' })
+        if (!ok) return
+      } catch {
+        return
+      }
+    }
+    applyMutation.mutate(updates)
+  }
 
   if (!userId || !businessId) return null
   if (productsQuery.isLoading || ratesQuery.isLoading) return null
@@ -255,7 +271,7 @@ export function ReplacementMarginPanel({ onApplied }) {
                     className="h-10 shrink-0"
                     disabled={applyMutation.isPending}
                     onClick={() =>
-                      applyMutation.mutate([{ product_id: p.id, unit_price: pricing.suggested }])
+                      applyWithFxGate([{ product_id: p.id, unit_price: pricing.suggested }])
                     }
                   >
                     Aplicar {formatCurrency(pricing.suggested, cur)}/{per}
@@ -284,7 +300,7 @@ export function ReplacementMarginPanel({ onApplied }) {
                 const updates = rows
                   .filter((r) => selected.has(String(r.product.id)))
                   .map((r) => ({ product_id: r.product.id, unit_price: r.pricing.suggested }))
-                applyMutation.mutate(updates)
+                applyWithFxGate(updates)
               }}
             >
               <Crown className="h-4 w-4" />

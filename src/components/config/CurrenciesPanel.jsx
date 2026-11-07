@@ -14,15 +14,12 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import { useSession } from '@/hooks/useSession'
 import { getExchangeRates, upsertExchangeRate, getAllExchangeRateHistory } from '@/services/exchangeRates'
 import { getBusinessSettings, patchBusinessFxSettings } from '@/services/businessSettings'
-import { fetchInformalFxSuggestions } from '@/services/informalFxRates'
 import {
   FX_REMINDER_OFF_CONSEQUENCES,
   normalizeFxSettings,
   DEFAULT_TARGET_MARGIN_PCT,
 } from '@/utils/dailyFxReminder'
-import { INFORMAL_FX_SOURCE_LABEL } from '@/utils/informalFxRates'
-import { Checkbox } from '@/components/ui/checkbox'
-import { CheckCircle2, Globe2, Lock, ArrowLeftRight, TrendingUp, Bell, RefreshCw } from 'lucide-react'
+import { CheckCircle2, Globe2, Lock, ArrowLeftRight, TrendingUp, Bell } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
@@ -116,8 +113,6 @@ export function CurrenciesPanel() {
 
   // Estado local de los inputs (string), sembrado desde las tasas guardadas.
   const [drafts, setDrafts] = useState({})
-  const [rateConfirmed, setRateConfirmed] = useState(false)
-  const [suggestHint, setSuggestHint] = useState(null)
 
   useEffect(() => {
     const seed = {}
@@ -125,68 +120,20 @@ export function CurrenciesPanel() {
       seed[c.code] = rates[c.code]?.units_per_base != null ? String(rates[c.code].units_per_base) : ''
     }
     setDrafts(seed)
-    setRateConfirmed(false)
-    setSuggestHint(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ratesQuery.data, defaultCode, businessCurrencies.length])
 
-  const suggestMutation = useMutation({
-    mutationFn: () =>
-      fetchInformalFxSuggestions({
-        baseCode: defaultCode,
-        currencyCodes: ratedCurrencies.map((c) => c.code),
-      }),
-    onSuccess: (result) => {
-      if (!result.ok) {
-        setSuggestHint({ tone: 'warn', text: result.error })
-        toast.message('No se pudo sugerir automáticamente — introdúcelas a mano')
-        return
-      }
-      setDrafts((prev) => {
-        const next = { ...prev }
-        for (const [code, value] of Object.entries(result.suggestions || {})) {
-          next[code] = String(value)
-        }
-        return next
-      })
-      setRateConfirmed(false)
-      const missing =
-        (result.missing || []).length > 0
-          ? ` Sin referencia para: ${result.missing.join(', ')}.`
-          : ''
-      setSuggestHint({
-        tone: 'ok',
-        text: `Sugerido por ${result.attribution || INFORMAL_FX_SOURCE_LABEL}.${missing} Confirma antes de guardar.`,
-      })
-      toast.success('Sugerencia de tasas lista — confírmalas antes de guardar')
-    },
-    onError: (err) => {
-      setSuggestHint({
-        tone: 'warn',
-        text: err?.message || 'No se pudo consultar el mercado informal. Introdúcelas a mano.',
-      })
-      toast.error('No se pudo obtener la sugerencia automática')
-    },
-  })
-
   const saveMutation = useMutation({
-    mutationFn: ({ currency_code, units_per_base }) => {
-      if (!rateConfirmed) {
-        throw new Error('Confirma que estas cifras son el precio real que usas')
-      }
-      return upsertExchangeRate(
+    mutationFn: ({ currency_code, units_per_base }) =>
+      upsertExchangeRate(
         { currency_code, units_per_base, effective_date: format(rateDate, 'yyyy-MM-dd') },
         userId,
         businessId
-      )
-    },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchangeRates'] })
       queryClient.invalidateQueries({ queryKey: ['exchangeRatesHistory'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    },
-    onError: (err) => {
-      toast.error(err?.message || 'No se pudo guardar la tasa')
     },
   })
 
@@ -202,7 +149,8 @@ export function CurrenciesPanel() {
               Recordatorio diario del dólar
             </CardTitle>
             <CardDescription>
-              Al abrir Gestia te pedimos la tasa del día para no olvidarla.
+              Al abrir Gestia te pedimos la tasa del día (puedes postergarla). Si haces una
+              operación que la necesita, te la pediremos de forma obligatoria.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -353,60 +301,14 @@ export function CurrenciesPanel() {
           <CardContent className="space-y-4">
             {/* Fecha de la tasa (por si registras la de un día pasado) */}
             {isOwner && (
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1 sm:max-w-[280px]">
-                  <Label className="text-xs text-muted-foreground">Fecha de la tasa</Label>
-                  <Calendar value={rateDate} onChange={(d) => setRateDate(d || new Date())} />
-                  {!isToday && (
-                    <p className="text-[11px] text-warning">
-                      Estás registrando una tasa con fecha pasada ({format(rateDate, "d 'de' MMMM yyyy", { locale: es })}).
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11 w-full sm:w-auto"
-                    loading={suggestMutation.isPending}
-                    disabled={suggestMutation.isPending}
-                    onClick={() => suggestMutation.mutate()}
-                  >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Sugerir tasa informal
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Intenta elTOQUE; si no hay clave, usa CambioCUP (USD). Si falla, escribe a mano.
+              <div className="flex flex-col gap-1 sm:max-w-[280px]">
+                <Label className="text-xs text-muted-foreground">Fecha de la tasa</Label>
+                <Calendar value={rateDate} onChange={(d) => setRateDate(d || new Date())} />
+                {!isToday && (
+                  <p className="text-[11px] text-warning">
+                    Estás registrando una tasa con fecha pasada ({format(rateDate, "d 'de' MMMM yyyy", { locale: es })}).
                   </p>
-                </div>
-
-                {suggestHint && (
-                  <div
-                    className={`rounded-md border px-3 py-2 text-sm ${
-                      suggestHint.tone === 'ok'
-                        ? 'border-primary/20 bg-primary/5'
-                        : 'border-warning/30 bg-warning/10'
-                    }`}
-                  >
-                    {suggestHint.text}
-                  </div>
                 )}
-
-                <label
-                  htmlFor="currencies-fx-confirm"
-                  className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3"
-                >
-                  <Checkbox
-                    id="currencies-fx-confirm"
-                    checked={rateConfirmed}
-                    onCheckedChange={(v) => setRateConfirmed(v === true)}
-                    className="mt-0.5"
-                  />
-                  <span className="text-sm leading-snug">
-                    Confirmo que estas cifras son el precio real que uso en mi negocio.
-                  </span>
-                </label>
               </div>
             )}
 
@@ -437,10 +339,7 @@ export function CurrenciesPanel() {
                         value={value}
                         disabled={!isOwner}
                         aria-invalid={value !== '' && !valid}
-                        onChange={(e) => {
-                          setDrafts((d) => ({ ...d, [c.code]: e.target.value }))
-                          setRateConfirmed(false)
-                        }}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [c.code]: e.target.value }))}
                       />
                       {value !== '' && !valid && (
                         <p className="text-xs text-destructive">La tasa debe ser un número mayor que 0.</p>
@@ -450,7 +349,7 @@ export function CurrenciesPanel() {
                       <Button
                         className="h-11 shrink-0"
                         loading={isSaving}
-                        disabled={!valid || !rateConfirmed}
+                        disabled={!valid}
                         onClick={() => saveMutation.mutate({ currency_code: c.code, units_per_base: Number(value) })}
                       >
                         Guardar

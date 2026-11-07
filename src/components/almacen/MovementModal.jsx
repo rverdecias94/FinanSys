@@ -24,10 +24,12 @@ import {
   restoreProductStock,
 } from '@/offline/optimisticWarehouse'
 import { stockUnitPlural, stockUnitShort } from '@/utils/stockUnit'
+import { useFxGate } from '@/context/FxGateContext'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
+  const { ensureTodayFx } = useFxGate()
   const queryClient = useQueryClient()
   const requeueGuardRef = useRef(new Set())
   const userId = session?.user?.id
@@ -122,6 +124,15 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
       return
     }
     setErrors({})
+
+    if (formData.type === 'in') {
+      try {
+        const ok = await ensureTodayFx({ reasonKey: 'warehouse_in' })
+        if (!ok) return
+      } catch {
+        return
+      }
+    }
 
     const vars = {
       product_id: Number(formData.product_id),

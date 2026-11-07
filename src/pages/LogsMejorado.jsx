@@ -223,9 +223,10 @@ function LogDetailsDialog({ log, onClose, canViewFinance }) {
 
 export default function LogsMejorado() {
   const { session } = useSession()
-  const { businessId } = useBusiness()
+  const { businessId, isOwner: businessIsOwner, roleName } = useBusiness()
   const { canAccessFeature, loading: subLoading } = useSubscription()
   const { canView, isOwner } = usePermissionCheck()
+  const roleLabel = (isOwner || businessIsOwner) ? 'Propietario' : (roleName || 'Miembro')
 
   const [searchTerm, setSearchTerm] = useState('')
   const [areaFilter, setAreaFilter] = useState('all')
@@ -406,12 +407,9 @@ export default function LogsMejorado() {
           Auditoría
         </h1>
 
-        {/* Resumen de permisos actual */}
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {isOwner ? 'Acceso Total' : 'Acceso de Visualización'}
-          </span>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Shield className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{roleLabel}</span>
         </div>
       </div>
 

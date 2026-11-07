@@ -58,3 +58,47 @@ describe('TransactionModal — moneda (P1.1)', () => {
     expect(screen.getByText(/0\.00\s+EUR/)).toBeInTheDocument()
   })
 })
+
+describe('TransactionModal — período cerrado', () => {
+  it('abre en solo lectura un movimiento dentro del cierre (sin Revisar Datos)', () => {
+    render(
+      <TransactionModal
+        {...baseProps}
+        currencies={[{ code: 'USD', is_default: true }]}
+        closedThrough="2026-10-31"
+        transaction={{
+          id: 42,
+          type: 'expense',
+          date: '2026-10-30',
+          amount: 10,
+          currency: 'USD',
+          category: 'Servicios',
+          description: 'Gasto cerrado',
+        }}
+      />
+    )
+
+    expect(screen.getByText('Ver Movimiento')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/Período cerrado hasta 31\/10\/2026/)
+    expect(screen.queryByRole('button', { name: 'Revisar Datos' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cerrar' })).toBeInTheDocument()
+  })
+
+  it('bloquea guardar si la fecha por defecto cae en el cierre (alta)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 9, 15)) // 15/10/2026 dentro del cierre
+    try {
+      render(
+        <TransactionModal
+          {...baseProps}
+          currencies={[{ code: 'USD', is_default: true }]}
+          closedThrough="2026-10-31"
+        />
+      )
+      expect(screen.getByRole('status')).toHaveTextContent(/Elige una fecha posterior/)
+      expect(screen.getByRole('button', { name: 'Revisar Datos' })).toBeDisabled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

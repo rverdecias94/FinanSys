@@ -39,6 +39,10 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Switch } from '@/components/ui/switch'
+import { PeriodLockedBanner } from '@/components/common/PeriodLockedBanner'
+import { isDateInClosedPeriod } from '@/utils/periodLock'
+import { useFxGate } from '@/context/FxGateContext'
+import { todayLocalIso } from '@/utils/dailyFxReminder'
 
 const DEFAULT_CATEGORIES = {
   income: [
@@ -100,7 +104,8 @@ const formSchema = z.object({
   }
 })
 
-export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], products = [], submitting = false, readonly = false }) {
+export function TransactionModal({ open, onOpenChange, onSubmit, categories, paymentMethods, transaction, currencies = [], contacts = [], products = [], submitting = false, readonly = false, closedThrough = null }) {
+  const { ensureTodayFx } = useFxGate()
   const [isPreview, setIsPreview] = useState(false)
   const [files, setFiles] = useState([])
   const [existingAttachments, setExistingAttachments] = useState([])
@@ -135,6 +140,9 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
   // UUID de idempotencia (create / venta): se genera en el primer envío y se conserva
   // mientras el modal siga abierto, para que un reintento no duplique la fila.
   const clientUuidRef = useRef(null)
+
+  // Movimiento ya guardado dentro del cierre → solo lectura total.
+  const recordPeriodLocked = isEditing && isDateInClosedPeriod(transaction?.date, closedThrough)
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -192,6 +200,11 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
 
   const watchedValues = form.watch()
 
+  // Alta o edición con fecha elegida dentro del cierre: se puede cambiar la fecha,
+  // pero no guardar hasta salir del período cerrado.
+  const formDatePeriodLocked = !recordPeriodLocked && isDateInClosedPeriod(watchedValues.date, closedThrough)
+  const effectiveReadonly = readonly || recordPeriodLocked
+
   const selectedSaleProduct = products.find(p => String(p.id) === String(watchedValues.sale_product_id))
 
   // Modo venta (S7): el monto se calcula (qty*precio) y la moneda = la del producto, de
@@ -239,8 +252,8 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
     setDeletedAttachments((prev) => [...prev, attachment])
   }
 
-  const handleSubmit = (data) => {
-    if (readonly) return
+  const handleSubmit = async (data) => {
+    if (effectiveReadonly || formDatePeriodLocked) return
     if (!isPreview) {
       setIsPreview(true)
       return
@@ -275,6 +288,25 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
       if (!clientUuidRef.current) clientUuidRef.current = genClientUuid()
       payload.client_uuid = clientUuidRef.current
     }
+
+    // Moneda no-base + fecha de hoy → sella fx; exige tasa actualizada.
+    const txDate =
+      data.date instanceof Date
+        ? format(data.date, 'yyyy-MM-dd')
+        : String(data.date || '').slice(0, 10)
+    const needsTodayFx =
+      Boolean(data.currency) &&
+      data.currency !== defaultCurrency &&
+      txDate === todayLocalIso()
+    if (needsTodayFx) {
+      try {
+        const ok = await ensureTodayFx({ reasonKey: 'finance_today_fx' })
+        if (!ok) return
+      } catch {
+        return
+      }
+    }
+
     onSubmit(payload)
   }
 
@@ -312,27 +344,35 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
               </>
             ) : (
               <>
-                {readonly ? 'Ver Movimiento' : isEditing ? 'Editar Movimiento' : watchedValues.type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto'}
+                {effectiveReadonly ? 'Ver Movimiento' : isEditing ? 'Editar Movimiento' : watchedValues.type === 'income' ? 'Registrar Ingreso' : 'Registrar Gasto'}
               </>
             )}
           </DialogTitle>
           <DialogDescription>
-            {readonly
-              ? 'Detalle del movimiento financiero (solo lectura).'
-              : isPreview
-                ? 'Revisa la información antes de guardar el movimiento.'
-                : isEditing
-                  ? 'Actualiza los campos del movimiento financiero.'
-                  : 'Completa los campos para registrar un nuevo movimiento financiero.'}
+            {recordPeriodLocked
+              ? 'Este movimiento pertenece a un período cerrado.'
+              : effectiveReadonly
+                ? 'Detalle del movimiento financiero (solo lectura).'
+                : isPreview
+                  ? 'Revisa la información antes de guardar el movimiento.'
+                  : isEditing
+                    ? 'Actualiza los campos del movimiento financiero.'
+                    : 'Completa los campos para registrar un nuevo movimiento financiero.'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <fieldset disabled={readonly} className="space-y-6 m-0 p-0 border-0 min-w-0 disabled:cursor-not-allowed disabled:opacity-95">
+            {recordPeriodLocked && (
+              <PeriodLockedBanner closedThrough={closedThrough} variant="view" />
+            )}
+            {formDatePeriodLocked && (
+              <PeriodLockedBanner closedThrough={closedThrough} variant="create" />
+            )}
+            <fieldset disabled={effectiveReadonly} className="space-y-6 m-0 p-0 border-0 min-w-0 disabled:cursor-not-allowed disabled:opacity-95">
             {!isPreview ? (
               <>
-                {!isEditing && !readonly && products.length > 0 && (
+                {!isEditing && !effectiveReadonly && products.length > 0 && (
                   <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3">
                     <div className="min-w-0">
                       <FormLabel className="text-sm font-medium">Es venta de producto</FormLabel>
@@ -850,7 +890,7 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
             </fieldset>
 
             <DialogFooter className="gap-2 sm:gap-0">
-              {readonly ? (
+              {effectiveReadonly ? (
                 <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
                   Cerrar
                 </Button>
@@ -861,13 +901,18 @@ export function TransactionModal({ open, onOpenChange, onSubmit, categories, pay
                       Volver a editar
                     </Button>
                   )}
-                  <Button type="submit" loading={isPreview && submitting} className="w-full sm:w-auto">
+                  <Button
+                    type="submit"
+                    loading={isPreview && submitting}
+                    className="w-full sm:w-auto"
+                    disabled={formDatePeriodLocked}
+                  >
                     {isPreview ? (
                       <>
                         <Check className="w-4 h-4 mr-2" /> {isEditing ? 'Confirmar y Actualizar' : 'Confirmar y Guardar'}
                       </>
                     ) : (
-                      "Revisar Datos"
+                      'Revisar Datos'
                     )}
                   </Button>
                 </>

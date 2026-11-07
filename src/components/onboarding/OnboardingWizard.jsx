@@ -17,13 +17,7 @@ import { getBusinessSettings, upsertBusinessSettings } from '@/services/business
 import { updateBalanceConfig } from '@/services/finanzas'
 import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
 import { writeLocalCache } from '@/offline/localCache'
-
-// Lista corta de zonas horarias frecuentes en LatAm + España (paso opcional).
-const TIME_ZONES = [
-  'America/Mexico_City', 'America/Bogota', 'America/Lima', 'America/Santiago',
-  'America/Argentina/Buenos_Aires', 'America/Caracas', 'America/Havana',
-  'America/Santo_Domingo', 'Europe/Madrid', 'UTC'
-]
+import { getClientRegionDefaults } from '@/utils/localeDefaults'
 
 const STEPS = [
   { n: 1, label: 'Negocio', icon: Building2 },
@@ -71,7 +65,7 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(1)
   const [company, setCompany] = useState({ tradeName: '', legalName: '', taxId: '', phone: '', email: '' })
-  const [region, setRegion] = useState({ dateFormat: 'DD/MM/AAAA', timeZone: 'America/Havana', numberFormat: 'es-ES' })
+  const [region, setRegion] = useState(() => getClientRegionDefaults())
   const [currencyCode, setCurrencyCode] = useState('')
   const [initialBalance, setInitialBalance] = useState('')
   const [saving, setSaving] = useState(false)
@@ -88,7 +82,12 @@ export function OnboardingWizard() {
       })
     }
     if (existing?.region) {
-      setRegion((r) => ({ ...r, ...existing.region }))
+      // Zona y formato de fecha siempre del dispositivo; solo se hereda el numérico guardado.
+      const client = getClientRegionDefaults()
+      setRegion({
+        ...client,
+        numberFormat: existing.region.numberFormat || client.numberFormat,
+      })
     }
   }, [existing])
 
@@ -227,22 +226,13 @@ export function OnboardingWizard() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Formato de fecha</Label>
-                <Select value={region.dateFormat} onValueChange={(v) => setRegion((r) => ({ ...r, dateFormat: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="DD/MM/AAAA">DD/MM/AAAA</SelectItem>
-                    <SelectItem value="AAAA-MM-DD">AAAA-MM-DD</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input value={region.dateFormat} readOnly disabled className="bg-muted/40" />
+                <p className="text-xs text-muted-foreground">Detectado automáticamente de tu PC.</p>
               </div>
               <div className="space-y-2">
                 <Label>Zona horaria</Label>
-                <Select value={region.timeZone} onValueChange={(v) => setRegion((r) => ({ ...r, timeZone: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                  <SelectContent>
-                    {TIME_ZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Input value={region.timeZone} readOnly disabled className="bg-muted/40" />
+                <p className="text-xs text-muted-foreground">Detectada automáticamente de tu PC.</p>
               </div>
               <div className="space-y-2">
                 <Label>Formato numérico</Label>
@@ -254,7 +244,7 @@ export function OnboardingWizard() {
                   </SelectContent>
                 </Select>
               </div>
-              <p className="text-xs text-muted-foreground">Este paso es opcional. Puedes continuar con los valores por defecto.</p>
+              <p className="text-xs text-muted-foreground">Este paso es opcional. Zona y fecha ya vienen de tu equipo.</p>
             </div>
           )}
 

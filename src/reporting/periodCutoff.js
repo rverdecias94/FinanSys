@@ -8,12 +8,10 @@
  * - future_open: start > now (o sin solape con pasado) → período no cerrado; no implica datos futuros
  */
 
+import { getClientTimeZone as detectClientTimeZone } from '@/utils/localeDefaults'
+
 export function getClientTimeZone() {
-  try {
-    const tz = Intl?.DateTimeFormat?.()?.resolvedOptions?.()?.timeZone
-    if (tz && typeof tz === 'string') return tz
-  } catch { /* ignore */ }
-  return 'UTC'
+  return detectClientTimeZone()
 }
 
 /** @deprecated Preferir getClientTimeZone(); se mantiene por compatibilidad de imports. */

@@ -1,27 +1,27 @@
 import { useMemo, useState } from 'react'
 import { Settings, Users, Shield, AlertTriangle, Lock, Crown, Coins } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { SectionSwitcher } from '@/components/navigation/SectionSwitcher'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
-import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
+import { PlanRoleSummary } from '@/components/common/PlanRoleSummary'
 import { TeamManagement } from '@/components/config/TeamManagement'
 import { RoleManagement } from '@/components/config/RoleManagement'
 import { PlansPanel } from '@/components/config/PlansPanel'
 import { CurrenciesPanel } from '@/components/config/CurrenciesPanel'
 import { GeneralSettingsPanel } from '@/components/config/GeneralSettingsPanel'
 import { PremiumFeatureScreen } from '@/components/auth/PremiumFeatureScreen'
+import { isPaidPlanId } from '@/lib/plans'
 
 export default function ConfiguracionMejorado() {
   const { canView, isOwner, hasPermission } = usePermissionCheck()
   const { subscription } = useSubscription()
 
-  const isPremium = subscription?.plan_id === 'premium' || subscription?.plan_id === 'ultra'
+  const isPaid = isPaidPlanId(subscription?.plan_id)
   const canManageTeam = isOwner || hasPermission('team.manage')
   // Las secciones Equipo/Roles se MUESTRAN aunque la cuenta sea gratis (para dar a
-  // conocer la función); el contenido es la pantalla Premium si no es de pago.
+  // conocer la función); el contenido es la pantalla de mejora de plan si no es de pago.
   const showTeamTabs = canManageTeam
 
   const sections = useMemo(() => {
@@ -81,16 +81,7 @@ export default function ConfiguracionMejorado() {
           Configuración
         </h1>
 
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="hidden sm:inline-flex">
-            {isPremium ? (
-              <span className="inline-flex items-center gap-2"><Crown className="h-3.5 w-3.5" /> Plan Premium</span>
-            ) : (
-              <span className="inline-flex items-center gap-2"><Coins className="h-3.5 w-3.5" /> Plan Gratuito</span>
-            )}
-          </Badge>
-          <PermissionSummary compact />
-        </div>
+        <PlanRoleSummary className="sm:justify-end" />
       </div>
 
       {!isOwner && (
@@ -133,13 +124,14 @@ export default function ConfiguracionMejorado() {
 
         {showTeamTabs && (
           <TabsContent value="equipo" className="space-y-4">
-            {isPremium ? (
+            {isPaid ? (
               <TeamManagement />
             ) : (
               <PremiumFeatureScreen
                 icon={Users}
-                title="La Gestión de Equipo es Premium"
-                description="Invita colaboradores a tu negocio, asígnales roles y trabajen juntos con permisos controlados y registro de auditoría. Mejora a Premium para activar tu equipo."
+                title="La gestión de equipo está en Negocio y Élite"
+                description="Invita colaboradores a tu negocio, asígnales roles y trabajen juntos con permisos controlados y registro de auditoría."
+                ctaHint="Pasa a Negocio o Élite para activar tu equipo."
               />
             )}
           </TabsContent>
@@ -147,13 +139,14 @@ export default function ConfiguracionMejorado() {
 
         {showTeamTabs && (
           <TabsContent value="roles" className="space-y-4">
-            {isPremium ? (
+            {isPaid ? (
               <RoleManagement />
             ) : (
               <PremiumFeatureScreen
                 icon={Shield}
-                title="Los Roles personalizados son Premium"
-                description="Crea roles a la medida (Editor, Consultor o los tuyos) y define con precisión qué puede ver y hacer cada miembro. Disponible al mejorar a Premium."
+                title="Los roles personalizados están en Negocio y Élite"
+                description="Crea roles a la medida (Editor, Consultor o los tuyos) y define con precisión qué puede ver y hacer cada miembro."
+                ctaHint="Disponible al pasar a Negocio o Élite."
               />
             )}
           </TabsContent>

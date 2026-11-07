@@ -90,9 +90,10 @@ describe('OnboardingWizard', () => {
       'u1', 'u1',
       expect.objectContaining({
         company: expect.objectContaining({ tradeName: 'Acme' }),
-        // Default Cuba-first: sin tocar el selector de región, la zona horaria
-        // guardada debe ser La Habana (no Ciudad de México).
-        region: expect.objectContaining({ timeZone: 'America/Havana' })
+        // Zona horaria = la del dispositivo (Intl), no un default hardcodeado.
+        region: expect.objectContaining({
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        })
       })
     )
     expect(currency.setMainCurrency).toHaveBeenCalledWith('USD')

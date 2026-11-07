@@ -10,11 +10,11 @@ import { Card, CardContent } from '@/components/ui/card'
  * función. Mobile-first, tokens de color, respeta modo claro/oscuro.
  */
 export function PremiumFeatureScreen({
-  title = 'Función Premium',
-  description = 'Esta sección está disponible en el plan Premium.',
+  title = 'Función de plan superior',
+  description = 'Esta sección está disponible en Negocio o Élite.',
   icon: Icon = Lock,
-  ctaHint = 'Mejora a Premium para desbloquear esta función y muchas más.',
-  ctaLabel = 'Mejorar Plan'
+  ctaHint = 'Pasa a Negocio o Élite para desbloquear esta función y muchas más.',
+  ctaLabel = 'Mejorar plan'
 }) {
   const navigate = useNavigate()
 

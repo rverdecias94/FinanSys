@@ -12,6 +12,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
+import { PlanRoleSummary } from '@/components/common/PlanRoleSummary'
 
 /**
  * Componente para mostrar el estado de permisos del usuario actual
@@ -327,50 +328,7 @@ export function DashboardPermissions({ userRole = 'Consultor' }) {
 /**
  * Componente para mostrar un resumen visual de permisos
  */
+/** @deprecated Preferir PlanRoleSummary; se mantiene por imports existentes. */
 export function PermissionSummary({ compact = false }) {
-  const { canView, canEdit, isOwner, loading } = usePermissionCheck()
-
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-        <span className="text-sm text-gray-500">Cargando...</span>
-      </div>
-    )
-  }
-
-  if (isOwner) {
-    return (
-      <div className="flex items-center gap-2">
-        <Shield className="w-4 h-4 text-purple-600" />
-        <span className="text-sm font-medium text-purple-600">Propietario</span>
-      </div>
-    )
-  }
-
-  const roleType = canEdit('finanzas') ? 'Editor' : canView('finanzas') ? 'Consultor' : 'Usuario'
-  const roleColor = canEdit('finanzas') ? 'text-blue-600' : canView('finanzas') ? 'text-green-600' : 'text-gray-600'
-  const roleIcon = canEdit('finanzas') ? <Edit3 className="w-4 h-4" /> : <Eye className="w-4 h-4" />
-
-  if (compact) {
-    return (
-      <div className={`flex items-center gap-2 ${roleColor}`}>
-        {roleIcon}
-        <span className="text-sm font-medium">{roleType}</span>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-        roleType === 'Editor' ? 'bg-blue-100 text-blue-800' :
-        roleType === 'Consultor' ? 'bg-green-100 text-green-800' :
-        'bg-gray-100 text-gray-800'
-      }`}>
-        {roleIcon}
-        <span className="ml-1">{roleType}</span>
-      </div>
-    </div>
-  )
+  return <PlanRoleSummary compact={compact} />
 }
