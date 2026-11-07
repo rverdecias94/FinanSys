@@ -1,25 +1,40 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useSession } from '@/hooks/useSession'
-import { useQueryClient } from '@tanstack/react-query'
-import { createArea, updateArea, getAreaPrefix } from '@/services/dynamicInventory'
+import { onlineManager, useMutation, useQueryClient } from '@tanstack/react-query'
+import { getAreaPrefix } from '@/services/dynamicInventory'
 import { AREA_ICONS } from '@/lib/areaIcons'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import { areaSchema, validateForm } from '@/utils/formSchemas'
 import { GESTIA_TEMPLATES } from '@/utils/inventoryFormUtils'
 import { ChevronDown, ChevronUp, ArrowLeft, Warehouse } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { INV_AREA_CREATE_KEY, INV_AREA_UPDATE_KEY } from '@/offline/mutationDefaults'
+import {
+  applyOptimisticAreaCreate,
+  applyOptimisticAreaUpdate,
+  buildPendingAreaRow,
+  clearOptimisticArea,
+  findAreaInCache,
+  restoreAreaRow,
+} from '@/offline/optimisticInventory'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessId, canCreate = true }) {
   const { session } = useSession()
   const userId = session?.user?.id
+  const online = useOnlineStatus()
   const queryClient = useQueryClient()
-  const [loading, setLoading] = useState(false)
+  const requeueGuardRef = useRef(new Set())
   const [step, setStep] = useState(areaToEdit ? 2 : 1)
   const [templateId, setTemplateId] = useState('custom_blank')
   const [formData, setFormData] = useState({ name: '', icon: 'Home', slug: '', prefix: '' })
@@ -41,10 +56,10 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
           slug: areaToEdit.slug || '',
           prefix: ''
         })
-        if (userId) {
+        if (userId && onlineManager.isOnline()) {
           getAreaPrefix(areaToEdit.id, userId, businessId).then(p => {
             setFormData(prev => ({ ...prev, prefix: p }))
-          })
+          }).catch(() => {})
         }
       } else {
         setTemplateId('custom_blank')
@@ -52,6 +67,89 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
       }
     }
   }, [open, areaToEdit, userId, businessId])
+
+  const updateMutation = useMutation({
+    mutationKey: INV_AREA_UPDATE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findAreaInCache(queryClient, id)
+      if (previous && !requeueGuardRef.current.has(`area-upd-${id}`)) {
+        applyOptimisticAreaUpdate(queryClient, id, vars?.payload || {})
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Área')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`area-upd-${ctx.id}`)
+      queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
+      onSuccess?.(null)
+    },
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `area-upd-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Área')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => updateMutation.mutate(vars))
+        }
+        onSuccess?.(null)
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      restoreAreaRow(queryClient, id, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
+  })
+
+  const createMutation = useMutation({
+    mutationKey: INV_AREA_CREATE_KEY,
+    onMutate: async (vars) => {
+      const clientUuid = vars?.payload?.client_uuid
+      let pendingRow = null
+      if (clientUuid && !requeueGuardRef.current.has(clientUuid)) {
+        pendingRow = buildPendingAreaRow({
+          ...vars.payload,
+          clientUuid,
+          businessId,
+          userId,
+        })
+        applyOptimisticAreaCreate(queryClient, pendingRow)
+        // Offline: seleccionar ya la fila pendiente (onSuccess llega al sync).
+        if (!onlineManager.isOnline()) onSuccess?.(pendingRow)
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Área')
+      return { clientUuid, pendingRow }
+    },
+    onSuccess: (data, vars, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
+      queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
+      queryClient.invalidateQueries({ queryKey: ['inventoryFields'] })
+      if (data?.idempotent) {
+        notify.info('Esta área ya estaba registrada; no se duplicó.')
+      } else if (onlineManager.isOnline()) {
+        notify.success('Área creada')
+      }
+      onSuccess?.(data)
+    },
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Área')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        onSuccess?.(null)
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticArea(queryClient, uuid)
+      notify.error(getSupabaseErrorMessage(error))
+    },
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -70,28 +168,40 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
       return
     }
     setErrors({})
-    setLoading(true)
-    try {
-      let created = null
-      if (areaToEdit) {
-        await updateArea(areaToEdit.id, formData, userId, businessId)
-      } else {
-        created = await createArea({
-          ...formData,
-          domain_type: selectedTpl.domain_type,
-          template_id: selectedTpl.id
-        }, userId, businessId)
-      }
-      queryClient.invalidateQueries({ queryKey: ['inventoryAreas'] })
-      queryClient.invalidateQueries({ queryKey: ['inventoryFields'] })
-      onSuccess?.(created)
-    } catch (error) {
-      const msg = getSupabaseErrorMessage(error)
-      notify.error(msg)
-    } finally {
-      setLoading(false)
+
+    const payload = {
+      name: formData.name,
+      icon: formData.icon,
+      slug: formData.slug || '',
+      prefix: formData.prefix || '',
     }
+
+    if (areaToEdit) {
+      onOpenChange(false)
+      updateMutation.mutate({
+        id: areaToEdit.id,
+        payload,
+        userId,
+        businessId,
+      })
+      return
+    }
+
+    const client_uuid = genClientUuid()
+    onOpenChange(false)
+    createMutation.mutate({
+      payload: {
+        ...payload,
+        domain_type: selectedTpl.domain_type,
+        template_id: selectedTpl.id,
+        client_uuid,
+      },
+      userId,
+      businessId,
+    })
   }
+
+  const busy = updateMutation.isPending || createMutation.isPending
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
@@ -159,6 +269,11 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
             {!areaToEdit && selectedTpl && (
               <p className="text-xs text-muted-foreground">
                 Modelo: <span className="font-medium text-foreground">{selectedTpl.title}</span>
+                {!online && (
+                  <span className="block mt-1 text-warning">
+                    Sin red: el área se guarda aquí; los campos del modelo se aplican al sincronizar.
+                  </span>
+                )}
               </p>
             )}
             <div className="grid gap-2">
@@ -215,11 +330,11 @@ export function AreaModal({ open, onOpenChange, onSuccess, areaToEdit, businessI
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
                 Cancelar
               </Button>
-              <Button type="submit" loading={loading}>
-                {loading ? 'Guardando…' : (areaToEdit ? 'Guardar' : 'Crear área')}
+              <Button type="submit" loading={busy}>
+                {busy ? 'Guardando…' : (areaToEdit ? 'Guardar' : 'Crear área')}
               </Button>
             </div>
           </form>

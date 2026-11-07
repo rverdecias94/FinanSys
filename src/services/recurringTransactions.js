@@ -25,6 +25,7 @@ export async function listRecurringTransactions({ userId, businessId } = {}) {
 
 export async function createRecurringTransaction(payload, userId, businessId) {
   const effectiveUserId = getEffectiveUserId(userId, businessId)
+  const clientUuid = payload.client_uuid || null
   const dbPayload = {
     user_id: effectiveUserId,
     type: payload.type,
@@ -40,6 +41,7 @@ export async function createRecurringTransaction(payload, userId, businessId) {
     end_date: payload.end_date || null,
     notes: payload.notes || null,
     is_active: payload.is_active !== false,
+    client_uuid: clientUuid,
   }
 
   return await withCrud({ action: 'create', table: 'recurring_transactions' }, async () => {
@@ -48,7 +50,20 @@ export async function createRecurringTransaction(payload, userId, businessId) {
       .insert(dbPayload)
       .select()
       .single()
-    if (error) throw error
+    // Idempotencia outbox: mismo client_uuid → devolver existente.
+    if (error) {
+      if (error.code === '23505' && clientUuid) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('recurring_transactions')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .eq('client_uuid', clientUuid)
+          .maybeSingle()
+        if (fetchErr) throw fetchErr
+        if (existing) return { ...existing, idempotent: true }
+      }
+      throw error
+    }
     return data
   })
 }

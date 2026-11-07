@@ -1,5 +1,8 @@
-import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { prefetchWarehouseSnapshot } from '@/offline/prefetchReadSnapshots'
+import { CardsBodySkeleton } from '@/components/common/pageSkeletons'
 import { Package, ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, ArrowLeftRight, ClipboardCheck } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -26,14 +29,25 @@ import {
 
 export default function AlmacenMejorado() {
   const { session } = useSession()
-  const { businessId } = useBusiness()
+  const { businessId, loading: businessLoading } = useBusiness()
   const { canView, hasPermission } = usePermissionCheck()
   const queryClient = useQueryClient()
+  const online = useOnlineStatus()
+  const isRestoring = useIsRestoring()
 
   const [tab, setTab] = useState('products')
   const [opMode, setOpMode] = useState(null)
 
   const userId = session?.user?.id
+
+  useEffect(() => {
+    if (!online || !userId || !businessId || businessLoading || isRestoring) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void prefetchWarehouseSnapshot(queryClient, { userId, businessId })
+    })
+    return () => { cancelled = true }
+  }, [online, userId, businessId, businessLoading, isRestoring, queryClient])
 
   const refreshWarehouse = () => {
     queryClient.invalidateQueries({ queryKey: ['warehouse'] })
@@ -134,7 +148,7 @@ export default function AlmacenMejorado() {
         </div>
       )}
 
-      <AlmacenDashboard stats={statsData} loading={isLoadingStats} />
+      <AlmacenDashboard stats={statsData} loading={isRestoring || isLoadingStats} />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
@@ -146,23 +160,29 @@ export default function AlmacenMejorado() {
         </TabsList>
 
         <TabsContent value="products">
-          <ProductList
-            userId={userId}
-            businessId={businessId}
-            enabled={canView('warehouse')}
-            onRefresh={refreshWarehouse}
-            categories={categories}
-          />
+          {isRestoring ? <CardsBodySkeleton cards={4} /> : (
+            <ProductList
+              userId={userId}
+              businessId={businessId}
+              enabled={canView('warehouse')}
+              onRefresh={refreshWarehouse}
+              categories={categories}
+              online={online}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="movements">
-          <MovementList
-            userId={userId}
-            businessId={businessId}
-            enabled={canView('warehouse')}
-            products={productsForSelection}
-            onRefresh={refreshWarehouse}
-          />
+          {isRestoring ? <CardsBodySkeleton cards={4} /> : (
+            <MovementList
+              userId={userId}
+              businessId={businessId}
+              enabled={canView('warehouse')}
+              products={productsForSelection}
+              onRefresh={refreshWarehouse}
+              online={online}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="documents">

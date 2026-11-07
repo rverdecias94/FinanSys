@@ -1,22 +1,39 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createProduct, updateProduct, deleteProduct, generateProductSku } from '@/services/almacen'
+import { deleteProduct, generateProductSku } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { onlineManager, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { usePermissions } from '@/context/PermissionContext'
 import { productSchema, validateForm } from '@/utils/formSchemas'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import { PRODUCT_CREATE_KEY, PRODUCT_UPDATE_KEY } from '@/offline/mutationDefaults'
+import {
+  applyOptimisticProductCreate,
+  applyOptimisticProductUpdate,
+  buildPendingProductRow,
+  clearOptimisticProduct,
+  findProductInCache,
+  restoreProductRow,
+  serializeProductPayload,
+} from '@/offline/optimisticWarehouse'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories, currencies = [] }) {
   const { session } = useSession()
   const { businessId } = useBusiness() // Obtener businessId del contexto
   const { hasPermission } = usePermissions()
+  const queryClient = useQueryClient()
+  const requeueGuardRef = useRef(new Set())
   const userId = session?.user?.id
   const [loading, setLoading] = useState(false)
   const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
@@ -76,6 +93,75 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     }
   }, [product, open, defaultCurrency])
 
+  const createMutation = useMutation({
+    mutationKey: PRODUCT_CREATE_KEY,
+    onMutate: async (vars) => {
+      const payload = vars?.payload || {}
+      const clientUuid = payload.client_uuid
+      if (clientUuid && !requeueGuardRef.current.has(clientUuid)) {
+        applyOptimisticProductCreate(
+          queryClient,
+          buildPendingProductRow(payload, { userId, businessId }),
+        )
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Producto')
+      return { clientUuid }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
+      onSuccess?.({ created: true })
+    },
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Producto')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticProduct(queryClient, uuid)
+      notify.error(getSupabaseErrorMessage(error))
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationKey: PRODUCT_UPDATE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findProductInCache(queryClient, id)
+      if (previous && !requeueGuardRef.current.has(`prod-upd-${id}`)) {
+        applyOptimisticProductUpdate(queryClient, id, vars?.payload || {})
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Producto')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`prod-upd-${ctx.id}`)
+      onSuccess?.({ created: false })
+    },
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `prod-upd-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Producto')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => updateMutation.mutate(vars))
+        }
+        onSuccess?.({ created: false })
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      restoreProductRow(queryClient, id, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
+  })
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     const validation = validateForm(productSchema, {
@@ -91,39 +177,38 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       return
     }
     setErrors({})
-    setLoading(true)
-    try {
-      const payload = {
-        ...formData,
-        unit_price: Number(formData.unit_price),
-        stock: Number(formData.stock),
-        min_stock: Number(formData.min_stock),
-        max_stock: formData.max_stock === '' || formData.max_stock == null ? null : Number(formData.max_stock),
-        sku: formData.sku?.trim() || null,
-        barcode: formData.barcode?.trim() || null,
-        track_lot: !!formData.track_lot,
-        track_serial: !!formData.track_serial,
-        track_expiry: !!formData.track_expiry,
-        issue_strategy: formData.issue_strategy || 'none'
-      }
 
-      if (product) {
-        // El stock no se edita aquí (solo vía movimientos).
-        const { stock: _stock, ...rest } = payload
-        await updateProduct(product.id, rest, userId, businessId)
-      } else {
-        await createProduct(payload, userId, businessId)
-      }
-      onSuccess()
-    } catch (error) {
-      const msg = getSupabaseErrorMessage(error)
-      notify.error(msg)
-    } finally {
-      setLoading(false)
+    const payload = serializeProductPayload({
+      ...formData,
+      unit_price: Number(formData.unit_price),
+      stock: Number(formData.stock),
+      min_stock: Number(formData.min_stock),
+      max_stock: formData.max_stock === '' || formData.max_stock == null ? null : Number(formData.max_stock),
+    })
+
+    if (product) {
+      // El stock no se edita aquí (solo vía movimientos).
+      onOpenChange(false)
+      updateMutation.mutate({
+        id: product.id,
+        payload,
+        userId,
+        businessId,
+      })
+      return
     }
+
+    if (!payload.client_uuid) payload.client_uuid = genClientUuid()
+    onOpenChange(false)
+    createMutation.mutate({ payload, userId, businessId })
   }
 
   const handleDelete = async () => {
+    if (!onlineManager.isOnline()) {
+      notify.warning('Sin conexión no se pueden eliminar productos. Reconecta e inténtalo de nuevo.')
+      setConfirmOpen(false)
+      return
+    }
     setLoading(true)
     try {
       await deleteProduct(product.id, userId, businessId) // Pasar ambos IDs
@@ -344,16 +429,16 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
           <DialogFooter className="flex justify-between items-center sm:justify-between w-full mt-6">
             {product && hasPermission('warehouse.delete') ? (
-              <Button type="button" variant="destructive" onClick={() => setConfirmOpen(true)} disabled={loading}>
+              <Button type="button" variant="destructive" onClick={() => setConfirmOpen(true)} disabled={loading || updateMutation.isPending}>
                 Eliminar
               </Button>
             ) : <div />}
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading || updateMutation.isPending}>
                 Cancelar
               </Button>
-              <Button type="submit" loading={loading}>
-                {loading ? 'Guardando...' : 'Guardar'}
+              <Button type="submit" loading={loading || createMutation.isPending || updateMutation.isPending}>
+                {loading || createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}
               </Button>
             </div>
           </DialogFooter>

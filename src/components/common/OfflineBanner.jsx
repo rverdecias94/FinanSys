@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { WifiOff, Wifi, RefreshCw } from 'lucide-react'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { usePendingMutationsCount } from '@/hooks/usePendingMutationsCount'
+import { useOfflineCacheMeta } from '@/hooks/useOfflineCacheMeta'
+import { formatCacheAgeLabel } from '@/offline/cacheMeta'
 import { notify } from '@/services/notifications'
 
 export const SYNC_TOAST_ID = 'gestia-sync-outbox'
 
 /**
  * Banner global de conexión (Capa B/C):
- * - Offline (ámbar): sin red + pendientes
+ * - Offline (ámbar): sin red + pendientes / copia local honesta
  * - Reconexión (verde): flash ~3.5s "Vuelves a tener conexión"
  * - Sync (primario): cola en curso
  * Toast loading mientras sync; success al vaciar la cola (mismo id → reemplaza).
@@ -16,6 +18,7 @@ export const SYNC_TOAST_ID = 'gestia-sync-outbox'
 export function OfflineBanner() {
   const online = useOnlineStatus()
   const pending = usePendingMutationsCount()
+  const cacheMeta = useOfflineCacheMeta()
   const [reconnectedFlash, setReconnectedFlash] = useState(false)
   const wasOnlineRef = useRef(online)
   const syncToastActiveRef = useRef(false)
@@ -70,6 +73,17 @@ export function OfflineBanner() {
   }, [online, pending])
 
   if (!online) {
+    const age = formatCacheAgeLabel(cacheMeta.updatedAt)
+    let message
+    if (pending > 0) {
+      message = `Sin conexión · ${pending} pendiente${pending === 1 ? '' : 's'} de sincronizar`
+    } else if (cacheMeta.hasData) {
+      message = age
+        ? `Sin conexión · mostrando datos guardados (${age})`
+        : 'Sin conexión · mostrando datos guardados'
+    } else {
+      message = 'Sin conexión · aún no hay copia local de tus datos en este dispositivo'
+    }
     return (
       <div
         role="status"
@@ -77,11 +91,7 @@ export function OfflineBanner() {
         className="flex items-center justify-center gap-2 border-b border-warning/30 bg-warning/10 px-3 py-1.5 text-center text-xs text-foreground sm:text-sm"
       >
         <WifiOff className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-        <span>
-          {pending > 0
-            ? `Sin conexión · ${pending} pendiente${pending === 1 ? '' : 's'} de sincronizar`
-            : 'Sin conexión · estás viendo datos guardados'}
-        </span>
+        <span>{message}</span>
       </div>
     )
   }

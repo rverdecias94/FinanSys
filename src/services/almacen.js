@@ -98,15 +98,33 @@ export async function createProduct(payload, userId, businessId) {
   return await withCrud({ action: 'create', table: 'products' }, async () => {
     const effectiveUserId = getEffectiveUserUuid(userId, businessId);
     const initialStock = Number(payload?.stock) || 0
+    const clientUuid = payload?.client_uuid || null
+    const rest = { ...(payload || {}) }
+    delete rest.stock
+    delete rest.client_uuid
 
     // Crear siempre en 0 y, si hay stock inicial, registrar una entrada atómica.
     // Así el historial de movimientos refleja la apertura (no un stock "mágico").
+    // C5b: client_uuid hace el insert idempotente (outbox offline).
     const { data, error } = await supabase
       .from('products')
-      .insert({ ...payload, stock: 0, user_id: effectiveUserId })
+      .insert({ ...rest, stock: 0, user_id: effectiveUserId, client_uuid: clientUuid })
       .select()
       .single()
-    if (error) throw error
+
+    if (error) {
+      if (error.code === '23505' && clientUuid) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('products')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .eq('client_uuid', clientUuid)
+          .maybeSingle()
+        if (fetchErr) throw fetchErr
+        if (existing) return { ...existing, idempotent: true }
+      }
+      throw error
+    }
 
     if (initialStock > 0) {
       try {
@@ -184,10 +202,11 @@ export async function deleteProduct(id, userId, businessId) {
   })
 }
 
-export async function registerMovement({ product_id, qty, type, unit_cost, userId, notes }) {
+export async function registerMovement({ product_id, qty, type, unit_cost, userId, notes, client_uuid = null }) {
   if (!userId) throw new Error('User ID is required')
 
   // A1: movimiento rápido crea comprobante automático + postea (WAC intacto server-side).
+  // C5: p_client_uuid hace la RPC idempotente (outbox offline).
   const cost = (unit_cost === '' || unit_cost === null || unit_cost === undefined) ? null : Number(unit_cost)
 
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
@@ -196,7 +215,8 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
       p_qty: Number(qty),
       p_type: type,
       p_unit_cost: type === 'in' ? cost : null,
-      p_notes: notes || null
+      p_notes: notes || null,
+      p_client_uuid: client_uuid || null,
     })
 
     if (error) throw error
@@ -205,22 +225,26 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
     const name = data?.name || move?.name
     const newStock = data?.new_stock ?? move?.new_stock
     const sealedCost = data?.unit_cost ?? move?.unit_cost ?? null
+    const idempotent = Boolean(data?.idempotent)
 
-    await logAction({
-      action: 'Movimiento',
-      resource: `Producto: ${name}`,
-      details: {
-        product_id,
-        product_name: name,
-        qty,
-        type,
-        unit_cost: sealedCost,
-        new_stock: newStock,
-        document_id: data?.document_id,
-        doc_number: data?.doc_number
-      },
-      area: 'Almacén'
-    })
+    if (!idempotent) {
+      await logAction({
+        action: 'Movimiento',
+        resource: `Producto: ${name}`,
+        details: {
+          product_id,
+          product_name: name,
+          qty,
+          type,
+          unit_cost: sealedCost,
+          new_stock: newStock,
+          document_id: data?.document_id,
+          doc_number: data?.doc_number,
+          client_uuid: client_uuid || null,
+        },
+        area: 'Almacén'
+      })
+    }
 
     return {
       product_id,
@@ -230,7 +254,9 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
       name,
       unit_cost: sealedCost,
       document_id: data?.document_id,
-      doc_number: data?.doc_number
+      doc_number: data?.doc_number,
+      client_uuid: client_uuid || null,
+      idempotent,
     }
   })
 }

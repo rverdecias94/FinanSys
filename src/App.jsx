@@ -43,7 +43,9 @@ export default function App() {
     try {
       if (sessionStorage.getItem(PWA_JUST_UPDATED_KEY) !== '1') return
       sessionStorage.removeItem(PWA_JUST_UPDATED_KEY)
-      notify.success('Gestia se ha actualizado')
+      notify.success('Hay una nueva versión de Gestia', {
+        description: 'Ya estás usando la versión más reciente.',
+      })
     } catch {
       // sessionStorage no disponible
     }

@@ -1,27 +1,100 @@
 /* eslint-disable react/prop-types */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { registerMovement } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
+import { onlineManager, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import { movementSchema, validateForm } from '@/utils/formSchemas'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import { WH_MOVEMENT_CREATE_KEY } from '@/offline/mutationDefaults'
+import {
+  applyOptimisticMovementCreate,
+  applyOptimisticStockDelta,
+  buildPendingMovementRow,
+  clearOptimisticMovement,
+  findProductInCache,
+  restoreProductStock,
+} from '@/offline/optimisticWarehouse'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
   const { businessId } = useBusiness()
+  const queryClient = useQueryClient()
+  const requeueGuardRef = useRef(new Set())
+  const userId = session?.user?.id
+  const effectiveBusinessId = businessId || userId
   const safeProducts = Array.isArray(products) ? products : []
-  const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState({})
   const [formData, setFormData] = useState({
     product_id: '',
     qty: '',
     type: 'in',
     unit_cost: ''
+  })
+
+  const selectedProduct = safeProducts.find(p => String(p.id) === String(formData.product_id))
+
+  const createMutation = useMutation({
+    mutationKey: WH_MOVEMENT_CREATE_KEY,
+    onMutate: async (vars) => {
+      const clientUuid = vars?.client_uuid
+      const product = findProductInCache(queryClient, vars.product_id)
+        || safeProducts.find((p) => String(p.id) === String(vars.product_id))
+      const prevStock = product != null ? Number(product.stock || 0) : null
+      const qty = Number(vars.qty)
+      const nextStock = vars.type === 'in'
+        ? (prevStock ?? 0) + qty
+        : Math.max(0, (prevStock ?? 0) - qty)
+
+      if (clientUuid && !requeueGuardRef.current.has(clientUuid)) {
+        applyOptimisticStockDelta(queryClient, vars.product_id, vars.type, qty)
+        applyOptimisticMovementCreate(
+          queryClient,
+          buildPendingMovementRow({
+            product,
+            productId: vars.product_id,
+            qty,
+            type: vars.type,
+            clientUuid,
+            unitCost: vars.unit_cost,
+            resultingStock: nextStock,
+            businessId: effectiveBusinessId,
+            userId,
+          }),
+        )
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Movimiento')
+      return { clientUuid, productId: vars.product_id, previousStock: prevStock }
+    },
+    onSuccess: (_data, _vars, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
+      onSuccess?.()
+    },
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Movimiento')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        onSuccess?.()
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticMovement(queryClient, uuid)
+      restoreProductStock(queryClient, ctx?.productId ?? vars?.product_id, ctx?.previousStock)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const handleSubmit = async (e) => {
@@ -36,33 +109,31 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
       setErrors(validation.errors)
       return
     }
-    // Regla contextual: una salida no puede exceder el stock disponible.
-    if (formData.type === 'out' && selectedProduct && Number(formData.qty) > selectedProduct.stock) {
+    // Solo productos ya sincronizados (C5: sin remap FK de producto pendiente).
+    if (String(formData.product_id).startsWith('pending-')) {
+      notify.warning('Este producto aún no se ha sincronizado. Espera a que se suba.')
+      return
+    }
+    if (formData.type === 'out' && selectedProduct && Number(formData.qty) > Number(selectedProduct.stock)) {
       setErrors({ qty: 'La cantidad excede el stock disponible' })
       return
     }
     setErrors({})
-    setLoading(true)
-    try {
-      const effectiveBusinessId = businessId || session?.user?.id
-      await registerMovement({
-        product_id: formData.product_id,
-        qty: Number(formData.qty),
-        type: formData.type,
-        unit_cost: formData.type === 'in' ? formData.unit_cost : '',
-        userId: session?.user?.id,
-        businessId: effectiveBusinessId
-      })
-      onSuccess()
-    } catch (error) {
-      const msg = getSupabaseErrorMessage(error)
-      notify.error(msg)
-    } finally {
-      setLoading(false)
-    }
-  }
 
-  const selectedProduct = safeProducts.find(p => String(p.id) === String(formData.product_id))
+    const vars = {
+      product_id: Number(formData.product_id),
+      qty: Number(formData.qty),
+      type: formData.type,
+      unit_cost: formData.type === 'in' ? formData.unit_cost : '',
+      userId,
+      businessId: effectiveBusinessId,
+      client_uuid: genClientUuid(),
+    }
+
+    onOpenChange(false)
+    setFormData({ product_id: '', qty: '', type: 'in', unit_cost: '' })
+    createMutation.mutate(vars)
+  }
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
@@ -90,11 +161,13 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
                 <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
-                {safeProducts.map(p => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name} (Stock: {p.stock})
-                  </SelectItem>
-                ))}
+                {safeProducts
+                  .filter((p) => !String(p.id).startsWith('pending-') && !p._pending)
+                  .map(p => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      {p.name} (Stock: {p.stock})
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
             {errors.product_id && <p className="text-xs text-destructive">{errors.product_id}</p>}
@@ -157,8 +230,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
           )}
 
           <div className="flex justify-end pt-4">
-            <Button type="submit" loading={loading}>
-              {loading ? 'Registrando...' : 'Confirmar'}
+            <Button type="submit" loading={createMutation.isPending}>
+              {createMutation.isPending ? 'Registrando...' : 'Confirmar'}
             </Button>
           </div>
         </form>

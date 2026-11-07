@@ -19,7 +19,9 @@ import { clearLocalCache } from '@/offline/localCache';
 import { registerMutationDefaults } from '@/offline/mutationDefaults';
 import { setupSyncEngine } from '@/offline/syncEngine';
 import { setupNetworkGuard, markOffline } from '@/offline/networkGuard';
+import { setupReadCacheDefaults } from '@/offline/setupReadCache';
 import { isNetworkError, shouldTreatAsOffline } from '@/offline/isNetworkError';
+import { onlineManager } from '@tanstack/react-query';
 import { supabase } from '@/config/supabase';
 import { notify, getSupabaseErrorMessage } from '@/services/notifications';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
@@ -27,8 +29,12 @@ import { registerPwaUpdate } from '@/offline/registerPwaUpdate';
 
 // PWA: actualizar y recargar en cuanto haya versión nueva (solo en build/preview).
 registerPwaUpdate();
-// Antes que cualquier fetch: alinea onlineManager con fallos reales de red.
+// Antes que cualquier fetch: alinea onlineManager con la red real (evita carrera
+// v5 donde el manager arranca "online" y el refetch post-hydrate vacía la UI).
 setupNetworkGuard();
+if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+  onlineManager.setOnline(false);
+}
 
 // Configuración del cliente de React Query
 const queryClient = new QueryClient({
@@ -65,11 +71,18 @@ const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      retry: 1, // Reintentar una vez antes de fallar
+      // Sin red: no reintentar (conserva datos rehidratados / evita toasts).
+      retry: (count, error) => {
+        if (isNetworkError(error) || shouldTreatAsOffline(error)) return false
+        return count < 1
+      },
       refetchOnWindowFocus: false,
+      // Evita marcar todo "stale" al instante tras rehidratar (credibilidad offline).
+      staleTime: 1000 * 60 * 5,
       // Capa B: las queries deben sobrevivir en memoria lo suficiente para
       // persistirse/rehidratarse desde IndexedDB (si no, se recolectan a los 5 min).
       gcTime: CACHE_MAX_AGE,
+      networkMode: 'online',
     },
     // Capa C: mutaciones sin red se pausan (outbox) y se reanudan al volver online.
     mutations: {
@@ -80,6 +93,7 @@ const queryClient = new QueryClient({
 
 // Outbox: mutationFn reconstruible tras recargar + resume al reconectar.
 registerMutationDefaults(queryClient);
+setupReadCacheDefaults(queryClient);
 setupSyncEngine(queryClient);
 
 // Seguridad de la caché offline (Capa B): la caché persistida en IndexedDB podría

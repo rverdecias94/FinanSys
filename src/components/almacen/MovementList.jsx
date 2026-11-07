@@ -10,6 +10,7 @@ import { MovementModal } from './MovementModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { usePermissions } from '@/context/PermissionContext'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { listMovements } from '@/services/almacen'
 
 export function MovementList({
@@ -18,6 +19,7 @@ export function MovementList({
   enabled = true,
   products = [],
   onRefresh,
+  online = true,
 }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [type, setType] = useState('all')
@@ -38,8 +40,9 @@ export function MovementList({
 
   const renderMovement = (m) => {
     const isEntry = m.type === 'in'
+    const pending = Boolean(m._pending) || String(m.id).startsWith('pending-')
     return (
-      <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <PendingSyncRow pending={pending}>
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
           <div className={`shrink-0 rounded-full p-2 ${isEntry ? 'bg-success/10' : 'bg-destructive/10'}`}>
             {isEntry ? (
@@ -73,7 +76,7 @@ export function MovementList({
             </div>
           </div>
         </div>
-      </div>
+      </PendingSyncRow>
     )
   }
 
@@ -116,7 +119,9 @@ export function MovementList({
         enabled={enabled && !!userId}
         getItemKey={(m) => m.id}
         renderItem={renderMovement}
-        emptyMessage="No hay movimientos registrados"
+        emptyMessage={online
+          ? 'No hay movimientos registrados'
+          : 'Sin copia local de movimientos. Entra con conexión una vez para guardarla aquí.'}
         loadingMessage="Cargando movimientos..."
       />
 

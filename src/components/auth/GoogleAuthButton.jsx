@@ -17,9 +17,9 @@ export function GoogleAuthButton({ mode = 'login', className }) {
       type="button"
       variant="outline"
       onClick={handleClick}
-      className={`h-12 w-full gap-3 border-border/80 bg-background/70 text-[15px] font-medium shadow-sm hover:bg-accent/60 ${className || ''}`}
+      className={`h-11 w-full gap-2.5 border-border/50 bg-background/40 text-sm font-medium text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground ${className || ''}`}
     >
-      <GoogleGlyph className="h-6 w-6 shrink-0" />
+      <GoogleGlyph className="h-5 w-5 shrink-0" />
       <span>{label}</span>
     </Button>
   )
@@ -50,12 +50,12 @@ function GoogleGlyph({ className }) {
 
 export function AuthDivider({ label = 'o continúa con' }) {
   return (
-    <div className="relative my-1">
+    <div className="relative my-0.5">
       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-        <div className="w-full border-t border-border/70" />
+        <div className="w-full border-t border-border/40" />
       </div>
-      <div className="relative flex justify-center text-[11px] uppercase tracking-wider">
-        <span className="rounded-full bg-white/70 px-3 font-medium text-muted-foreground backdrop-blur-sm dark:bg-[hsl(0_0%_12%/0.9)]">
+      <div className="relative flex justify-center text-[10px] uppercase tracking-[0.14em]">
+        <span className="bg-white/80 px-2.5 font-medium text-muted-foreground/80 dark:bg-black/50">
           {label}
         </span>
       </div>

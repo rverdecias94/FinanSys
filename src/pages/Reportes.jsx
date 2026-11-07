@@ -48,6 +48,8 @@ import { buildReport } from '@/reporting/templates'
 import { toLegacyReportShape } from '@/reporting/documentModel'
 import { listAllAuditLogs } from '@/services/auditLogs'
 import { saveReportInstance, registerReportExport } from '@/services/reportInstances'
+import { OfflineBlockedPanel } from '@/components/common/OfflineBlockedPanel'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 // Carga diferida de las utilidades de exportación (jspdf/xlsx/docx ~1.5MB): no entran
 // en el arranque; se descargan solo al exportar (ver vite.config manualChunks). Si la
@@ -72,6 +74,7 @@ const Reportes = () => {
   const { canAccessFeature } = useSubscription()
   const { formatCurrency } = useCurrency()
   const { canView } = usePermissionCheck()
+  const online = useOnlineStatus()
   const userId = session?.user?.id
   const effectiveUserId = businessId || userId
 
@@ -557,7 +560,7 @@ const Reportes = () => {
     return { data: summary, count: res?.count || 0 }
   }
 
-  const reportsDisabled = !dateFilter || previewLoading
+  const reportsDisabled = !dateFilter || previewLoading || !online
   const exportToolbarClass = 'flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
   return (
@@ -583,6 +586,13 @@ const Reportes = () => {
         )}
       </div>
 
+      {!online ? (
+        <OfflineBlockedPanel
+          title="Reportes necesitan internet"
+          description="Los resúmenes e informes se arman con datos frescos del servidor y exportación. Sin conexión no se generan ni se emiten, para evitar números a medias o archivos incompletos. Reconecta e inténtalo de nuevo."
+        />
+      ) : (
+      <>
       {/* 1. Período — sin botones de documento mezclados */}
       <section className="space-y-2" aria-labelledby="reportes-periodo">
         <h2 id="reportes-periodo" className="text-sm font-medium text-foreground">
@@ -1162,6 +1172,8 @@ const Reportes = () => {
           )}
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </div>
   )
 }

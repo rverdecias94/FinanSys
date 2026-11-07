@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient, onlineManager } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient, onlineManager, useIsRestoring } from '@tanstack/react-query'
 import { Wallet, TrendingUp, TrendingDown, CalendarClock, AlertTriangle, HandCoins, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +31,10 @@ import {
   findOpenAccountInCache,
   restoreOpenAccountRow,
 } from '@/offline/optimisticPayments'
+import { applyOptimisticAgingDelta } from '@/offline/optimisticTotals'
+import { prefetchAccountsSnapshot } from '@/offline/prefetchReadSnapshots'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { CardsBodySkeleton } from '@/components/common/pageSkeletons'
 
 function isOverdue(dueDate) {
   if (!dueDate) return false
@@ -39,7 +43,7 @@ function isOverdue(dueDate) {
   return new Date(dueDate) < today
 }
 
-function AccountsList({ direction, userId, businessId, enabled, formatCurrency, onPay }) {
+function AccountsList({ direction, userId, businessId, enabled, formatCurrency, onPay, online = true }) {
   const income = direction === 'receivable'
   return (
     <ResponsiveListing
@@ -48,7 +52,9 @@ function AccountsList({ direction, userId, businessId, enabled, formatCurrency, 
       enabled={enabled}
       getItemKey={(t) => t.id}
       loadingMessage="Cargando cuentas..."
-      emptyMessage={income ? 'No tienes cuentas por cobrar pendientes.' : 'No tienes cuentas por pagar pendientes.'}
+      emptyMessage={online
+        ? (income ? 'No tienes cuentas por cobrar pendientes.' : 'No tienes cuentas por pagar pendientes.')
+        : 'Sin copia local de cuentas. Entra con conexión una vez para guardarla aquí.'}
       renderItem={(t) => {
         const total = Number(t.amount)
         const paid = Number(t.paid_amount || 0)
@@ -109,11 +115,22 @@ export default function CuentasMejorado() {
   const { canView, loading: permissionLoading } = usePermissionCheck()
   const qc = useQueryClient()
   const userId = session?.user?.id
+  const online = useOnlineStatus()
+  const isRestoring = useIsRestoring()
 
   const [tab, setTab] = useState('receivable')
   const [payTarget, setPayTarget] = useState(null)
   const [payAmount, setPayAmount] = useState('')
   const requeueGuardRef = useRef(new Set())
+
+  useEffect(() => {
+    if (!online || !userId || !businessId || businessLoading || isRestoring) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void prefetchAccountsSnapshot(qc, { userId, businessId })
+    })
+    return () => { cancelled = true }
+  }, [online, userId, businessId, businessLoading, isRestoring, qc])
 
   // Historial de abonos de la cuenta abierta en el diálogo (libro account_payments).
   const { data: abonos = [] } = useQuery({
@@ -159,6 +176,13 @@ export default function CuentasMejorado() {
       const previous = findOpenAccountInCache(qc, id)
       if (id != null && !requeueGuardRef.current.has(vars?.client_uuid)) {
         applyOptimisticPayment(qc, id, vars?.amount)
+        if (previous) {
+          const dir = previous.type === 'income' ? 'receivable' : 'payable'
+          applyOptimisticAgingDelta(qc, dir, {
+            currency: previous.currency,
+            deltaRemaining: -Number(vars?.amount || 0),
+          })
+        }
       }
       setPayTarget(null)
       if (!onlineManager.isOnline()) notifyOfflineQueued('Abono')
@@ -268,35 +292,47 @@ export default function CuentasMejorado() {
                 <Layers className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold">Antigüedad de saldos</span>
               </div>
-              <AgingPanel
-                rows={aging}
-                loading={agingLoading}
-                formatCurrency={formatCurrency}
-                income={isIncome}
-                emptyMessage={isIncome ? 'No hay cuentas por cobrar pendientes.' : 'No hay cuentas por pagar pendientes.'}
-              />
+              {isRestoring ? (
+                <CardsBodySkeleton cards={2} />
+              ) : (
+                <AgingPanel
+                  rows={aging}
+                  loading={agingLoading}
+                  formatCurrency={formatCurrency}
+                  income={isIncome}
+                  emptyMessage={online
+                    ? (isIncome ? 'No hay cuentas por cobrar pendientes.' : 'No hay cuentas por pagar pendientes.')
+                    : 'Sin copia local de antigüedad. Entra con conexión una vez para guardarla.'}
+                />
+              )}
             </div>
 
             <TabsContent value="receivable" className="mt-4">
-              <AccountsList
-                direction="receivable"
-                userId={userId}
-                businessId={businessId}
-                enabled={enabled && isIncome}
-                formatCurrency={formatCurrency}
-                onPay={openPay}
-              />
+              {isRestoring ? <CardsBodySkeleton cards={3} /> : (
+                <AccountsList
+                  direction="receivable"
+                  userId={userId}
+                  businessId={businessId}
+                  enabled={enabled && isIncome}
+                  formatCurrency={formatCurrency}
+                  onPay={openPay}
+                  online={online}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="payable" className="mt-4">
-              <AccountsList
-                direction="payable"
-                userId={userId}
-                businessId={businessId}
-                enabled={enabled && !isIncome}
-                formatCurrency={formatCurrency}
-                onPay={openPay}
-              />
+              {isRestoring ? <CardsBodySkeleton cards={3} /> : (
+                <AccountsList
+                  direction="payable"
+                  userId={userId}
+                  businessId={businessId}
+                  enabled={enabled && !isIncome}
+                  formatCurrency={formatCurrency}
+                  onPay={openPay}
+                  online={online}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </CardContent>

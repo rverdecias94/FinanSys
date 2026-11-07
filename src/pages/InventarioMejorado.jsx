@@ -1,6 +1,9 @@
-import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Layers, Plus, Pencil, Trash2, ClipboardList, Settings2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { onlineManager, useIsRestoring, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Layers, Plus, Pencil, Trash2, ClipboardList, Settings2, CloudOff } from 'lucide-react'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { prefetchInventorySnapshot } from '@/offline/prefetchReadSnapshots'
+import { OfflineBlockedPanel } from '@/components/common/OfflineBlockedPanel'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,10 +24,12 @@ import { CardsBodySkeleton } from '@/components/common/pageSkeletons'
 
 export default function InventarioMejorado() {
   const { session } = useSession()
-  const { businessId } = useBusiness()
+  const { businessId, loading: businessLoading } = useBusiness()
   const { isOwner } = usePermissions()
   const { checkLimit, subscription, PLAN_LIMITS } = useSubscription()
   const queryClient = useQueryClient()
+  const online = useOnlineStatus()
+  const isRestoring = useIsRestoring()
 
   const userId = session?.user?.id
   const effectiveUserId = businessId
@@ -35,6 +40,15 @@ export default function InventarioMejorado() {
   const [areaToEdit, setAreaToEdit] = useState(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [pendingDeleteAreaId, setPendingDeleteAreaId] = useState(null)
+
+  useEffect(() => {
+    if (!online || !userId || !businessId || businessLoading || isRestoring) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) void prefetchInventorySnapshot(queryClient, { userId, businessId })
+    })
+    return () => { cancelled = true }
+  }, [online, userId, businessId, businessLoading, isRestoring, queryClient])
 
   const { data: areas = [], isLoading: loadingAreas } = useQuery({
     queryKey: ['inventoryAreas', effectiveUserId],
@@ -49,6 +63,10 @@ export default function InventarioMejorado() {
     if (!selectedAreaId) return null
     return areas.find(a => a.id === selectedAreaId) || null
   }, [areas, selectedAreaId])
+
+  const selectedPending = Boolean(
+    selectedArea?._pending || String(selectedArea?.id || '').startsWith('pending-'),
+  )
 
   const deleteAreaMutation = useMutation({
     mutationFn: async (id) => deleteArea(id, userId, businessId),
@@ -72,11 +90,23 @@ export default function InventarioMejorado() {
   }
 
   const openEditArea = (area) => {
+    if (area?._pending) {
+      notify.info('Esta área aún no se ha sincronizado. Espera a que se suba para editarla de nuevo.')
+      return
+    }
     setAreaToEdit(area)
     setAreaModalOpen(true)
   }
 
   const requestDeleteArea = (areaId) => {
+    if (String(areaId).startsWith('pending-')) {
+      notify.info('Esta área aún no se ha sincronizado. Espera a que se suba para eliminarla.')
+      return
+    }
+    if (!onlineManager.isOnline()) {
+      notify.warning('Sin conexión no se pueden eliminar áreas. Reconecta e inténtalo de nuevo.')
+      return
+    }
     setPendingDeleteAreaId(areaId)
     setConfirmDeleteOpen(true)
   }
@@ -117,17 +147,20 @@ export default function InventarioMejorado() {
         )}
       </div>
 
-      {loadingAreas ? (
+      {isRestoring || loadingAreas ? (
         <CardsBodySkeleton cards={6} />
       ) : (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {areas.length === 0 ? (
           <Card className="sm:col-span-2 xl:col-span-3">
             <CardContent className="py-10 text-center space-y-3">
-              <p className="text-base font-medium text-foreground">Crea tu primera área</p>
+              <p className="text-base font-medium text-foreground">
+                {online ? 'Crea tu primera área' : 'Sin copia local de áreas'}
+              </p>
               <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Un área agrupa lo que quieres controlar (equipos, suministros, listas…).
-                Si vas a comprar y vender mercancía con stock y costo, usa Almacén.
+                {online
+                  ? 'Un área agrupa lo que quieres controlar (equipos, suministros, listas…). Si vas a comprar y vender mercancía con stock y costo, usa Almacén.'
+                  : 'Entra con conexión una vez para guardar tus áreas aquí, o créalas offline y se subirán al reconectar.'}
               </p>
               {isOwner && (
                 <Button onClick={openCreateArea} className="gap-2" disabled={!canCreateArea}>
@@ -161,6 +194,12 @@ export default function InventarioMejorado() {
                       )}
                       {active && <Badge variant="default">Activo</Badge>}
                       {locked && <Badge variant="secondary">Bloqueada</Badge>}
+                      {area._pending && (
+                        <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
+                          <CloudOff className="h-3 w-3" aria-hidden="true" />
+                          Por sincronizar
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -178,7 +217,7 @@ export default function InventarioMejorado() {
                   </Button>
                   {isOwner && (
                     <>
-                      <Button variant="outline" size="icon" className="shrink-0" onClick={() => openEditArea(area)} aria-label="Editar área" disabled={locked}>
+                      <Button variant="outline" size="icon" className="shrink-0" onClick={() => openEditArea(area)} aria-label="Editar área" disabled={locked || Boolean(area._pending)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button variant="destructive" size="icon" className="shrink-0" onClick={() => requestDeleteArea(area.id)} aria-label="Eliminar área">
@@ -248,16 +287,19 @@ export default function InventarioMejorado() {
             </div>
           </div>
 
-          {mode === 'use' && (
+          {selectedPending ? (
+            <OfflineBlockedPanel
+              title="Área pendiente de sincronizar"
+              description="Cuando vuelva la conexión se creará el área en el servidor y se aplicará el modelo de campos. Mientras tanto no se pueden registrar ítems ni armar la lista."
+            />
+          ) : mode === 'use' ? (
             <FormRunner
               areaId={selectedArea.id}
               userId={effectiveUserId}
               currentArea={selectedArea}
               onConfigure={() => setMode('edit')}
             />
-          )}
-
-          {mode === 'edit' && (
+          ) : (
             isOwner ? (
               selectedArea.plan_locked === true ? (
                 <Card>
@@ -268,6 +310,11 @@ export default function InventarioMejorado() {
                     Esta área está en solo lectura por el plan actual.
                   </CardContent>
                 </Card>
+              ) : !online ? (
+                <OfflineBlockedPanel
+                  title="Armar lista necesita internet"
+                  description="Añadir o cambiar campos del formulario toca la estructura del área en el servidor. Sin conexión no se edita, para evitar errores. Reconecta e inténtalo de nuevo."
+                />
               ) : (
                 <FormBuilder
                   areaId={selectedArea.id}
@@ -295,11 +342,11 @@ export default function InventarioMejorado() {
         onSuccess={(created) => {
           setAreaModalOpen(false)
           setAreaToEdit(null)
-          // Tras crear: abrir el área y llevar a “Armar lista” (el paso natural).
-          if (created?.id) {
-            setSelectedAreaId(created.id)
-            setMode('edit')
-          }
+          if (!created?.id) return
+          setSelectedAreaId(created.id)
+          const pending = Boolean(created._pending) || String(created.id).startsWith('pending-')
+          // Online + área real → armar lista; pendiente/offline → solo ver aviso.
+          setMode(pending ? 'use' : 'edit')
         }}
         areaToEdit={areaToEdit}
         businessId={businessId}

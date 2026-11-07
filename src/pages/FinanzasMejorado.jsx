@@ -1,5 +1,5 @@
-import { useMemo, useState, useRef } from 'react'
-import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { useQuery, useMutation, useQueryClient, onlineManager, useIsRestoring } from '@tanstack/react-query'
 import { listTransactions, getFinanceCategories, getPaymentMethods, getFilteredTotals, exportTransactions } from '@/services/finanzas'
 import { listProductsForSelection } from '@/services/almacen'
 import { listContacts } from '@/services/contacts'
@@ -52,6 +52,24 @@ function sameCalendarDay(a, b) {
 import { countQueuedMutations } from '@/offline/syncEngine'
 import { isNetworkError } from '@/offline/isNetworkError'
 import { markOffline } from '@/offline/networkGuard'
+import { removeOpenAccountById, restoreOpenAccountRow } from '@/offline/optimisticPayments'
+import {
+  applyOptimisticMovementCreate,
+  applyOptimisticStockDelta,
+  buildPendingMovementRow,
+  clearOptimisticMovement,
+  findProductInCache,
+  restoreProductStock,
+} from '@/offline/optimisticWarehouse'
+import { buildFinanceDateKey } from '@/offline/cacheMeta'
+import { prefetchFinanceSnapshot } from '@/offline/prefetchFinanceSnapshot'
+import {
+  applyOptimisticAgingDelta,
+  applyOptimisticDashboardStats,
+  applyOptimisticFilteredTotals,
+} from '@/offline/optimisticTotals'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { ListingRowsSkeleton } from '@/components/common/pageSkeletons'
 
 export default function FinanzasMejorado() {
   const { session } = useSession()
@@ -60,6 +78,8 @@ export default function FinanzasMejorado() {
   const { businessCurrencies, formatCurrency } = useCurrency()
   const { canView, canEdit, canCreate, canExport, loading: permissionLoading } = usePermissionCheck()
   const queryClient = useQueryClient()
+  const isRestoring = useIsRestoring()
+  const online = useOnlineStatus()
 
   // Estado local
   const [txCount, setTxCount] = useState(0)
@@ -71,11 +91,28 @@ export default function FinanzasMejorado() {
   const [isExporting, setIsExporting] = useState(false)
 
   const userId = session?.user?.id
-  const dateKey = dateFilter ? JSON.stringify(dateFilter) : null
+  // Clave estable (sin label): misma mes → mismo hit de caché offline tras recargar.
+  const dateKey = buildFinanceDateKey(dateFilter)
 
   const handleDateSelect = (filter) => {
     setDateFilter(filter)
   }
+
+  // Snapshot del mes en curso mientras hay red → IndexedDB tendrá copia real.
+  useEffect(() => {
+    if (!online || !userId || !businessId || businessLoading || isRestoring) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      void prefetchFinanceSnapshot(queryClient, {
+        userId,
+        businessId,
+        currencyFilter: 'all',
+        categoryFilter: 'all',
+      })
+    })
+    return () => { cancelled = true }
+  }, [online, userId, businessId, businessLoading, isRestoring, queryClient])
 
   // Queries
   const { data: categories } = useQuery({
@@ -105,6 +142,8 @@ export default function FinanzasMejorado() {
     enabled: !!userId && !!businessId && !businessLoading,
   })
 
+  const financeQueriesReady = !!userId && !!businessId && !businessLoading && !permissionLoading && !!dateKey
+
   const { data: filteredTotals, isLoading: totalsLoading } = useQuery({
     queryKey: ['filteredTotals', { userId: businessId || userId, currency: currencyFilter, category: categoryFilter, dateKey }],
     queryFn: () => getFilteredTotals({
@@ -115,7 +154,8 @@ export default function FinanzasMejorado() {
       from: dateFilter?.startDate || undefined,
       to: dateFilter?.endDate || undefined,
     }),
-    enabled: !!userId && !!businessId && !businessLoading && !permissionLoading,
+    // Esperar período: evita cachear/mostrar ceros con dateKey null.
+    enabled: financeQueriesReady,
   })
 
   // Evita reencolar en bucle si un reintento offline vuelve a fallar al instante.
@@ -128,6 +168,7 @@ export default function FinanzasMejorado() {
     onMutate: async (vars) => {
       const payload = vars?.payload || {}
       const clientUuid = payload.client_uuid
+      let saleRollback = null
       // Si es reencolado tras fallo de red, la fila optimista ya está.
       if (!requeueGuardRef.current.has(clientUuid)) {
         const row = buildPendingTransactionRow(payload, { userId, businessId })
@@ -138,6 +179,19 @@ export default function FinanzasMejorado() {
             [...listingBase, 'rl-infinite', LISTING_MOBILE_PAGE_SIZE],
           ],
         })
+        // Totales / panel: misma acción, otras pantallas.
+        if (row.type === 'income' || row.type === 'expense') {
+          applyOptimisticFilteredTotals(queryClient, {
+            type: row.type,
+            amount: row.amount,
+            currency: row.currency,
+          })
+          applyOptimisticDashboardStats(queryClient, {
+            type: row.type,
+            amount: row.amount,
+            currency: row.currency,
+          })
+        }
         // Por cobrar / Por pagar: también debe verse offline si queda pendiente.
         if (row.status && row.status !== 'paid') {
           const dir = row.type === 'income' ? 'receivable' : 'payable'
@@ -147,6 +201,36 @@ export default function FinanzasMejorado() {
               ['open-accounts', dir, businessId || userId, 'rl-infinite', LISTING_MOBILE_PAGE_SIZE],
             ],
           })
+          const remaining = Math.max(0, Number(row.amount || 0) - Number(row.paid_amount || 0))
+          applyOptimisticAgingDelta(queryClient, dir, {
+            currency: row.currency,
+            deltaRemaining: remaining,
+          })
+        }
+        // Venta conectada: Almacén (stock + movimiento) se entera en la misma acción.
+        if (payload.isSale && payload.product_id != null && Number(payload.qty) > 0) {
+          const productId = payload.product_id
+          const qty = Number(payload.qty)
+          const product = findProductInCache(queryClient, productId)
+          const previousStock = product != null ? Number(product.stock || 0) : null
+          const nextStock = previousStock != null ? Math.max(0, previousStock - qty) : 0
+          applyOptimisticStockDelta(queryClient, productId, 'out', qty)
+          if (clientUuid) {
+            applyOptimisticMovementCreate(
+              queryClient,
+              buildPendingMovementRow({
+                product,
+                productId,
+                qty,
+                type: 'out',
+                clientUuid,
+                resultingStock: nextStock,
+                businessId,
+                userId,
+              }),
+            )
+          }
+          saleRollback = { productId, previousStock }
         }
       }
       const offline = !onlineManager.isOnline()
@@ -154,7 +238,7 @@ export default function FinanzasMejorado() {
       setModalOpen(false)
       setSelectedTransaction(null)
       if (offline) notifyOfflineQueued('Transacción')
-      return { clientUuid, offline }
+      return { clientUuid, offline, saleRollback }
     },
     onSuccess: (data, vars, ctx) => {
       const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
@@ -192,6 +276,12 @@ export default function FinanzasMejorado() {
       }
       if (uuid) requeueGuardRef.current.delete(uuid)
       clearOptimisticPending(queryClient, uuid)
+      clearOptimisticMovement(queryClient, uuid)
+      restoreProductStock(
+        queryClient,
+        ctx?.saleRollback?.productId ?? vars?.payload?.product_id,
+        ctx?.saleRollback?.previousStock,
+      )
       notify.error(getSupabaseErrorMessage(error))
     },
   })
@@ -205,6 +295,20 @@ export default function FinanzasMejorado() {
       if (previous && !requeueGuardRef.current.has(`upd-${id}`)) {
         const patch = buildOptimisticUpdatePatch(vars?.payload || {}, previous)
         applyOptimisticUpdate(queryClient, id, patch)
+        const wasOpen = previous.status && previous.status !== 'paid'
+        const nowOpen = patch.status && patch.status !== 'paid'
+        const dir = (patch.type || previous.type) === 'income' ? 'receivable' : 'payable'
+        // Editar a pagado → sale de Por cobrar / Por pagar al instante.
+        if (wasOpen && !nowOpen) {
+          removeOpenAccountById(queryClient, id, dir)
+        } else if (!wasOpen && nowOpen) {
+          applyOptimisticOpenAccount(queryClient, { ...previous, ...patch, id }, {
+            seedKeys: [
+              ['open-accounts', dir, businessId || userId, 'rl-page', 1, LISTING_PAGE_SIZE],
+              ['open-accounts', dir, businessId || userId, 'rl-infinite', LISTING_MOBILE_PAGE_SIZE],
+            ],
+          })
+        }
       }
       const offline = !onlineManager.isOnline()
       setModalOpen(false)
@@ -237,6 +341,7 @@ export default function FinanzasMejorado() {
       }
       requeueGuardRef.current.delete(key)
       restoreTransactionRow(queryClient, id, ctx?.previous)
+      if (ctx?.previous) restoreOpenAccountRow(queryClient, id, ctx.previous)
       notify.error(getSupabaseErrorMessage(error))
     },
   })
@@ -435,7 +540,7 @@ export default function FinanzasMejorado() {
         </div>
       </DateRangeFilter>
 
-      {/* Resumen de totales */}
+      {/* Resumen de totales — skeleton mientras rehidrata IndexedDB (no flash de ceros). */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -443,7 +548,7 @@ export default function FinanzasMejorado() {
             <TrendingUp className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            {totalsLoading ? (
+            {isRestoring || totalsLoading || !dateKey ? (
               <Skeleton className="h-8 w-28" />
             ) : (
               <div className="space-y-1">
@@ -463,7 +568,7 @@ export default function FinanzasMejorado() {
             <TrendingDown className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            {totalsLoading ? (
+            {isRestoring || totalsLoading || !dateKey ? (
               <Skeleton className="h-8 w-28" />
             ) : (
               <div className="space-y-1">
@@ -483,7 +588,7 @@ export default function FinanzasMejorado() {
             <Wallet className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            {totalsLoading ? (
+            {isRestoring || totalsLoading || !dateKey ? (
               <Skeleton className="h-8 w-28" />
             ) : (
               <div className="space-y-1">
@@ -506,7 +611,7 @@ export default function FinanzasMejorado() {
             <div className="flex h-4 w-4 items-center justify-center font-bold text-muted-foreground">#</div>
           </CardHeader>
           <CardContent>
-            {totalsLoading && txCount === 0 ? (
+            {isRestoring || (totalsLoading && txCount === 0) || !dateKey ? (
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="text-2xl font-bold text-foreground">
@@ -535,6 +640,9 @@ export default function FinanzasMejorado() {
           <CardTitle>Transacciones</CardTitle>
         </CardHeader>
         <CardContent>
+          {isRestoring || !dateKey ? (
+            <ListingRowsSkeleton rows={5} />
+          ) : (
           <ResponsiveListing
             queryKey={['transactions', { userId, businessId, currencyFilter, categoryFilter, dateKey }]}
             queryFn={({ page, pageSize }) => listTransactions({
@@ -547,10 +655,12 @@ export default function FinanzasMejorado() {
               from: dateFilter?.startDate || undefined,
               to: dateFilter?.endDate || undefined,
             })}
-            enabled={!!userId && !!businessId && !businessLoading && !permissionLoading && canView('finanzas')}
+            enabled={financeQueriesReady && canView('finanzas')}
             onMeta={({ count }) => setTxCount(count)}
             getItemKey={(transaction) => transaction.id}
-            emptyMessage="No hay transacciones registradas"
+            emptyMessage={online
+              ? 'No hay transacciones registradas'
+              : 'Sin copia local de este período. Entra con conexión una vez (mismo mes/filtros) para guardarlo aquí.'}
             loadingMessage="Cargando transacciones..."
             renderItem={(transaction) => (
               <PendingSyncRow pending={Boolean(transaction._pending)}>
@@ -614,6 +724,7 @@ export default function FinanzasMejorado() {
               </PendingSyncRow>
             )}
           />
+          )}
         </CardContent>
       </Card>
 

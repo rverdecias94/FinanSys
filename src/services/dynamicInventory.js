@@ -28,25 +28,51 @@ export async function listAreas(userUuid, { page, pageSize } = {}) {
   return data
 }
 
-export async function createArea({ name, icon, slug, prefix, domain_type, template_id }, userUuid, businessId) {
+export async function createArea({ name, icon, slug, prefix, domain_type, template_id, client_uuid }, userUuid, businessId) {
   if (!userUuid) throw new Error('User UUID is required')
   const effectiveUserId = getEffectiveUserId(userUuid, businessId)
   // Slug vacío → null para que la BD genere uno único (evita 409 por '' repetido).
   const cleanSlug = String(slug || '').trim() || null
+  const clientUuid = client_uuid || null
+
+  // Idempotencia outbox: mismo client_uuid → devolver área existente (sin reaplicar plantilla).
+  if (clientUuid) {
+    const { data: existing, error: exErr } = await supabase
+      .from('inventory_areas')
+      .select('*')
+      .eq('user_id', effectiveUserId)
+      .eq('client_uuid', clientUuid)
+      .maybeSingle()
+    if (exErr) throw exErr
+    if (existing) return { ...existing, idempotent: true }
+  }
+
   const payload = {
     name,
     icon,
     slug: cleanSlug,
     user_id: effectiveUserId,
     domain_type: domain_type || 'custom',
-    template_id: template_id || null
+    template_id: template_id || null,
+    client_uuid: clientUuid,
   }
   const { data: area, error } = await supabase
     .from('inventory_areas')
     .insert(payload)
     .select()
     .single()
-  if (error) throw error
+  if (error) {
+    if (error.code === '23505' && clientUuid) {
+      const { data: again } = await supabase
+        .from('inventory_areas')
+        .select('*')
+        .eq('user_id', effectiveUserId)
+        .eq('client_uuid', clientUuid)
+        .maybeSingle()
+      if (again) return { ...again, idempotent: true }
+    }
+    throw error
+  }
   // Create prefix mapping
   if (prefix) {
     const pref = String(prefix).toUpperCase().slice(0, 4)
@@ -330,15 +356,33 @@ export async function getItem(itemId, userUuid, businessId) {
   return data
 }
 
-export async function createItem(areaId, values, userUuid) {
+export async function createItem(areaId, values, userUuid, clientUuid = null) {
   if (!userUuid) throw new Error('User UUID is required')
   return await withCrud({ action: 'create', table: 'inventory_items' }, async () => {
     // SKU + INSERT atómico en una sola transacción server-side (RPC create_inventory_item):
     // si el INSERT falla, la secuencia del SKU hace rollback -> sin huecos de SKU (P1.8).
     // La RPC valida el permiso inventory.create y que el item pertenece al negocio del llamante.
+    // p_client_uuid: idempotencia outbox (C2c) — reintento con el mismo uuid no duplica.
     const { data, error } = await supabase
-      .rpc('create_inventory_item', { p_user: userUuid, p_area: areaId, p_values: values })
-    if (error) throw error
+      .rpc('create_inventory_item', {
+        p_user: userUuid,
+        p_area: areaId,
+        p_values: values,
+        p_client_uuid: clientUuid || null,
+      })
+    if (error) {
+      if (error.code === '23505' && clientUuid) {
+        const { data: existing, error: fetchErr } = await supabase
+          .from('inventory_items')
+          .select('*')
+          .eq('user_id', userUuid)
+          .eq('client_uuid', clientUuid)
+          .maybeSingle()
+        if (fetchErr) throw fetchErr
+        if (existing) return { ...existing, idempotent: true }
+      }
+      throw error
+    }
     await logAction({
       action: 'Crear',
       resource: `Item Inventario: ${data?.sku}`,
@@ -354,7 +398,7 @@ export async function updateItem(itemId, values, userUuid) {
   return await withCrud({ action: 'update', table: 'inventory_items' }, async () => {
     const { data, error } = await supabase
       .from('inventory_items')
-      .update({ values })
+      .update({ values, updated_at: new Date().toISOString() })
       .eq('id', itemId)
       .eq('user_id', userUuid)
       .select()
@@ -402,8 +446,8 @@ export async function getArea(areaId, userUuid, businessId) {
   return data
 }
 
-export async function validateValuesAgainstFields(values, areaId, userUuid) {
-  const fields = await listFields(areaId, userUuid)
+/** Validación pura (offline-ready): usa campos ya cargados en caché. */
+export function validateInventoryValues(values, fields = []) {
   const missing = fields.filter(f => f.required && (values[f.name] === undefined || values[f.name] === null || values[f.name] === ''))
 
   const invalidNumbers = fields
@@ -427,6 +471,11 @@ export async function validateValuesAgainstFields(values, areaId, userUuid) {
   }
 
   return { ok: true, missing: [], invalidNumbers: [] }
+}
+
+export async function validateValuesAgainstFields(values, areaId, userUuid) {
+  const fields = await listFields(areaId, userUuid)
+  return validateInventoryValues(values, fields)
 }
 
 export async function getInventoryAreas(businessId) {
@@ -453,7 +502,7 @@ export async function createInventoryItem(payload, userId, businessId) {
   const effectiveUserId = getEffectiveUserId(userId, businessId)
   const areaId = payload.area_id
   const values = payload.values || {}
-  return createItem(areaId, values, effectiveUserId)
+  return createItem(areaId, values, effectiveUserId, payload.client_uuid || null)
 }
 
 export async function updateInventoryItem(itemId, payload, userId, businessId) {

@@ -12,7 +12,8 @@ import { AuthShell } from '@/components/auth/AuthShell'
 import { AuthDivider, GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
 
 const fieldClass =
-  'h-12 border-border/70 bg-muted/50 pl-10 shadow-none transition-all focus-visible:bg-background dark:bg-white/5 dark:border-white/10'
+  'h-12 border-[hsl(152_22%_28%/0.35)] bg-[hsl(152_18%_22%/0.12)] pl-10 shadow-none transition-all placeholder:text-foreground/45 focus-visible:border-[hsl(152_28%_32%/0.5)] focus-visible:bg-[hsl(152_18%_22%/0.18)] dark:border-[hsl(152_22%_28%/0.4)] dark:bg-[hsl(152_18%_20%/0.22)] dark:focus-visible:border-[hsl(152_30%_36%/0.55)] dark:focus-visible:bg-[hsl(152_18%_22%/0.3)]'
+
 
 export default function Login() {
   const navigate = useNavigate()
@@ -170,7 +171,7 @@ export default function Login() {
               </label>
               <div className="relative">
                 <Mail
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/70"
                   aria-hidden="true"
                 />
                 <Input
@@ -192,20 +193,12 @@ export default function Login() {
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label htmlFor="login-password" className="text-sm font-medium text-foreground">
-                  Contraseña
-                </label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-medium text-primary transition-colors hover:text-primary/80 hover:underline"
-                >
-                  ¿Olvidaste tu contraseña?
-                </Link>
-              </div>
+              <label htmlFor="login-password" className="text-sm font-medium text-foreground">
+                Contraseña
+              </label>
               <div className="relative">
                 <Lock
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-foreground/70"
                   aria-hidden="true"
                 />
                 <Input
@@ -220,12 +213,20 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-foreground/70 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   aria-pressed={showPassword}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
+              </div>
+              <div className="flex justify-end pt-0.5">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-[#4ADE80] transition-colors hover:text-[#86EFAC] hover:underline"
+                >
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
             </div>
           </div>
@@ -249,11 +250,11 @@ export default function Login() {
         <AuthDivider label="o continúa con" />
         <GoogleAuthButton mode="login" />
 
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-[13px] text-muted-foreground">
           ¿No tienes una cuenta?{' '}
           <Link
             to="/signup"
-            className="font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+            className="font-medium text-foreground underline-offset-2 transition-colors hover:text-primary hover:underline"
           >
             Regístrate
           </Link>

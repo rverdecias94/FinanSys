@@ -8,13 +8,16 @@ import { DocumentReader } from '@/components/herramientas/DocumentReader'
 import { BusinessCalculator } from '@/components/herramientas/BusinessCalculator'
 import { BusinessAssistant } from '@/components/herramientas/BusinessAssistant'
 import { CashRadar } from '@/components/herramientas/CashRadar'
+import { OfflineBlockedPanel } from '@/components/common/OfflineBlockedPanel'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { getAiUsage } from '@/services/aiTools'
 
 export default function Herramientas() {
   const { canAccessFeature, subscription } = useSubscription()
   const { businessId } = useBusiness()
+  const online = useOnlineStatus()
   const planId = subscription?.plan_id || 'free'
   const hasAi = canAccessFeature('ai_tools')
   const isElite = planId === 'ultra'
@@ -30,7 +33,7 @@ export default function Herramientas() {
   const usageQuery = useQuery({
     queryKey: ['ai-usage', businessId],
     queryFn: () => getAiUsage(businessId),
-    enabled: !!businessId && hasAi,
+    enabled: !!businessId && hasAi && online,
     staleTime: 30_000,
   })
 
@@ -63,6 +66,14 @@ export default function Herramientas() {
             : 'Radar a 15 días, asistente e importación con foto. Horizontes 30/60/90 en Élite.'}
         </p>
       </div>
+
+      {!online ? (
+        <OfflineBlockedPanel
+          title="Copiloto necesita internet"
+          description="El asistente, el Radar y la importación con foto usan servicios en la nube. Sin conexión no se puede consultar ni importar, para evitar errores o cupos a medias. Reconecta e inténtalo de nuevo."
+        />
+      ) : (
+        <>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <QuotaBadge
@@ -103,6 +114,8 @@ export default function Herramientas() {
           </TabsContent>
         )}
       </Tabs>
+        </>
+      )}
     </div>
   )
 }

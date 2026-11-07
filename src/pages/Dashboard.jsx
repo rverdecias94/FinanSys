@@ -6,7 +6,9 @@ import { useBusiness } from '@/context/BusinessContext'
 import { getDashboardStats, getRecentActivity, getFinancialDistribution, getYearlySummary, getAgingReport } from '@/services/finanzas'
 import { getExchangeRates, consolidatePerCurrency } from '@/services/exchangeRates'
 import { buildPosition } from '@/utils/financials'
-import { useQuery } from '@tanstack/react-query'
+import { useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
+import { prefetchDashboardSnapshot, prefetchCriticalReadSnapshots } from '@/offline/prefetchReadSnapshots'
 import { useCurrency } from '@/context/CurrencyContext'
 import {
   Select,
@@ -74,8 +76,11 @@ const EXPENSE_COLORS = [
 export default function Dashboard() {
   const chartAnim = useChartAnimation()
   const { session } = useSession()
-  const { businessId } = useBusiness()
+  const { businessId, loading: businessLoading } = useBusiness()
   const { businessCurrencies, formatCurrency } = useCurrency()
+  const queryClient = useQueryClient()
+  const online = useOnlineStatus()
+  const isRestoring = useIsRestoring()
 
   // Filtros del panel
   const [summaryFilter, setSummaryFilter] = useState('ALL')
@@ -96,6 +101,18 @@ export default function Dashboard() {
 
   const userId = session?.user?.id
   const currentYear = useMemo(() => new Date().getFullYear(), [])
+
+  // Warm-up de lectura crítica (Finanzas/Almacén/Cuentas/Inventario/Panel).
+  useEffect(() => {
+    if (!online || !userId || !businessId || businessLoading || isRestoring) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
+      void prefetchDashboardSnapshot(queryClient, { userId, businessId })
+      void prefetchCriticalReadSnapshots(queryClient, { userId, businessId })
+    })
+    return () => { cancelled = true }
+  }, [online, userId, businessId, businessLoading, isRestoring, queryClient])
 
   const dashboardQueryOptions = useMemo(() => ({
     enabled: !!userId && !!businessId,
@@ -256,7 +273,10 @@ export default function Dashboard() {
     (stats.income.current[c.code] || 0) !== 0 ||
     (stats.expense.current[c.code] || 0) !== 0
   )
-  const ready = statsQuery.isSuccess && recentActivityQuery.isSuccess
+  // Mientras IndexedDB rehidrata: skeleton (no ceros falsos). Luego OK con caché o vacío real.
+  const ready = !isRestoring
+    && !statsQuery.isLoading
+    && !recentActivityQuery.isLoading
   const { showOnboarding, showFirstMovementHint } = deriveDashboardView({ isConfigured, hasActivity, ready })
 
   const quickLinks = [
@@ -297,6 +317,7 @@ export default function Dashboard() {
       </div>
 
       {!ready ? (
+        {/* isRestoring: no flash de ceros tras reopen offline */}
         <DashboardBodySkeleton />
       ) : showOnboarding ? (
         /* ---------- Estado de primer uso (empty state guiado) ---------- */

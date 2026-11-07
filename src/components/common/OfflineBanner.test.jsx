@@ -43,12 +43,21 @@ describe('OfflineBanner', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('muestra el aviso de datos guardados cuando no hay conexión', () => {
+  it('sin conexión y sin copia local: mensaje honesto (no promete datos)', () => {
     setOnline(false)
     renderBanner()
     const banner = screen.getByRole('status')
     expect(banner).toBeInTheDocument()
     expect(banner).toHaveTextContent(/sin conexión/i)
+    expect(banner).toHaveTextContent(/aún no hay copia local/i)
+  })
+
+  it('sin conexión con datos en caché: indica que muestra datos guardados', () => {
+    setOnline(false)
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(['transactions', { demo: true }], { data: [{ id: 1 }], count: 1 })
+    renderBanner(queryClient)
+    const banner = screen.getByRole('status')
     expect(banner).toHaveTextContent(/datos guardados/i)
   })
 

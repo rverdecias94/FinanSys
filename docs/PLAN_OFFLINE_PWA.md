@@ -142,6 +142,8 @@ Lo único que necesito de ti: **nombre/short_name**, **color de tema**, y **apro
 ### Sesión A3 — UX de actualización
 - Toast "Hay una nueva versión, recargar" cuando el SW detecta update (patrón estándar de
   `vite-plugin-pwa` con `onNeedRefresh`). Evita que el usuario quede con una versión vieja cacheada.
+  **2026-11-06:** tras reload auto (`PWA_JUST_UPDATED_KEY`) → toast
+  “Hay una nueva versión de Gestia”.
 
 ### Criterios de aceptación Capa A
 - [ ] `npm run build && npm run preview`, activar "Offline" en DevTools, recargar → **la app carga**.
@@ -162,8 +164,10 @@ Lo único que necesito de ti: **nombre/short_name**, **color de tema**, y **apro
 **Meta:** lo que el usuario ya cargó (finanzas, almacén, dashboard) **sigue visible offline** tras
 recargar. No cambia la lógica de las queries, solo persiste la caché de React Query.
 
-> **Estado: B1 + B2 IMPLEMENTADAS (2026-06-19).** Falta la verificación end-to-end con sesión
-> iniciada (cargar datos → offline → recargar → datos visibles), que requiere credenciales.
+> **Estado: B1 + B2 IMPLEMENTADAS (2026-06-19).** **B4 endurecimiento credibilidad (2026-11-06):**
+> banner honesto (copia local vs vacío), `staleTime` + defaults por módulo, `dateKey` estable,
+> prefetch mes en curso, gate `useIsRestoring` en Finanzas, `onlineManager` alineado al arranque,
+> `CACHE_BUSTER=gestia-rq-v3`. Verificar e2e: cargar Finanzas online → offline → recargar → se ven datos.
 >
 > **Lo hecho:**
 > - `src/offline/queryPersister.js`: persister sobre IndexedDB (`@tanstack/query-async-storage-persister`
@@ -317,6 +321,8 @@ recargar. No cambia la lógica de las queries, solo persiste la caché de React 
   esto se queda corto en el futuro).
 - Offline para: login nuevo, panel admin, cambio de plan, invitaciones de equipo, OCR/IA Copiloto,
   exportación PDF/Excel (pueden seguir en caché de lectura si ya se usaron).
+  **2026-11-06:** Copiloto y Reportes/resúmenes quedan **bloqueados en UI** sin red
+  (`OfflineBlockedPanel`) para evitar errores, cupos a medias o informes incompletos.
 - Resolución de conflictos campo a campo / merge manual.
 - **Adjuntos (fotos) offline:** bloqueados (decisión 2026-11-05). Online sí; sin red el campo
   de imagen se deshabilita con mensaje claro.
@@ -363,7 +369,24 @@ recargar. No cambia la lógica de las queries, solo persiste la caché de React 
 5. ~~**C2b** — Contactos + cuentas/abonos~~ ✅
    (2026-11-06: client_uuid en contacts/account_payments, RPC abono idempotente,
    outbox create/update/delete contactos + abonos con PendingSyncRow).
-6. **C2c** — Inventario (ítems/áreas según dependencia).
-7. **C5** — Almacén (productos ya sync → movimientos RPC idempotente → crear producto offline).
-8. **C2d** — Recurrentes y resto operativo pendiente.
+6. ~~**C2c** — Inventario (ítems + update área)~~ ✅
+   (2026-11-06: `client_uuid` en `inventory_items` + RPC `create_inventory_item` idempotente;
+   outbox create/update/delete ítems sobre áreas ya sync; update de área offline;
+   create área / FormBuilder / adjust-count / asset events diferidos. Badge Pendiente +
+   bloqueo create área sin red.)
+7. ~~**C5** — Almacén (movimientos + update producto)~~ ✅
+   (2026-11-06: `client_uuid` en `warehouse_documents`/`movements` + RPC
+   `create_and_post_quick_movement` idempotente; outbox movimientos con stock optimista;
+   update producto offline; delete producto solo online.)
+7b. ~~**C5b** — Crear producto offline~~ ✅
+   (2026-11-06: `client_uuid` en `products`; outbox create con stock optimista; al sync
+   `createProduct` inserta en 0 + movimiento de apertura; gate de límite con cola; movimientos
+   sobre producto pendiente siguen bloqueados hasta sync.)
+8. ~~**C2d** — Recurrentes~~ ✅
+   (2026-11-06: `client_uuid` en `recurring_transactions`; outbox create/update/delete/toggle;
+   PendingSyncRow; `generateDue`/`run now` solo online.)
 9. ~~C4 adjuntos~~ — **No aplica** (bloqueados por decisión).
+10. ~~**B4+** — Caché fuerte multi-módulo + totales/aging + create área offline + FormBuilder gate + A3~~ ✅
+   (2026-11-06: prefetch Almacén/Cuentas/Inventario/Panel; restoring skeletons; totales y
+   antigüedad optimistas; `client_uuid` en `inventory_areas` + outbox create área; FormBuilder
+   bloqueado sin red; toast nueva versión.)

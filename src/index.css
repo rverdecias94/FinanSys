@@ -298,42 +298,42 @@ html.font-accessible {
   }
 }
 
-/* Auth: en ventanas bajas compacta el copy/form sin zoom ni F11. */
-@media (max-height: 820px) {
+/* Auth minimal: caber en ventanas bajas sin F11. */
+@media (max-height: 780px) {
   .gestia-auth-shell__hero {
-    padding-top: 1.25rem;
-    padding-bottom: 1.25rem;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
   }
 
   .gestia-auth-shell__hero-inner h2 {
-    margin-top: 1.25rem;
-    font-size: 1.65rem;
+    margin-top: 1.75rem;
+    font-size: 1.85rem;
   }
 
-  .gestia-auth-shell__hero-inner ul {
-    margin-top: 1.25rem;
+  .gestia-auth-shell__stage {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
 
-  .gestia-auth-shell__panel {
-    padding-top: 1.25rem;
-    padding-bottom: 1.25rem;
+  .gestia-auth-shell__glass {
+    padding: 1.35rem 1.5rem;
   }
 
   .gestia-auth-shell__body {
-    gap: 1rem;
+    gap: 1.1rem;
   }
 
   .gestia-auth-shell__legal {
-    margin-top: 1rem;
+    margin-top: 0.85rem;
   }
 }
 
-@media (max-height: 700px) {
-  .gestia-auth-shell__hero-inner p.mt-4 {
+@media (max-height: 680px) {
+  .gestia-auth-shell__subtitle {
     display: none;
   }
 
-  .gestia-auth-shell__subtitle {
+  .gestia-auth-shell__hero-inner p {
     display: none;
   }
 }

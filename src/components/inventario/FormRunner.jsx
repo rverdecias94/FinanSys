@@ -1,13 +1,10 @@
 /* eslint-disable react/prop-types */
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { onlineManager, useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import {
   listFields,
   listItems,
-  createItem,
-  updateItem,
-  deleteItem,
-  validateValuesAgainstFields,
+  validateInventoryValues,
   adjustInventoryItemQty,
   countInventoryItem,
   recordAssetEvent
@@ -23,8 +20,10 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Trash2, Pencil, Package, SlidersHorizontal, ScanLine } from 'lucide-react'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
+import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { Calendar } from '@/components/ui/calendar'
 import { usePermissions } from '@/context/PermissionContext'
 import {
@@ -36,6 +35,25 @@ import {
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import {
+  INV_ITEM_CREATE_KEY,
+  INV_ITEM_UPDATE_KEY,
+  INV_ITEM_DELETE_KEY,
+} from '@/offline/mutationDefaults'
+import {
+  applyOptimisticItemCreate,
+  applyOptimisticItemUpdate,
+  buildPendingInventoryItem,
+  clearOptimisticItem,
+  findInventoryItemInCache,
+  inventoryValuesHaveBinary,
+  removeInventoryItemFromCache,
+  restoreInventoryItem,
+  serializeInventoryValues,
+} from '@/offline/optimisticInventory'
 
 function parseDateValue(raw) {
   if (!raw) return null
@@ -68,6 +86,7 @@ const NUMBER_LIKE = new Set(['number', 'quantity_uom', 'currency'])
 
 export function FormRunner({ areaId, userId, currentArea, mode = 'full', initialItem = null, readOnly = false, onConfigure }) {
   const queryClient = useQueryClient()
+  const requeueGuardRef = useRef(new Set())
   const [values, setValues] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -82,6 +101,8 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
 
   const stockLike = isStockLikeDomain(currentArea?.domain_type)
   const assetLike = isAssetLikeDomain(currentArea?.domain_type)
+  // En Inventario, `userId` del FormRunner ya es el businessId efectivo.
+  const businessId = userId
 
   const { data: fields = [], isLoading: loadingFields } = useQuery({
     queryKey: ['inventoryFields', areaId],
@@ -98,49 +119,145 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   }, [initialItem])
 
   const createMutation = useMutation({
-    mutationFn: async (data) => {
-      const created = await createItem(areaId, data, userId)
-      if (assetLike && created?.id) {
-        try {
-          await recordAssetEvent({ itemId: created.id, eventType: 'intake', toLocation: data.Ubicación || data.ubicacion, toCustodian: data.Custodio })
-        } catch {
-          // Alta del ítem ya OK; el timeline se puede completar luego
-        }
-      }
-      return created
-    },
+    mutationKey: INV_ITEM_CREATE_KEY,
     meta: {
       successMessage: 'Producto agregado satisfactoriamente',
       errorMessage: 'Error al agregar el producto'
     },
-    onSuccess: () => {
+    onMutate: async (vars) => {
+      const clientUuid = vars?.client_uuid
+      const cleanValues = vars?.values || {}
+      if (clientUuid && !requeueGuardRef.current.has(clientUuid)) {
+        applyOptimisticItemCreate(
+          queryClient,
+          areaId,
+          buildPendingInventoryItem({
+            areaId,
+            values: cleanValues,
+            clientUuid,
+            businessId,
+            userId,
+          }),
+        )
+      }
       setValues({})
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Ítem')
+      return { clientUuid, offline: !onlineManager.isOnline(), values: cleanValues }
+    },
+    onSuccess: async (created, vars, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
       queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
-    }
+      // Intake de activo solo online (requiere id real del servidor).
+      if (assetLike && created?.id && onlineManager.isOnline() && !created?.idempotent) {
+        try {
+          const vals = vars?.values || ctx?.values || {}
+          await recordAssetEvent({
+            itemId: created.id,
+            eventType: 'intake',
+            toLocation: vals.Ubicación || vals.ubicacion,
+            toCustodian: vals.Custodio,
+          })
+        } catch {
+          // Alta del ítem ya OK; el timeline se puede completar luego
+        }
+      }
+    },
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Ítem')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticItem(queryClient, areaId, uuid)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => updateItem(id, data, userId),
+    mutationKey: INV_ITEM_UPDATE_KEY,
     meta: {
       successMessage: 'Producto actualizado correctamente',
       errorMessage: 'Error al actualizar el producto'
     },
-    onSuccess: () => {
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findInventoryItemInCache(queryClient, areaId, id)
+      if (previous && !requeueGuardRef.current.has(`upd-${id}`)) {
+        applyOptimisticItemUpdate(queryClient, areaId, id, vars?.values || {})
+      }
       setValues({})
       setEditingId(null)
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Ítem')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`upd-${ctx.id}`)
       queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
-    }
+      if (ctx?.id != null) {
+        queryClient.invalidateQueries({ queryKey: ['inventoryItem', String(ctx.id)] })
+      }
+    },
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `upd-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Ítem')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => updateMutation.mutate(vars))
+        }
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      restoreInventoryItem(queryClient, areaId, id, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => deleteItem(id, userId),
+    mutationKey: INV_ITEM_DELETE_KEY,
     meta: {
       successMessage: 'Producto eliminado exitosamente',
       errorMessage: 'Error al eliminar el producto'
     },
-    onSuccess: () => {
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findInventoryItemInCache(queryClient, areaId, id)
+      if (id != null && !requeueGuardRef.current.has(`del-${id}`)) {
+        removeInventoryItemFromCache(queryClient, areaId, id)
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Ítem')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`del-${ctx.id}`)
       queryClient.invalidateQueries({ queryKey: ['inventoryItems', areaId] })
-    }
+    },
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `del-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Ítem')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => deleteMutation.mutate(vars))
+        }
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      if (ctx?.previous) {
+        applyOptimisticItemCreate(queryClient, areaId, { ...ctx.previous, _pending: false })
+      }
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const adjustMutation = useMutation({
@@ -168,7 +285,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const validation = await validateValuesAgainstFields(values, areaId, userId)
+    const validation = validateInventoryValues(values, fields)
     if (!validation.ok) {
       if (validation.missing?.length) {
         notify.warning(`Faltan campos requeridos: ${validation.missing.join(', ')}`)
@@ -182,19 +299,45 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
       return
     }
 
-    if (editingId) {
-      updateMutation.mutate({ id: editingId, data: values })
-    } else {
-      createMutation.mutate(values)
+    if (inventoryValuesHaveBinary(values) && !onlineManager.isOnline()) {
+      notify.warning('Sin conexión no se pueden guardar archivos adjuntos. Quita el adjunto o reconecta.')
+      return
     }
+
+    const cleanValues = serializeInventoryValues(values)
+
+    if (editingId) {
+      if (String(editingId).startsWith('pending-')) {
+        notify.info('Este ítem aún no se ha subido. Espera a que se sincronice para editarlo.')
+        return
+      }
+      updateMutation.mutate({ id: editingId, values: cleanValues, userId, businessId })
+      return
+    }
+
+    createMutation.mutate({
+      areaId,
+      values: cleanValues,
+      userId,
+      businessId,
+      client_uuid: genClientUuid(),
+    })
   }
 
   const handleDeleteItem = async (id) => {
+    if (String(id).startsWith('pending-')) {
+      notify.info('Este ítem aún no se ha subido. Espera a que se sincronice.')
+      return
+    }
     setPendingDeleteId(id)
     setConfirmOpen(true)
   }
 
   const handleEditItem = (item) => {
+    if (item?._pending || String(item?.id).startsWith('pending-')) {
+      notify.info('Este ítem aún no se ha subido. Espera a que se sincronice para editarlo.')
+      return
+    }
     setValues(item.values || {})
     setEditingId(item.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -206,6 +349,14 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
   }
 
   const openAdjust = (item, asCount = false) => {
+    if (item?._pending || String(item?.id).startsWith('pending-')) {
+      notify.info('Este ítem aún no se ha subido. Espera a que se sincronice.')
+      return
+    }
+    if (!onlineManager.isOnline()) {
+      notify.warning('Sin conexión no se pueden ajustar cantidades. Reconecta e inténtalo de nuevo.')
+      return
+    }
     setAdjustItem(item)
     setCountMode(asCount)
     setAdjustDelta('')
@@ -365,6 +516,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
 
   const renderItem = (item) => {
     const itemValues = item.values || {}
+    const pending = Boolean(item._pending) || String(item.id).startsWith('pending-')
     const labelFor = (f) => f.label || toLabelFromName(f.name)
     const firstText = textFields[0]
     const title =
@@ -378,7 +530,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
       .join(' · ')
 
     return (
-      <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <PendingSyncRow pending={pending}>
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
           <div className="shrink-0 rounded-full bg-primary/10 p-2">
             <Package className="h-4 w-4 text-primary" />
@@ -396,34 +548,34 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             {stockLike && hasPermission('inventory.edit') && (
               <>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openAdjust(item, false)}>
+                <Button variant="outline" size="sm" className="gap-1.5" disabled={pending} onClick={() => openAdjust(item, false)}>
                   <SlidersHorizontal className="w-3.5 h-3.5" />
                   Ajustar
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => openAdjust(item, true)}>
+                <Button variant="outline" size="sm" className="gap-1.5" disabled={pending} onClick={() => openAdjust(item, true)}>
                   <ScanLine className="w-3.5 h-3.5" />
                   Contar
                 </Button>
               </>
             )}
-            {assetLike && (
+            {assetLike && !pending && (
               <Button variant="outline" size="sm" asChild>
                 <Link to={`/inventario/${item.id}`}>Ficha</Link>
               </Button>
             )}
             {hasPermission('inventory.edit') && (
-              <Button variant="outline" size="icon" onClick={() => handleEditItem(item)}>
+              <Button variant="outline" size="icon" disabled={pending} onClick={() => handleEditItem(item)}>
                 <Pencil className="w-4 h-4" />
               </Button>
             )}
             {hasPermission('inventory.delete') && (
-              <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={deleteMutation.isPending}>
+              <Button variant="destructive" size="icon" onClick={() => handleDeleteItem(item.id)} disabled={pending || deleteMutation.isPending}>
                 <Trash2 className="w-4 h-4" />
               </Button>
             )}
           </div>
         </div>
-      </div>
+      </PendingSyncRow>
     )
   }
 
@@ -523,7 +675,7 @@ export function FormRunner({ areaId, userId, currentArea, mode = 'full', initial
         tone="destructive"
         onConfirm={() => {
           if (pendingDeleteId) {
-            deleteMutation.mutate(pendingDeleteId)
+            deleteMutation.mutate({ id: pendingDeleteId, userId, businessId })
             setConfirmOpen(false)
             setPendingDeleteId(null)
           }

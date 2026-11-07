@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { onlineManager, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus,
   Pencil,
@@ -21,18 +21,35 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PermissionGuard } from '@/components/common/PermissionGuard'
+import { PendingSyncRow } from '@/components/common/PendingSyncRow'
 import { RecurringModal } from '@/components/finanzas/RecurringModal'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
+import { notifyOfflineQueued } from '@/services/notifyWrap'
 import {
   FREQUENCY_LABELS,
   listRecurringTransactions,
-  createRecurringTransaction,
-  updateRecurringTransaction,
-  setRecurringActive,
-  deleteRecurringTransaction,
   generateDueRecurring,
   runRecurringNow,
 } from '@/services/recurringTransactions'
+import { genClientUuid } from '@/offline/clientUuid'
+import { isNetworkError } from '@/offline/isNetworkError'
+import { markOffline } from '@/offline/networkGuard'
+import {
+  RECURRING_CREATE_KEY,
+  RECURRING_UPDATE_KEY,
+  RECURRING_DELETE_KEY,
+  RECURRING_TOGGLE_KEY,
+} from '@/offline/mutationDefaults'
+import {
+  applyOptimisticRecurringCreate,
+  applyOptimisticRecurringUpdate,
+  buildPendingRecurringRow,
+  clearOptimisticRecurring,
+  findRecurringInCache,
+  removeRecurringFromCache,
+  restoreRecurringRow,
+  serializeRecurringPayload,
+} from '@/offline/optimisticRecurring'
 
 function formatNextRun(value) {
   if (!value) return '—'
@@ -55,6 +72,7 @@ export function RecurringPanel({
   canCreate,
 }) {
   const queryClient = useQueryClient()
+  const requeueGuardRef = useRef(new Set())
   const [modalOpen, setModalOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   const [deleteId, setDeleteId] = useState(null)
@@ -79,9 +97,10 @@ export function RecurringPanel({
     queryClient.invalidateQueries({ queryKey: ['balanceConfig'] })
   }
 
-  // Al abrir Finanzas: materializa vencidos una vez por montaje.
+  // Al abrir Finanzas: materializa vencidos una vez por montaje (solo online).
   useEffect(() => {
     if (!userId || !businessId || businessLoading || !canCreate || generatedRef.current) return
+    if (!onlineManager.isOnline()) return
     generatedRef.current = true
     generateDueRecurring()
       .then((res) => {
@@ -103,40 +122,152 @@ export function RecurringPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, businessId, businessLoading, canCreate])
 
-  const saveMutation = useMutation({
-    mutationFn: async (payload) => {
-      if (payload.id) {
-        const { id, ...rest } = payload
-        return updateRecurringTransaction(id, rest, userId, businessId)
+  const createMutation = useMutation({
+    mutationKey: RECURRING_CREATE_KEY,
+    onMutate: async (vars) => {
+      const payload = vars?.payload || {}
+      const clientUuid = payload.client_uuid
+      const contactName = contacts?.find((c) => String(c.id) === String(payload.contact_id))?.name
+      if (clientUuid && !requeueGuardRef.current.has(clientUuid)) {
+        applyOptimisticRecurringCreate(
+          queryClient,
+          buildPendingRecurringRow(payload, { userId, businessId, contactName }),
+        )
       }
-      return createRecurringTransaction(payload, userId, businessId)
-    },
-    onSuccess: (_data, vars) => {
-      notify.success(vars.id ? 'Repetición actualizada' : 'Repetición creada')
       setModalOpen(false)
       setSelected(null)
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Repetición')
+      return { clientUuid }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.clientUuid) requeueGuardRef.current.delete(ctx.clientUuid)
+      if (onlineManager.isOnline()) notify.success('Repetición creada')
       invalidateFinance()
     },
-    onError: (error) => notify.error(getSupabaseErrorMessage(error)),
+    onError: (error, vars, ctx) => {
+      const uuid = ctx?.clientUuid || vars?.payload?.client_uuid
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Repetición')
+        if (uuid && !requeueGuardRef.current.has(uuid)) {
+          requeueGuardRef.current.add(uuid)
+          queueMicrotask(() => createMutation.mutate(vars))
+        }
+        return
+      }
+      if (uuid) requeueGuardRef.current.delete(uuid)
+      clearOptimisticRecurring(queryClient, uuid)
+      notify.error(getSupabaseErrorMessage(error))
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationKey: RECURRING_UPDATE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findRecurringInCache(queryClient, id)
+      if (previous && !requeueGuardRef.current.has(`rec-upd-${id}`)) {
+        applyOptimisticRecurringUpdate(queryClient, id, vars?.payload || {})
+      }
+      setModalOpen(false)
+      setSelected(null)
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Repetición')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`rec-upd-${ctx.id}`)
+      if (onlineManager.isOnline()) notify.success('Repetición actualizada')
+      invalidateFinance()
+    },
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `rec-upd-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Repetición')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => updateMutation.mutate(vars))
+        }
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      restoreRecurringRow(queryClient, id, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const toggleMutation = useMutation({
-    mutationFn: ({ id, is_active }) => setRecurringActive(id, is_active, userId, businessId),
-    onSuccess: (_d, vars) => {
-      notify.success(vars.is_active ? 'Repetición activada' : 'Repetición pausada')
+    mutationKey: RECURRING_TOGGLE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findRecurringInCache(queryClient, id)
+      if (previous && !requeueGuardRef.current.has(`rec-tog-${id}`)) {
+        applyOptimisticRecurringUpdate(queryClient, id, { is_active: vars.is_active })
+      }
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Repetición')
+      return { id, previous }
+    },
+    onSuccess: (_d, vars, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`rec-tog-${ctx.id}`)
+      if (onlineManager.isOnline()) {
+        notify.success(vars.is_active ? 'Repetición activada' : 'Repetición pausada')
+      }
       invalidateFinance()
     },
-    onError: (error) => notify.error(getSupabaseErrorMessage(error)),
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `rec-tog-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Repetición')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => toggleMutation.mutate(vars))
+        }
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      restoreRecurringRow(queryClient, id, ctx?.previous)
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => deleteRecurringTransaction(id, userId, businessId),
-    onSuccess: () => {
-      notify.success('Repetición eliminada')
+    mutationKey: RECURRING_DELETE_KEY,
+    onMutate: async (vars) => {
+      const id = vars?.id
+      const previous = findRecurringInCache(queryClient, id)
+      if (id != null && !requeueGuardRef.current.has(`rec-del-${id}`)) {
+        removeRecurringFromCache(queryClient, id)
+      }
       setDeleteId(null)
+      if (!onlineManager.isOnline()) notifyOfflineQueued('Repetición')
+      return { id, previous }
+    },
+    onSuccess: (_d, _v, ctx) => {
+      if (ctx?.id != null) requeueGuardRef.current.delete(`rec-del-${ctx.id}`)
+      if (onlineManager.isOnline()) notify.success('Repetición eliminada')
       invalidateFinance()
     },
-    onError: (error) => notify.error(getSupabaseErrorMessage(error)),
+    onError: (error, vars, ctx) => {
+      const id = ctx?.id ?? vars?.id
+      const key = `rec-del-${id}`
+      if (isNetworkError(error)) {
+        markOffline()
+        notifyOfflineQueued('Repetición')
+        if (id != null && !requeueGuardRef.current.has(key)) {
+          requeueGuardRef.current.add(key)
+          queueMicrotask(() => deleteMutation.mutate(vars))
+        }
+        return
+      }
+      requeueGuardRef.current.delete(key)
+      if (ctx?.previous) {
+        applyOptimisticRecurringCreate(queryClient, { ...ctx.previous, _pending: false })
+      }
+      notify.error(getSupabaseErrorMessage(error))
+    },
   })
 
   const runNowMutation = useMutation({
@@ -158,9 +289,44 @@ export function RecurringPanel({
   }
 
   const openEdit = (item) => {
+    if (item?._pending || String(item?.id).startsWith('pending-')) {
+      notify.info('Esta repetición aún no se ha subido. Espera a que se sincronice para editarla.')
+      return
+    }
     setSelected(item)
     setModalOpen(true)
   }
+
+  const handleSubmit = (raw) => {
+    if (raw?.contact_id != null && String(raw.contact_id).startsWith('pending-')) {
+      notify.warning('El contacto aún no se ha sincronizado. Elige otro o espera a reconectar.')
+      return
+    }
+
+    const payload = serializeRecurringPayload(raw)
+
+    if (raw?.id && !String(raw.id).startsWith('pending-')) {
+      updateMutation.mutate({ id: raw.id, payload, userId, businessId })
+      return
+    }
+
+    if (!payload.client_uuid) payload.client_uuid = genClientUuid()
+    createMutation.mutate({ payload, userId, businessId })
+  }
+
+  const handleRunNow = (item) => {
+    if (!onlineManager.isOnline()) {
+      notify.warning('Sin conexión no se puede registrar ahora. Reconecta e inténtalo de nuevo.')
+      return
+    }
+    if (item?._pending || String(item?.id).startsWith('pending-')) {
+      notify.info('Esta repetición aún no se ha subido.')
+      return
+    }
+    runNowMutation.mutate(item.id)
+  }
+
+  const submitting = createMutation.isPending || updateMutation.isPending
 
   return (
     <>
@@ -205,12 +371,10 @@ export function RecurringPanel({
             <div className="space-y-3">
               {items.map((item) => {
                 const isIncome = item.type === 'income'
+                const pending = Boolean(item._pending) || String(item.id).startsWith('pending-')
                 return (
-                  <div
-                    key={item.id}
-                    className={`rounded-lg border p-3 sm:p-4 ${item.is_active ? '' : 'opacity-70'}`}
-                  >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <PendingSyncRow key={item.id} pending={pending} className={!item.is_active && !pending ? 'opacity-70' : undefined}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between w-full">
                       <div className="flex min-w-0 items-start gap-3">
                         <div className={`shrink-0 rounded-full p-2 ${isIncome ? 'bg-success/10' : 'bg-destructive/10'}`}>
                           {isIncome
@@ -243,8 +407,8 @@ export function RecurringPanel({
                               variant="ghost"
                               size="sm"
                               title="Registrar ahora"
-                              disabled={!item.is_active || runNowMutation.isPending}
-                              onClick={() => runNowMutation.mutate(item.id)}
+                              disabled={pending || !item.is_active || runNowMutation.isPending}
+                              onClick={() => handleRunNow(item)}
                             >
                               <RefreshCw className="h-4 w-4" />
                             </Button>
@@ -255,11 +419,24 @@ export function RecurringPanel({
                               variant="ghost"
                               size="sm"
                               title={item.is_active ? 'Pausar' : 'Activar'}
-                              onClick={() => toggleMutation.mutate({ id: item.id, is_active: !item.is_active })}
+                              disabled={pending}
+                              onClick={() => toggleMutation.mutate({
+                                id: item.id,
+                                is_active: !item.is_active,
+                                userId,
+                                businessId,
+                              })}
                             >
                               {item.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                             </Button>
-                            <Button type="button" variant="ghost" size="sm" title="Editar" onClick={() => openEdit(item)}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              title="Editar"
+                              disabled={pending}
+                              onClick={() => openEdit(item)}
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </PermissionGuard>
@@ -269,6 +446,7 @@ export function RecurringPanel({
                               variant="ghost"
                               size="sm"
                               title="Eliminar"
+                              disabled={pending}
                               onClick={() => setDeleteId(item.id)}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -277,7 +455,7 @@ export function RecurringPanel({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </PendingSyncRow>
                 )
               })}
             </div>
@@ -291,13 +469,13 @@ export function RecurringPanel({
           setModalOpen(o)
           if (!o) setSelected(null)
         }}
-        onSubmit={saveMutation.mutate}
+        onSubmit={handleSubmit}
         item={selected}
         categories={categories}
         paymentMethods={paymentMethods}
         currencies={currencies}
         contacts={contacts}
-        submitting={saveMutation.isPending}
+        submitting={submitting}
       />
 
       <ConfirmDialog
@@ -308,7 +486,7 @@ export function RecurringPanel({
         confirmText="Eliminar"
         cancelText="Cancelar"
         tone="destructive"
-        onConfirm={() => deleteMutation.mutate(deleteId)}
+        onConfirm={() => deleteMutation.mutate({ id: deleteId, userId, businessId })}
       />
     </>
   )
