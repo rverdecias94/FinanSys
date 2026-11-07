@@ -19,6 +19,7 @@ import { DocumentList } from '@/components/almacen/DocumentList'
 import { LocationsPanel } from '@/components/almacen/LocationsPanel'
 import { WarehouseInsightsPanel } from '@/components/almacen/WarehouseInsightsPanel'
 import { WarehouseOperationModal } from '@/components/almacen/WarehouseOperationModal'
+import { ReplacementMarginPanel } from '@/components/almacen/ReplacementMarginPanel'
 import { notify } from '@/services/notifications'
 import {
   listProductsForSelection,
@@ -127,6 +128,8 @@ export default function AlmacenMejorado() {
           </PermissionGuard>
         </div>
       </div>
+
+      <ReplacementMarginPanel onApplied={refreshWarehouse} />
 
       {canMove && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">

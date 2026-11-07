@@ -20,6 +20,7 @@ import { PaymentReminderBanner } from '@/components/common/PaymentReminderBanner
 import { AccountGate } from '@/components/auth/AccountGate'
 import { LegalConsentGate } from '@/components/auth/LegalConsentGate'
 import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard'
+import { DailyFxRateModal } from '@/components/config/DailyFxRateModal'
 import { cn } from '@/lib/utils'
 import BrandLogo from '@/components/BrandLogo'
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav'
@@ -589,6 +590,7 @@ export default function SidebarLayout() {
 
         <AccountGate />
         <OnboardingWizard />
+        <DailyFxRateModal />
         <LegalConsentGate />
       </div>
     </TooltipProvider>

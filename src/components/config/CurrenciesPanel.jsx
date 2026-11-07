@@ -13,10 +13,20 @@ import { useBusiness } from '@/context/BusinessContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useSession } from '@/hooks/useSession'
 import { getExchangeRates, upsertExchangeRate, getAllExchangeRateHistory } from '@/services/exchangeRates'
-import { CheckCircle2, Globe2, Lock, ArrowLeftRight, TrendingUp } from 'lucide-react'
+import { getBusinessSettings, patchBusinessFxSettings } from '@/services/businessSettings'
+import { fetchInformalFxSuggestions } from '@/services/informalFxRates'
+import {
+  FX_REMINDER_OFF_CONSEQUENCES,
+  normalizeFxSettings,
+  DEFAULT_TARGET_MARGIN_PCT,
+} from '@/utils/dailyFxReminder'
+import { INFORMAL_FX_SOURCE_LABEL } from '@/utils/informalFxRates'
+import { Checkbox } from '@/components/ui/checkbox'
+import { CheckCircle2, Globe2, Lock, ArrowLeftRight, TrendingUp, Bell, RefreshCw } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { toast } from 'sonner'
 
 function RateHistoryChart({ data }) {
   const points = useMemo(
@@ -59,7 +69,8 @@ export function CurrenciesPanel() {
   const queryClient = useQueryClient()
   const userId = session?.user?.id
 
-  const isFree = (subscription?.plan_id || 'free') !== 'premium'
+  const planId = subscription?.plan_id || 'free'
+  const isFree = planId !== 'premium' && planId !== 'ultra'
 
   const activeSet = useMemo(() => new Set(businessCurrencies.map((c) => c.code)), [businessCurrencies])
   const defaultCode = useMemo(() => businessCurrencies.find((c) => c.is_default)?.code, [businessCurrencies])
@@ -84,31 +95,98 @@ export function CurrenciesPanel() {
   })
   const history = historyQuery.data || {}
 
+  const settingsQuery = useQuery({
+    queryKey: ['configuracion', 'general-settings', businessId || userId],
+    queryFn: () => getBusinessSettings(userId, businessId),
+    enabled: !!userId && !!businessId,
+  })
+  const fxSettings = normalizeFxSettings(settingsQuery.data?.fx)
+
+  const fxPrefsMutation = useMutation({
+    mutationFn: (patch) => patchBusinessFxSettings(userId, businessId, patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['configuracion', 'general-settings'] })
+      toast.success('Preferencias de dólar actualizadas')
+    },
+    onError: () => toast.error('No se pudieron guardar las preferencias'),
+  })
+
   // Fecha de vigencia de la tasa que se está registrando (permite registrar días pasados).
   const [rateDate, setRateDate] = useState(() => new Date())
 
   // Estado local de los inputs (string), sembrado desde las tasas guardadas.
   const [drafts, setDrafts] = useState({})
+  const [rateConfirmed, setRateConfirmed] = useState(false)
+  const [suggestHint, setSuggestHint] = useState(null)
+
   useEffect(() => {
     const seed = {}
     for (const c of ratedCurrencies) {
       seed[c.code] = rates[c.code]?.units_per_base != null ? String(rates[c.code].units_per_base) : ''
     }
     setDrafts(seed)
+    setRateConfirmed(false)
+    setSuggestHint(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ratesQuery.data, defaultCode, businessCurrencies.length])
 
+  const suggestMutation = useMutation({
+    mutationFn: () =>
+      fetchInformalFxSuggestions({
+        baseCode: defaultCode,
+        currencyCodes: ratedCurrencies.map((c) => c.code),
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        setSuggestHint({ tone: 'warn', text: result.error })
+        toast.message('No se pudo sugerir automáticamente — introdúcelas a mano')
+        return
+      }
+      setDrafts((prev) => {
+        const next = { ...prev }
+        for (const [code, value] of Object.entries(result.suggestions || {})) {
+          next[code] = String(value)
+        }
+        return next
+      })
+      setRateConfirmed(false)
+      const missing =
+        (result.missing || []).length > 0
+          ? ` Sin referencia para: ${result.missing.join(', ')}.`
+          : ''
+      setSuggestHint({
+        tone: 'ok',
+        text: `Sugerido por ${result.attribution || INFORMAL_FX_SOURCE_LABEL}.${missing} Confirma antes de guardar.`,
+      })
+      toast.success('Sugerencia de tasas lista — confírmalas antes de guardar')
+    },
+    onError: (err) => {
+      setSuggestHint({
+        tone: 'warn',
+        text: err?.message || 'No se pudo consultar el mercado informal. Introdúcelas a mano.',
+      })
+      toast.error('No se pudo obtener la sugerencia automática')
+    },
+  })
+
   const saveMutation = useMutation({
-    mutationFn: ({ currency_code, units_per_base }) =>
-      upsertExchangeRate(
+    mutationFn: ({ currency_code, units_per_base }) => {
+      if (!rateConfirmed) {
+        throw new Error('Confirma que estas cifras son el precio real que usas')
+      }
+      return upsertExchangeRate(
         { currency_code, units_per_base, effective_date: format(rateDate, 'yyyy-MM-dd') },
         userId,
         businessId
-      ),
+      )
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchangeRates'] })
       queryClient.invalidateQueries({ queryKey: ['exchangeRatesHistory'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+    onError: (err) => {
+      toast.error(err?.message || 'No se pudo guardar la tasa')
     },
   })
 
@@ -116,6 +194,76 @@ export function CurrenciesPanel() {
 
   return (
     <div className="space-y-6">
+      {ratedCurrencies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Recordatorio diario del dólar
+            </CardTitle>
+            <CardDescription>
+              Al abrir Gestia te pedimos la tasa del día para no olvidarla.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="daily-fx-reminder" className="text-sm font-medium">
+                  Pedírmelo cada día al abrir Gestia
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Recomendado si el dólar cambia a menudo (como en Cuba).
+                </p>
+              </div>
+              <Switch
+                id="daily-fx-reminder"
+                checked={fxSettings.daily_fx_reminder}
+                disabled={!isOwner || fxPrefsMutation.isPending}
+                onCheckedChange={(checked) =>
+                  fxPrefsMutation.mutate({ daily_fx_reminder: checked })
+                }
+              />
+            </div>
+
+            {!fxSettings.daily_fx_reminder && (
+              <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm text-foreground">
+                <p className="font-medium text-warning">Si desactivas el recordatorio</p>
+                <p className="mt-1 text-muted-foreground">{FX_REMINDER_OFF_CONSEQUENCES}</p>
+              </div>
+            )}
+
+            <div className="grid gap-1.5 sm:max-w-[220px]">
+              <Label htmlFor="target-margin-pct" className="text-xs text-muted-foreground">
+                Margen objetivo sobre reposición (%)
+              </Label>
+              <Input
+                id="target-margin-pct"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="1"
+                className="h-11"
+                defaultValue={fxSettings.target_margin_pct ?? DEFAULT_TARGET_MARGIN_PCT}
+                key={`margin-${fxSettings.target_margin_pct}`}
+                disabled={!isOwner || fxPrefsMutation.isPending}
+                onBlur={(e) => {
+                  const n = Number(e.target.value)
+                  if (!Number.isFinite(n) || n < 0) {
+                    toast.error('El margen debe ser un número ≥ 0')
+                    return
+                  }
+                  if (n === fxSettings.target_margin_pct) return
+                  fxPrefsMutation.mutate({ target_margin_pct: n })
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Se usa en Almacén para sugerir el precio de venta al subir el dólar.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -205,14 +353,60 @@ export function CurrenciesPanel() {
           <CardContent className="space-y-4">
             {/* Fecha de la tasa (por si registras la de un día pasado) */}
             {isOwner && (
-              <div className="flex flex-col gap-1 sm:max-w-[280px]">
-                <Label className="text-xs text-muted-foreground">Fecha de la tasa</Label>
-                <Calendar value={rateDate} onChange={(d) => setRateDate(d || new Date())} />
-                {!isToday && (
-                  <p className="text-[11px] text-warning">
-                    Estás registrando una tasa con fecha pasada ({format(rateDate, "d 'de' MMMM yyyy", { locale: es })}).
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1 sm:max-w-[280px]">
+                  <Label className="text-xs text-muted-foreground">Fecha de la tasa</Label>
+                  <Calendar value={rateDate} onChange={(d) => setRateDate(d || new Date())} />
+                  {!isToday && (
+                    <p className="text-[11px] text-warning">
+                      Estás registrando una tasa con fecha pasada ({format(rateDate, "d 'de' MMMM yyyy", { locale: es })}).
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full sm:w-auto"
+                    loading={suggestMutation.isPending}
+                    disabled={suggestMutation.isPending}
+                    onClick={() => suggestMutation.mutate()}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Sugerir tasa informal
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Intenta elTOQUE; si no hay clave, usa CambioCUP (USD). Si falla, escribe a mano.
                   </p>
+                </div>
+
+                {suggestHint && (
+                  <div
+                    className={`rounded-md border px-3 py-2 text-sm ${
+                      suggestHint.tone === 'ok'
+                        ? 'border-primary/20 bg-primary/5'
+                        : 'border-warning/30 bg-warning/10'
+                    }`}
+                  >
+                    {suggestHint.text}
+                  </div>
                 )}
+
+                <label
+                  htmlFor="currencies-fx-confirm"
+                  className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3"
+                >
+                  <Checkbox
+                    id="currencies-fx-confirm"
+                    checked={rateConfirmed}
+                    onCheckedChange={(v) => setRateConfirmed(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm leading-snug">
+                    Confirmo que estas cifras son el precio real que uso en mi negocio.
+                  </span>
+                </label>
               </div>
             )}
 
@@ -238,11 +432,15 @@ export function CurrenciesPanel() {
                         inputMode="decimal"
                         min="0"
                         step="any"
+                        className="h-11"
                         placeholder={`Ej. 420`}
                         value={value}
                         disabled={!isOwner}
                         aria-invalid={value !== '' && !valid}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [c.code]: e.target.value }))}
+                        onChange={(e) => {
+                          setDrafts((d) => ({ ...d, [c.code]: e.target.value }))
+                          setRateConfirmed(false)
+                        }}
                       />
                       {value !== '' && !valid && (
                         <p className="text-xs text-destructive">La tasa debe ser un número mayor que 0.</p>
@@ -250,9 +448,9 @@ export function CurrenciesPanel() {
                     </div>
                     {isOwner && (
                       <Button
-                        className="shrink-0"
+                        className="h-11 shrink-0"
                         loading={isSaving}
-                        disabled={!valid}
+                        disabled={!valid || !rateConfirmed}
                         onClick={() => saveMutation.mutate({ currency_code: c.code, units_per_base: Number(value) })}
                       >
                         Guardar

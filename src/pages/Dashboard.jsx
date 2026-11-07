@@ -317,10 +317,10 @@ export default function Dashboard() {
       </div>
 
       {!ready ? (
-        {/* isRestoring: no flash de ceros tras reopen offline */}
+        // isRestoring: no flash de ceros tras reopen offline
         <DashboardBodySkeleton />
       ) : showOnboarding ? (
-        /* ---------- Estado de primer uso (empty state guiado) ---------- */
+        // Estado de primer uso (empty state guiado)
         <>
           <Card>
             <CardHeader className="pb-3">

@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { deleteProduct, generateProductSku } from '@/services/almacen'
 import { useSession } from '@/hooks/useSession'
@@ -23,10 +24,18 @@ import {
   applyOptimisticProductUpdate,
   buildPendingProductRow,
   clearOptimisticProduct,
+  clearProductPendingFlag,
   findProductInCache,
   restoreProductRow,
   serializeProductPayload,
 } from '@/offline/optimisticWarehouse'
+import {
+  STOCK_UNITS,
+  normalizeStockUnit,
+  perPieceFromBox,
+  stockUnitPlural,
+  stockUnitShort,
+} from '@/utils/stockUnit'
 
 export function ProductModal({ open, onOpenChange, product, onSuccess, categories, currencies = [] }) {
   const { session } = useSession()
@@ -38,11 +47,14 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
   const [loading, setLoading] = useState(false)
   const defaultCurrency = currencies.find(c => c.is_default)?.code || (currencies.length > 0 ? currencies[0].code : 'USD')
 
-  const [formData, setFormData] = useState({
+  const emptyForm = () => ({
     name: '',
     category: '',
     unit_price: '',
     currency: defaultCurrency,
+    is_for_sale: true,
+    stock_unit: 'unit',
+    units_per_box: '',
     stock: 0,
     min_stock: 5,
     max_stock: '',
@@ -51,10 +63,17 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     track_lot: false,
     track_serial: false,
     track_expiry: false,
-    issue_strategy: 'none'
+    issue_strategy: 'none',
   })
+
+  const [formData, setFormData] = useState(emptyForm)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [errors, setErrors] = useState({})
+  const countShort = stockUnitShort(formData.stock_unit)
+  const countPlural = stockUnitPlural(formData.stock_unit)
+  const pieceHint = formData.stock_unit === 'box'
+    ? perPieceFromBox(formData.unit_price, formData.units_per_box)
+    : null
 
   useEffect(() => {
     setErrors({})
@@ -64,6 +83,9 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         category: product.category,
         unit_price: product.unit_price,
         currency: product.currency || defaultCurrency,
+        is_for_sale: product.is_for_sale !== false,
+        stock_unit: normalizeStockUnit(product.stock_unit),
+        units_per_box: product.units_per_box ?? '',
         stock: product.stock,
         min_stock: product.min_stock || 5,
         max_stock: product.max_stock ?? '',
@@ -72,24 +94,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
         track_lot: !!product.track_lot,
         track_serial: !!product.track_serial,
         track_expiry: !!product.track_expiry,
-        issue_strategy: product.issue_strategy || 'none'
+        issue_strategy: product.issue_strategy || 'none',
       })
     } else {
-      setFormData({
-        name: '',
-        category: '',
-        unit_price: '',
-        currency: defaultCurrency,
-        stock: 0,
-        min_stock: 5,
-        max_stock: '',
-        sku: '',
-        barcode: '',
-        track_lot: false,
-        track_serial: false,
-        track_expiry: false,
-        issue_strategy: 'none'
-      })
+      setFormData(emptyForm())
     }
   }, [product, open, defaultCurrency])
 
@@ -133,14 +141,19 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     onMutate: async (vars) => {
       const id = vars?.id
       const previous = findProductInCache(queryClient, id)
+      const offline = !onlineManager.isOnline()
       if (previous && !requeueGuardRef.current.has(`prod-upd-${id}`)) {
-        applyOptimisticProductUpdate(queryClient, id, vars?.payload || {})
+        // Solo marcar "por sincronizar" si realmente no hay red.
+        applyOptimisticProductUpdate(queryClient, id, vars?.payload || {}, { pending: offline })
       }
-      if (!onlineManager.isOnline()) notifyOfflineQueued('Producto')
-      return { id, previous }
+      if (offline) notifyOfflineQueued('Producto')
+      return { id, previous, offline }
     },
     onSuccess: (_d, _v, ctx) => {
-      if (ctx?.id != null) requeueGuardRef.current.delete(`prod-upd-${ctx.id}`)
+      if (ctx?.id != null) {
+        requeueGuardRef.current.delete(`prod-upd-${ctx.id}`)
+        clearProductPendingFlag(queryClient, ctx.id)
+      }
       onSuccess?.({ created: false })
     },
     onError: (error, vars, ctx) => {
@@ -149,6 +162,10 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
       if (isNetworkError(error)) {
         markOffline()
         notifyOfflineQueued('Producto')
+        // Ahora sí: queda en cola → mostrar pendiente.
+        if (id != null) {
+          applyOptimisticProductUpdate(queryClient, id, vars?.payload || {}, { pending: true })
+        }
         if (id != null && !requeueGuardRef.current.has(key)) {
           requeueGuardRef.current.add(key)
           queueMicrotask(() => updateMutation.mutate(vars))
@@ -164,10 +181,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const priceForValidation = formData.is_for_sale
+      ? String(formData.unit_price ?? '')
+      : String(formData.unit_price === '' || formData.unit_price == null ? '0' : formData.unit_price)
     const validation = validateForm(productSchema, {
       name: formData.name,
       category: formData.category || '',
-      unit_price: String(formData.unit_price ?? ''),
+      unit_price: priceForValidation,
       currency: formData.currency,
       stock: String(formData.stock ?? ''),
       min_stock: String(formData.min_stock ?? '')
@@ -180,7 +200,8 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
 
     const payload = serializeProductPayload({
       ...formData,
-      unit_price: Number(formData.unit_price),
+      is_for_sale: !!formData.is_for_sale,
+      unit_price: formData.is_for_sale ? Number(formData.unit_price) : Number(priceForValidation),
       stock: Number(formData.stock),
       min_stock: Number(formData.min_stock),
       max_stock: formData.max_stock === '' || formData.max_stock == null ? null : Number(formData.max_stock),
@@ -226,32 +247,20 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
     <Dialog open={open} onOpenChange={(nextOpen) => {
       onOpenChange(nextOpen)
       if (!nextOpen) {
-        setFormData({
-          name: '',
-          category: '',
-          unit_price: '',
-          currency: defaultCurrency,
-          stock: 0,
-          min_stock: 5,
-          max_stock: '',
-          sku: '',
-          barcode: '',
-          track_lot: false,
-          track_serial: false,
-          track_expiry: false,
-          issue_strategy: 'none'
-        })
+        setFormData(emptyForm())
         setConfirmOpen(false)
       }
     }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>{product ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
+          <DialogTitle>{product ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-2">
-            <Label>Nombre</Label>
+          <div className="grid gap-1.5">
+            <Label htmlFor="product-name">Nombre</Label>
             <Input
+              id="product-name"
+              className="h-11"
               value={formData.name}
               onChange={e => setFormData({ ...formData, name: e.target.value })}
               aria-invalid={!!errors.name}
@@ -259,11 +268,12 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3">
+            <div className="grid gap-1.5 min-w-0">
               <Label>SKU</Label>
-              <div className="flex gap-2">
+              <div className="flex h-11 gap-2">
                 <Input
+                  className="h-11 min-w-0"
                   value={formData.sku}
                   onChange={e => setFormData({ ...formData, sku: e.target.value })}
                   placeholder="PRD-0001"
@@ -271,16 +281,17 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
                 <Button
                   type="button"
                   variant="outline"
-                  className="shrink-0"
+                  className="h-11 shrink-0 px-3"
                   onClick={() => setFormData({ ...formData, sku: generateProductSku(formData.name) })}
                 >
                   Generar
                 </Button>
               </div>
             </div>
-            <div className="grid gap-2">
+            <div className="grid gap-1.5 min-w-0">
               <Label>Código de barras</Label>
               <Input
+                className="h-11"
                 value={formData.barcode}
                 onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                 placeholder="EAN / UPC"
@@ -288,13 +299,13 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             </div>
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-1.5">
             <Label>Categoría</Label>
             <Select
               value={formData.category}
               onValueChange={v => setFormData({ ...formData, category: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-11">
                 <SelectValue placeholder="Selecciona una categoría" />
               </SelectTrigger>
               <SelectContent>
@@ -305,25 +316,92 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>Precio Unitario</Label>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 px-3 py-2.5">
+            <div className="min-w-0">
+              <Label htmlFor="is-for-sale" className="text-sm font-medium">
+                Se vende al cliente
+              </Label>
+              <p className="text-xs text-muted-foreground leading-snug">
+                Off = uso interno (cocina, buffet, insumos). Sin precio sugerido FX.
+              </p>
+            </div>
+            <Switch
+              id="is-for-sale"
+              className="shrink-0"
+              checked={formData.is_for_sale}
+              onCheckedChange={(checked) => setFormData({ ...formData, is_for_sale: checked })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">Se cuenta por</Label>
+              <Select
+                value={formData.stock_unit}
+                onValueChange={(v) => setFormData({
+                  ...formData,
+                  stock_unit: v,
+                  units_per_box: v === 'box' ? formData.units_per_box : '',
+                })}
+              >
+                <SelectTrigger className="h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STOCK_UNITS.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">Unidades por caja</Label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                className="h-11"
+                placeholder="Ej. 24"
+                value={formData.units_per_box}
+                disabled={formData.stock_unit !== 'box'}
+                onChange={(e) => setFormData({ ...formData, units_per_box: e.target.value })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {formData.stock_unit === 'box'
+                  ? 'Solo para ver equivalencia por pieza.'
+                  : 'Activo si cuentas por caja.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">
+                {formData.is_for_sale ? `Precio por ${countShort}` : `Precio ref. / ${countShort}`}
+              </Label>
               <Input
                 type="number"
                 step="0.01"
+                className="h-11"
                 value={formData.unit_price}
                 onChange={e => setFormData({ ...formData, unit_price: e.target.value })}
                 aria-invalid={!!errors.unit_price}
+                disabled={!formData.is_for_sale}
               />
               {errors.unit_price && <p className="text-xs text-destructive">{errors.unit_price}</p>}
+              {pieceHint != null && formData.is_for_sale && (
+                <p className="text-[11px] text-muted-foreground">
+                  ≈ {pieceHint} {formData.currency} por pieza
+                </p>
+              )}
             </div>
-            <div className="grid gap-2">
-              <Label>Moneda</Label>
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">Moneda</Label>
               <Select
                 value={formData.currency}
                 onValueChange={v => setFormData({ ...formData, currency: v })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -336,34 +414,33 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>{product ? 'Stock Actual' : 'Stock inicial'}</Label>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">
+                {product ? `Stock (${countPlural})` : `Stock inicial (${countPlural})`}
+              </Label>
               <Input
                 type="number"
                 min="0"
                 step="1"
+                className="h-11"
                 value={formData.stock}
                 onChange={e => setFormData({ ...formData, stock: e.target.value })}
                 aria-invalid={!!errors.stock}
                 disabled={!!product}
               />
               {errors.stock && <p className="text-xs text-destructive">{errors.stock}</p>}
-              {!product && (
-                <p className="text-xs text-muted-foreground">
-                  Si indicas una cantidad, se registra como entrada inicial.
-                </p>
-              )}
               {product && (
-                <p className="text-xs text-muted-foreground">
-                  El stock se ajusta con movimientos (Entrada/Salida), no desde aquí.
+                <p className="text-[11px] text-muted-foreground">
+                  Entrada/salida en {countPlural}. Costo de entrada = por {countShort}.
                 </p>
               )}
             </div>
-            <div className="grid gap-2">
-              <Label>Stock Mínimo (Alerta)</Label>
+            <div className="grid gap-1.5 min-w-0 content-start">
+              <Label className="min-h-5">Stock mínimo</Label>
               <Input
                 type="number"
+                className="h-11"
                 value={formData.min_stock}
                 onChange={e => setFormData({ ...formData, min_stock: e.target.value })}
                 aria-invalid={!!errors.min_stock}
@@ -372,60 +449,71 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Stock máximo <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
-              <Input
-                type="number"
-                min="0"
-                value={formData.max_stock}
-                onChange={e => setFormData({ ...formData, max_stock: e.target.value })}
-              />
+          <details className="group rounded-lg border border-border/80 open:bg-muted/20">
+            <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium marker:content-none [&::-webkit-details-marker]:hidden flex items-center justify-between">
+              <span>Opciones avanzadas</span>
+              <span className="text-xs text-muted-foreground group-open:hidden">Máx., lotes, serie…</span>
+            </summary>
+            <div className="space-y-3 border-t border-border/60 px-3 pb-3 pt-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5 min-w-0">
+                  <Label className="min-h-5">Stock máximo</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    className="h-11"
+                    value={formData.max_stock}
+                    onChange={e => setFormData({ ...formData, max_stock: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-1.5 min-w-0">
+                  <Label className="min-h-5">Estrategia de salida</Label>
+                  <Select
+                    value={formData.issue_strategy}
+                    onValueChange={v => setFormData({ ...formData, issue_strategy: v })}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ninguna</SelectItem>
+                      <SelectItem value="fifo">FIFO</SelectItem>
+                      <SelectItem value="fefo">FEFO (caducidad)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={formData.track_lot}
+                    onChange={e => setFormData({ ...formData, track_lot: e.target.checked })}
+                  />
+                  Lote
+                </label>
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={formData.track_serial}
+                    onChange={e => setFormData({ ...formData, track_serial: e.target.checked })}
+                  />
+                  Serie
+                </label>
+                <label className="flex min-h-11 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-primary"
+                    checked={formData.track_expiry}
+                    onChange={e => setFormData({ ...formData, track_expiry: e.target.checked })}
+                  />
+                  Caducidad
+                </label>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label>Estrategia de salida</Label>
-              <Select
-                value={formData.issue_strategy}
-                onValueChange={v => setFormData({ ...formData, issue_strategy: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ninguna</SelectItem>
-                  <SelectItem value="fifo">FIFO</SelectItem>
-                  <SelectItem value="fefo">FEFO (caducidad)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={formData.track_lot}
-                onChange={e => setFormData({ ...formData, track_lot: e.target.checked })}
-              />
-              Control por lote
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={formData.track_serial}
-                onChange={e => setFormData({ ...formData, track_serial: e.target.checked })}
-              />
-              Control por serie
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={formData.track_expiry}
-                onChange={e => setFormData({ ...formData, track_expiry: e.target.checked })}
-              />
-              Caducidad
-            </label>
-          </div>
+          </details>
 
           <DialogFooter className="flex justify-between items-center sm:justify-between w-full mt-6">
             {product && hasPermission('warehouse.delete') ? (

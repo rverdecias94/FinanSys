@@ -16,6 +16,7 @@ import { listProducts } from '@/services/almacen'
 import { notify } from '@/services/notifications'
 import { countQueuedMutations } from '@/offline/syncEngine'
 import { PRODUCT_CREATE_KEY } from '@/offline/mutationDefaults'
+import { stockUnitPlural, stockUnitShort } from '@/utils/stockUnit'
 
 export function ProductList({
   userId,
@@ -81,20 +82,33 @@ export function ProductList({
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t pt-3 sm:shrink-0 sm:justify-end sm:gap-4 sm:border-0 sm:pt-0">
-          <div className="flex min-w-0 flex-col items-start gap-1 sm:items-end">
-            <div className="whitespace-nowrap font-semibold">
-              {formatCurrency(p.unit_price, p.currency)}
+          <div className="flex min-w-0 flex-col items-start gap-1.5 sm:items-end">
+            <div className="whitespace-nowrap font-semibold tabular-nums">
+              {p.is_for_sale === false
+                ? <span className="text-sm font-medium text-muted-foreground">Sin precio de venta</span>
+                : formatCurrency(p.unit_price, p.currency)}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Stock: {p.stock}</Badge>
+            <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+              <Badge variant="outline">
+                Stock: {p.stock}{' '}
+                {Number(p.stock) === 1 ? stockUnitShort(p.stock_unit) : stockUnitPlural(p.stock_unit)}
+              </Badge>
+              {p.stock_unit === 'box' && (
+                <Badge variant="outline">Por caja</Badge>
+              )}
+              {p.is_for_sale === false && (
+                <Badge variant="secondary">Uso interno</Badge>
+              )}
               {isLowStock ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" /> Bajo
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="gap-1">
-                  <CheckCircle2 className="h-3 w-3" /> OK
-                </Badge>
+                !pending && (
+                  <Badge variant="secondary" className="gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> OK
+                  </Badge>
+                )
               )}
               {pending && (
                 <Badge variant="outline" className="gap-1 border-warning/40 text-warning">

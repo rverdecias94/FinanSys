@@ -2,7 +2,7 @@
 
 > Este archivo es la **memoria viva del proyecto**. Lo leo automáticamente al iniciar cada sesión.
 > Mantenerlo actualizado y **basado solo en hechos verificados en el código** (no suposiciones).
-> Última verificación de los hechos de abajo: **2026-06-17** (leyendo el código real).
+> Última verificación de los hechos de abajo: **2026-11-07** (leyendo el código real; bloque FX margen).
 
 ## 1. Qué es
 - **Nombre interno:** GESTIA / "NexGest ERP / ContaSync" (en `README.md`). Título del navegador: "Gestia".
@@ -59,6 +59,19 @@
 - **Regla de color del negocio:** **ingresos = verde (`--success`/`text-success`)**, **gastos = rojo (`--destructive`)**. Usar SIEMPRE estas variables (no hex hardcodeado) para que el modo oscuro funcione. Añadir icono/signo (+/−) además del color por accesibilidad (daltonismo).
 - ⚠️ **Inconsistencia de fuente:** `tailwind.config.js` define `sans: Geist`, pero `index.css` define `--font-sans: Outfit`. Unificar.
 - Tamaño de fuente con utilidades `html.font-compact|normal|accessible` (accesibilidad).
+
+## 5.1 Dólar diario + precio de reposición (verificado 2026-11-07)
+- **No es un módulo de menú nuevo.** Vive en Configuración → Monedas + modal al abrir + Almacén.
+- Preferencias en `business_settings.fx`: `daily_fx_reminder` (default true), `target_margin_pct`, `last_fx_prompt_date`.
+- Modal `DailyFxRateModal` en `SidebarLayout` (después del splash/onboarding): pide tasa del día si el recordatorio está ON y falta tasa de hoy.
+- **Sugerencia automática:** Edge Function `informal-fx-rates` → 1) API TRMI elTOQUE (`ELTOQUE_API_KEY`) 2) si no hay clave/falla → **CambioCUP** público (USD/CUP, sin EUR). Si ambas fallan, pide tasa a mano. **Nunca guarda sola:** checkbox «Confirmo que estas cifras…» obligatorio. Misma lógica en `CurrenciesPanel` («Sugerir tasa informal»).
+- Switch + texto de consecuencias si se apaga: en `CurrenciesPanel`.
+- Entradas de almacén sellan `movements.fx_units_per_base` vía `create_and_post_quick_movement(..., p_fx_units_per_base)` — **no reescribe `avg_cost`/COGS**.
+- UI `ReplacementMarginPanel` en Almacén: Inicial = solo lectura; Negocio = aplicar 1 a 1; Élite = lote + escenario de tasa.
+- Cálculo puro: `src/utils/replacementPricing.js` (+ tests caso refrescos 800→1000→sugerido 1250).
+- **Sugerido siempre en la moneda del producto** (no mezclar USD vs CUP). Solo productos `is_for_sale=true`; uso interno (cocina/buffet/insumos) se excluye.
+- **Unidad de trabajo:** `stock_unit` (`unit`|`box`) + `units_per_box` opcional. Stock, costo de entrada y precio de venta hablan de la misma unidad; reposición se etiqueta «por unidad/caja».
+- Guía E2E playwright-cli: `e2e/fx/README.md`.
 
 ## 6. Supabase
 - Cliente: `src/config/supabase.jsx` usa `import.meta.env.VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. ⚠️ No se pasan opciones de auth (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`) — revisar.

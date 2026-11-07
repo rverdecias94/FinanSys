@@ -200,8 +200,10 @@ export function registerMutationDefaults(queryClient) {
         type,
         unit_cost,
         userId,
+        businessId,
         notes,
         client_uuid,
+        fx_units_per_base,
       } = vars || {}
       return registerMovement({
         product_id,
@@ -209,8 +211,10 @@ export function registerMutationDefaults(queryClient) {
         type,
         unit_cost,
         userId,
+        businessId: businessId || null,
         notes: notes || null,
         client_uuid: client_uuid || null,
+        fx_units_per_base: fx_units_per_base ?? null,
       })
     },
   })

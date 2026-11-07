@@ -9,6 +9,7 @@ Este es **el archivo donde defines dónde van las llaves de tus cuentas** (Supab
 | `.env.example` | ✅ Sí (plantilla) | Llaves públicas de ejemplo | Referencia |
 | `.env` | ❌ No (secreto) | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | La app en el navegador |
 | Secrets Edge Function `ai-tools` | ❌ No (Dashboard Supabase → Edge Functions → Secrets) | `OPENROUTER_API_KEY`; opcional `OPENROUTER_TEXT_MODEL` (default `openrouter/free`) y `OPENROUTER_TEXT_FALLBACKS` (lista `:free`). Free tiene techos diarios por key (~50/día si hay poco crédito comprado). Acciones: `ask_business`, `extract_document`, `parse_calc`. OCR = Tesseract local. | Plan Ultra / Herramientas |
+| Secrets Edge Function `informal-fx-rates` | ❌ No (Dashboard Supabase → Edge Functions → Secrets) | `ELTOQUE_API_KEY` opcional (Bearer; formulario [tasas-token.eltoque.com](https://tasas-token.eltoque.com/)). Sin clave, usa respaldo público **CambioCUP** (USD/CUP). | Recordatorio diario FX + «Sugerir tasa informal» |
 | `.env.tooling.example` | ✅ Sí (plantilla) | Secretos de admin de ejemplo | Referencia |
 | `.env.tooling` | ❌ No (secreto) | Tokens de Supabase admin, GitHub, Netlify | **Yo (Claude)** para migraciones y despliegues |
 
@@ -79,5 +80,12 @@ Luego abre cada archivo y pega los valores reales según las guías de abajo.
 - [ ] `.env.tooling` con Netlify (`NETLIFY_SITE_ID`, `NETLIFY_AUTH_TOKEN`)
 - [ ] Variables `VITE_*` también cargadas en el panel de Netlify
 - [ ] Confirmé que `.env` y `.env.tooling` **NO** aparecen en `git status`
+- [ ] Secret `ELTOQUE_API_KEY` en Edge Function `informal-fx-rates` (opcional; sin ella el modal pide la tasa a mano)
 
 > Cuando termines de llenar `.env.tooling`, avísame y verifico la conexión a cada servicio antes de tocar nada.
+
+### C) Tasa informal Cuba (elTOQUE TRMI)
+1. Solicita clave en el formulario de API de elTOQUE (uso: sistema contable GESTIA — sugerir tasa diaria al titular para confirmar).
+2. En Supabase → **Edge Functions → Secrets** añade `ELTOQUE_API_KEY` = el Bearer que te envíen.
+3. Despliega / actualiza la función `informal-fx-rates` si aún no está en el proyecto.
+4. La app **nunca** guarda la sugerencia sola: el usuario debe marcar «Confirmo que estas cifras…» antes de guardar.

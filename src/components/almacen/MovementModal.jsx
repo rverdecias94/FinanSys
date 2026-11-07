@@ -23,6 +23,7 @@ import {
   findProductInCache,
   restoreProductStock,
 } from '@/offline/optimisticWarehouse'
+import { stockUnitPlural, stockUnitShort } from '@/utils/stockUnit'
 
 export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   const { session } = useSession()
@@ -41,6 +42,8 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
   })
 
   const selectedProduct = safeProducts.find(p => String(p.id) === String(formData.product_id))
+  const countShort = stockUnitShort(selectedProduct?.stock_unit)
+  const countPlural = stockUnitPlural(selectedProduct?.stock_unit)
 
   const createMutation = useMutation({
     mutationKey: WH_MOVEMENT_CREATE_KEY,
@@ -204,27 +207,36 @@ export function MovementModal({ open, onOpenChange, products, onSuccess }) {
 
           {formData.type === 'in' && (
             <div className="grid gap-2">
-              <Label>Costo unitario <span className="text-xs font-normal text-muted-foreground">(opcional)</span></Label>
+              <Label>
+                Costo por {countShort}{' '}
+                <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+              </Label>
               <Input
                 type="number"
                 min="0"
                 step="0.01"
                 placeholder="0.00"
+                className="h-11"
                 value={formData.unit_cost}
                 onChange={e => setFormData({ ...formData, unit_cost: e.target.value })}
                 aria-invalid={!!errors.unit_cost}
               />
               {errors.unit_cost
                 ? <p className="text-xs text-destructive">{errors.unit_cost}</p>
-                : <p className="text-xs text-muted-foreground">Si lo indicas, se recalcula el costo promedio del producto.</p>}
+                : (
+                  <p className="text-xs text-muted-foreground">
+                    Debe ser el costo de <strong>una {countShort}</strong> (la misma unidad del producto).
+                    Si lo indicas, se recalcula el costo promedio.
+                  </p>
+                )}
             </div>
           )}
 
-          {selectedProduct && formData.type === 'out' && (
+          {selectedProduct && (
             <div className="text-sm text-muted-foreground">
-              Stock actual: {selectedProduct.stock}
-              {Number(formData.qty) > selectedProduct.stock && (
-                <span className="text-destructive block font-medium">⚠️ Cantidad excede el stock disponible</span>
+              Stock actual: {selectedProduct.stock} {countPlural}
+              {formData.type === 'out' && Number(formData.qty) > selectedProduct.stock && (
+                <span className="text-destructive block font-medium">La cantidad excede el stock disponible</span>
               )}
             </div>
           )}

@@ -66,7 +66,7 @@ export async function listProductsForSelection({ userId, businessId, limit = 500
 
   let q = supabase
     .from('products')
-    .select('id, name, stock, category, currency, unit_price, sku, barcode, avg_cost, min_stock, max_stock, track_lot, track_serial, track_expiry, issue_strategy')
+    .select('id, name, stock, category, currency, unit_price, sku, barcode, avg_cost, min_stock, max_stock, track_lot, track_serial, track_expiry, issue_strategy, target_margin_pct, is_for_sale, stock_unit, units_per_box')
     .eq('user_id', effectiveUserId)
     .order('name', { ascending: true })
 
@@ -202,12 +202,41 @@ export async function deleteProduct(id, userId, businessId) {
   })
 }
 
-export async function registerMovement({ product_id, qty, type, unit_cost, userId, notes, client_uuid = null }) {
+export async function registerMovement({
+  product_id,
+  qty,
+  type,
+  unit_cost,
+  userId,
+  notes,
+  client_uuid = null,
+  fx_units_per_base = null,
+  businessId = null,
+} = {}) {
   if (!userId) throw new Error('User ID is required')
 
   // A1: movimiento rápido crea comprobante automático + postea (WAC intacto server-side).
   // C5: p_client_uuid hace la RPC idempotente (outbox offline).
+  // FX: en entradas sellamos la tasa del día (precio de reposición); no altera WAC.
   const cost = (unit_cost === '' || unit_cost === null || unit_cost === undefined) ? null : Number(unit_cost)
+  let fxSeal = null
+  if (type === 'in') {
+    const explicit = fx_units_per_base === '' || fx_units_per_base == null
+      ? null
+      : Number(fx_units_per_base)
+    if (Number.isFinite(explicit) && explicit > 0) {
+      fxSeal = explicit
+    } else {
+      try {
+        const { getRateForDate } = await import('@/services/exchangeRates')
+        // Preferimos sellar la tasa de la moneda de cotización más común (CUP) si existe.
+        const cupRate = await getRateForDate('CUP', new Date(), userId, businessId)
+        fxSeal = Number.isFinite(cupRate) && cupRate > 0 ? cupRate : null
+      } catch {
+        fxSeal = null
+      }
+    }
+  }
 
   return await withCrud({ action: 'register', table: 'movements' }, async () => {
     const { data, error } = await supabase.rpc('create_and_post_quick_movement', {
@@ -217,6 +246,7 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
       p_unit_cost: type === 'in' ? cost : null,
       p_notes: notes || null,
       p_client_uuid: client_uuid || null,
+      p_fx_units_per_base: type === 'in' ? fxSeal : null,
     })
 
     if (error) throw error
@@ -225,6 +255,7 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
     const name = data?.name || move?.name
     const newStock = data?.new_stock ?? move?.new_stock
     const sealedCost = data?.unit_cost ?? move?.unit_cost ?? null
+    const sealedFx = data?.fx_units_per_base ?? fxSeal
     const idempotent = Boolean(data?.idempotent)
 
     if (!idempotent) {
@@ -237,6 +268,7 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
           qty,
           type,
           unit_cost: sealedCost,
+          fx_units_per_base: sealedFx,
           new_stock: newStock,
           document_id: data?.document_id,
           doc_number: data?.doc_number,
@@ -253,12 +285,57 @@ export async function registerMovement({ product_id, qty, type, unit_cost, userI
       resulting_stock: newStock,
       name,
       unit_cost: sealedCost,
+      fx_units_per_base: sealedFx,
       document_id: data?.document_id,
       doc_number: data?.doc_number,
       client_uuid: client_uuid || null,
       idempotent,
     }
   })
+}
+
+/**
+ * Última tasa sellada por producto (entrada más reciente con fx_units_per_base).
+ * @returns {Record<string, number>}
+ */
+export async function getLatestInboundFxByProduct(userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
+  const effectiveUserId = getEffectiveUserUuid(userId, businessId)
+
+  const { data, error } = await supabase
+    .from('movements')
+    .select('product_id, fx_units_per_base, moved_at')
+    .eq('user_id', effectiveUserId)
+    .eq('type', 'in')
+    .not('fx_units_per_base', 'is', null)
+    .order('moved_at', { ascending: false })
+    .limit(2000)
+
+  if (error) throw error
+
+  const map = {}
+  for (const row of data || []) {
+    const id = String(row.product_id)
+    if (map[id] != null) continue
+    const rate = Number(row.fx_units_per_base)
+    if (Number.isFinite(rate) && rate > 0) map[id] = rate
+  }
+  return map
+}
+
+export async function applySuggestedPrices(updates, userId, businessId) {
+  if (!userId) throw new Error('User ID is required')
+  if (!Array.isArray(updates) || updates.length === 0) return []
+
+  const results = []
+  for (const u of updates) {
+    const id = u.product_id
+    const unit_price = Number(u.unit_price)
+    if (!id || !Number.isFinite(unit_price) || unit_price < 0) continue
+    const row = await updateProduct(id, { unit_price }, userId, businessId)
+    results.push(row)
+  }
+  return results
 }
 
 export async function listWarehouseDocuments({

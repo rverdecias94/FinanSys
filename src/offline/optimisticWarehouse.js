@@ -73,11 +73,20 @@ function findRow(old, productId) {
 }
 
 export function serializeProductPayload(payload = {}) {
+  const stockUnit = payload.stock_unit === 'box' ? 'box' : 'unit'
+  let unitsPerBox = null
+  if (stockUnit === 'box' && payload.units_per_box != null && payload.units_per_box !== '') {
+    const n = Number(payload.units_per_box)
+    unitsPerBox = Number.isFinite(n) && n > 0 ? n : null
+  }
   const out = {
     name: typeof payload.name === 'string' ? payload.name.trim() : payload.name,
     category: payload.category || null,
     unit_price: payload.unit_price != null ? Number(payload.unit_price) : payload.unit_price,
     currency: payload.currency || 'USD',
+    is_for_sale: payload.is_for_sale !== false,
+    stock_unit: stockUnit,
+    units_per_box: unitsPerBox,
     stock: payload.stock != null && payload.stock !== '' ? Number(payload.stock) : 0,
     min_stock: payload.min_stock != null ? Number(payload.min_stock) : payload.min_stock,
     max_stock: payload.max_stock === '' || payload.max_stock == null ? null : Number(payload.max_stock),
@@ -100,6 +109,9 @@ export function buildPendingProductRow(payload, { userId, businessId } = {}) {
     category: payload.category,
     unit_price: payload.unit_price,
     currency: payload.currency || 'USD',
+    is_for_sale: payload.is_for_sale !== false,
+    stock_unit: payload.stock_unit === 'box' ? 'box' : 'unit',
+    units_per_box: payload.units_per_box ?? null,
     stock: Number(payload.stock) || 0,
     min_stock: payload.min_stock ?? 5,
     max_stock: payload.max_stock ?? null,
@@ -192,11 +204,27 @@ export function findProductInCache(queryClient, id) {
   return null
 }
 
-export function applyOptimisticProductUpdate(queryClient, id, patchFields) {
+/**
+ * Parchea producto en caché. `pending: true` solo cuando la mutación queda en outbox
+ * (offline / red caída). Online no debe mostrar "Por sincronizar".
+ */
+export function applyOptimisticProductUpdate(queryClient, id, patchFields, { pending = false } = {}) {
   queryClient.setQueriesData(
     { predicate: isProductsQuery },
     (old) => mapProducts(old, (p) => (
-      String(p.id) === String(id) ? { ...p, ...patchFields, _pending: true } : p
+      String(p.id) === String(id)
+        ? { ...p, ...patchFields, _pending: pending ? true : false }
+        : p
+    )),
+  )
+}
+
+/** Quita la marca de pendiente tras confirmación del servidor. */
+export function clearProductPendingFlag(queryClient, id) {
+  queryClient.setQueriesData(
+    { predicate: isProductsQuery },
+    (old) => mapProducts(old, (p) => (
+      String(p.id) === String(id) ? { ...p, _pending: false } : p
     )),
   )
 }

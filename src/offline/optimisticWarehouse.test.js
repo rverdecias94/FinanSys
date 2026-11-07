@@ -84,11 +84,14 @@ describe('optimisticWarehouse', () => {
     expect(qc.getQueryData(key).data).toHaveLength(0)
   })
 
-  it('product update marca _pending', () => {
+  it('product update online no marca _pending; offline sí', () => {
     const key = ['warehouse', 'products', 'biz', { search: '', category: 'all' }, 'rl-page', 1, 5]
     qc.setQueryData(key, { data: [{ id: 3, name: 'Viejo', stock: 1 }], count: 1 })
     applyOptimisticProductUpdate(qc, 3, { name: 'Nuevo' })
     expect(findProductInCache(qc, 3).name).toBe('Nuevo')
+    expect(findProductInCache(qc, 3)._pending).toBe(false)
+
+    applyOptimisticProductUpdate(qc, 3, { name: 'Cola' }, { pending: true })
     expect(findProductInCache(qc, 3)._pending).toBe(true)
   })
 })

@@ -10,6 +10,9 @@ vi.mock('@/services/team', () => ({
   validateResourceAccess: vi.fn().mockResolvedValue(true),
 }))
 vi.mock('@/utils/exportUtils', () => ({ exportToExcel: vi.fn() }))
+vi.mock('@/services/exchangeRates', () => ({
+  getRateForDate: vi.fn().mockResolvedValue(800),
+}))
 
 const mockState = vi.hoisted(() => ({
   rpcArgs: null,
@@ -58,14 +61,15 @@ describe('registerMovement — comprobante rápido (A1)', () => {
     }
   })
 
-  it('entrada con costo llama create_and_post_quick_movement con p_unit_cost', async () => {
+  it('entrada con costo llama create_and_post_quick_movement con p_unit_cost y sella FX', async () => {
     const res = await registerMovement({ product_id: '5', qty: 10, type: 'in', unit_cost: '10', userId: 'u1' })
     expect(mockState.rpcArgs.fn).toBe('create_and_post_quick_movement')
     expect(mockState.rpcArgs.args).toMatchObject({
       p_product_id: 5,
       p_qty: 10,
       p_type: 'in',
-      p_unit_cost: 10
+      p_unit_cost: 10,
+      p_fx_units_per_base: 800,
     })
     expect(res.document_id).toBe(99)
     expect(res.doc_number).toBe('QIN-2026-000001')
@@ -74,11 +78,24 @@ describe('registerMovement — comprobante rápido (A1)', () => {
   it('salida ignora el costo (p_unit_cost null aunque se pase)', async () => {
     await registerMovement({ product_id: '5', qty: 3, type: 'out', unit_cost: '99', userId: 'u1' })
     expect(mockState.rpcArgs.args.p_unit_cost).toBeNull()
+    expect(mockState.rpcArgs.args.p_fx_units_per_base).toBeNull()
   })
 
   it('entrada sin costo pasa p_unit_cost null', async () => {
     await registerMovement({ product_id: '5', qty: 10, type: 'in', unit_cost: '', userId: 'u1' })
     expect(mockState.rpcArgs.args.p_unit_cost).toBeNull()
+  })
+
+  it('entrada respeta fx_units_per_base explícito', async () => {
+    await registerMovement({
+      product_id: '5',
+      qty: 10,
+      type: 'in',
+      unit_cost: '10',
+      userId: 'u1',
+      fx_units_per_base: 1000,
+    })
+    expect(mockState.rpcArgs.args.p_fx_units_per_base).toBe(1000)
   })
 
   it('exige userId', async () => {

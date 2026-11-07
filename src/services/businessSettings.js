@@ -16,7 +16,7 @@ export async function getBusinessSettings(userId, businessId) {
 
   const { data, error } = await supabase
     .from('business_settings')
-    .select('company, region, valuation_method, updated_at')
+    .select('company, region, valuation_method, fx, updated_at')
     .eq('user_id', effectiveUserId)
     .maybeSingle()
 
@@ -25,6 +25,7 @@ export async function getBusinessSettings(userId, businessId) {
 
   return {
     ...data,
+    fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
     company: stripLogoDataUrl(data.company)
   }
 }
@@ -47,7 +48,7 @@ export async function uploadCompanyLogo(userId, businessId, file) {
   return `${publicUrl}?v=${Date.now()}`
 }
 
-export async function upsertBusinessSettings(userId, businessId, { company, region, valuationMethod }) {
+export async function upsertBusinessSettings(userId, businessId, { company, region, valuationMethod, fx }) {
   const effectiveUserId = getEffectiveUserId(userId, businessId)
   const cleanCompany = stripLogoDataUrl(company)
 
@@ -58,11 +59,14 @@ export async function upsertBusinessSettings(userId, businessId, { company, regi
     valuation_method: valuationMethod || 'fifo',
     updated_at: new Date()
   }
+  if (fx !== undefined) {
+    payload.fx = fx && typeof fx === 'object' ? fx : {}
+  }
 
   const { data, error } = await supabase
     .from('business_settings')
     .upsert(payload, { onConflict: 'user_id' })
-    .select('company, region, valuation_method, updated_at')
+    .select('company, region, valuation_method, fx, updated_at')
     .single()
 
   if (error) throw error
@@ -73,13 +77,53 @@ export async function upsertBusinessSettings(userId, businessId, { company, regi
     details: {
       company: { ...cleanCompany, logoUrl: cleanCompany.logoUrl ? '(url)' : undefined },
       region: payload.region,
-      valuation_method: payload.valuation_method
+      valuation_method: payload.valuation_method,
+      fx: payload.fx,
     },
     area: 'Configuración'
   })
 
   return {
     ...data,
+    fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
     company: stripLogoDataUrl(data.company)
+  }
+}
+
+/** Actualiza solo el JSON fx (merge superficial) sin tocar company/region. */
+export async function patchBusinessFxSettings(userId, businessId, fxPatch) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+  const current = await getBusinessSettings(userId, businessId)
+  const nextFx = { ...(current?.fx || {}), ...(fxPatch || {}) }
+
+  if (!current) {
+    return upsertBusinessSettings(userId, businessId, {
+      company: {},
+      region: {},
+      valuationMethod: 'fifo',
+      fx: nextFx,
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('business_settings')
+    .update({ fx: nextFx, updated_at: new Date() })
+    .eq('user_id', effectiveUserId)
+    .select('company, region, valuation_method, fx, updated_at')
+    .single()
+
+  if (error) throw error
+
+  logAction({
+    action: 'Actualizar',
+    resource: 'Preferencias FX',
+    details: { fx: nextFx },
+    area: 'Configuración',
+  })
+
+  return {
+    ...data,
+    fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
+    company: stripLogoDataUrl(data.company),
   }
 }
