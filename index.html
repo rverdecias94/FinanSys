@@ -12,18 +12,36 @@
             <link rel="icon" href="/favicon-v5.ico" sizes="any" />
             <link rel="icon" type="image/png" href="/pwa-64x64-v5.png" sizes="64x64" />
             <link rel="apple-touch-icon" href="/apple-touch-icon-180x180-v5.png" />
-            <!-- Barras del sistema = fondo de la app (no el verde de marca). ThemeContext las sincroniza. -->
+            <!-- Barras del sistema = fondo de la app. Script abajo + ThemeContext las sincronizan. -->
+            <meta name="theme-color" content="#121212" />
             <meta name="theme-color" content="#fcfcfc" media="(prefers-color-scheme: light)" />
             <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
-            <meta name="theme-color" content="#fcfcfc" />
             <meta name="apple-mobile-web-app-capable" content="yes" />
-            <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+            <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
             <meta name="apple-mobile-web-app-title" content="Gestia" />
-            <meta name="color-scheme" content="light dark" />
+            <meta name="color-scheme" content="dark light" />
             <title>Gestia</title>
+            <!-- Antes de React: pinta html/body/theme-color según tema guardado (evita barra blanca en Android). -->
+            <script>
+              (function () {
+                try {
+                  var key = 'vite-ui-theme';
+                  var t = localStorage.getItem(key) || 'system';
+                  var dark = t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  var color = dark ? '#121212' : '#fcfcfc';
+                  var root = document.documentElement;
+                  root.classList.add(dark ? 'dark' : 'light');
+                  root.style.colorScheme = dark ? 'dark' : 'light';
+                  root.style.backgroundColor = color;
+                  var metas = document.querySelectorAll('meta[name="theme-color"]');
+                  for (var i = 0; i < metas.length; i++) metas[i].setAttribute('content', color);
+                  if (document.body) document.body.style.backgroundColor = color;
+                } catch (e) { /* ignore */ }
+              })();
+            </script>
       </head>
 
-      <body>
+      <body class="bg-background">
             <div id="root"></div>
             <script type="module"
                     src="/src/main.jsx"></script>

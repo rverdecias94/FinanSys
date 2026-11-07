@@ -120,7 +120,7 @@ export default function InventarioMejorado() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-lg">
             <Layers className="w-8 h-8 text-primary" />
@@ -137,7 +137,7 @@ export default function InventarioMejorado() {
         {isOwner && (
           <Button
             onClick={openCreateArea}
-            className="gap-2"
+            className="h-11 w-full shrink-0 justify-center gap-2 sm:w-auto"
             disabled={!canCreateArea}
             title={!canCreateArea ? 'Has alcanzado el límite de áreas de tu plan. Mejora a Premium para crear más.' : undefined}
           >

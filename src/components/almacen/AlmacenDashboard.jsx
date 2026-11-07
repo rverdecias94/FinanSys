@@ -8,10 +8,13 @@ import {
   BarChart, Bar
 } from 'recharts'
 import { useChartAnimation } from '@/hooks/useChartAnimation'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileSafePieLegend } from '@/components/charts/MobileSafePieLegend'
 
 export function AlmacenDashboard({ stats, loading }) {
   // El hook va antes de los early-return para no romper las reglas de hooks.
   const chartAnim = useChartAnimation()
+  const isMobile = useIsMobile(640)
   if (loading) {
     return (
       <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4" role="status" aria-label="Cargando dashboard">
@@ -69,34 +72,54 @@ export function AlmacenDashboard({ stats, loading }) {
           <CardTitle className="text-sm font-medium">Distribución por Categoría</CardTitle>
           <Activity className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
-        <CardContent className="h-[200px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={stats.distribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-                {...chartAnim}
-              >
-                {stats.distribution?.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={getCategoryColor(index)} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '5px',
-                  backgroundColor: 'hsl(var(--card))',
-                  color: 'hsl(var(--card-foreground))',
-                  border: '1px solid hsl(var(--border))',
-                  boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
-                }} />
-              <Legend verticalAlign="middle" align="right" layout="vertical" iconSize={10} wrapperStyle={{ fontSize: '12px' }} />
-            </PieChart>
-          </ResponsiveContainer>
+        <CardContent className={isMobile ? 'min-h-[200px]' : 'h-[200px]'}>
+          <div className={isMobile ? 'h-[180px]' : 'h-full'}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.distribution}
+                  cx={isMobile ? '50%' : '40%'}
+                  cy="50%"
+                  innerRadius={isMobile ? 48 : 60}
+                  outerRadius={isMobile ? 72 : 80}
+                  paddingAngle={5}
+                  dataKey="value"
+                  {...chartAnim}
+                >
+                  {stats.distribution?.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={getCategoryColor(index)} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: '5px',
+                    backgroundColor: 'hsl(var(--card))',
+                    color: 'hsl(var(--card-foreground))',
+                    border: '1px solid hsl(var(--border))',
+                    boxShadow: '0 8px 30px rgba(0,0,0,0.08)'
+                  }}
+                />
+                {!isMobile && (
+                  <Legend
+                    verticalAlign="middle"
+                    align="right"
+                    layout="vertical"
+                    iconSize={10}
+                    wrapperStyle={{ fontSize: '12px' }}
+                  />
+                )}
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          {isMobile && (
+            <MobileSafePieLegend
+              items={(stats.distribution || []).map((entry, index) => ({
+                key: entry.name || String(index),
+                name: entry.name,
+                color: getCategoryColor(index),
+              }))}
+            />
+          )}
         </CardContent>
       </Card>
 

@@ -37,9 +37,11 @@ export default defineConfig({
         short_name: 'Gestia',
         description: 'Gestión de caja, cobros/pagos e inventario para tu negocio, simple y sin complicaciones.',
         lang: 'es',
-        // Barras del sistema = fondo de la UI (ThemeContext ajusta el meta en runtime).
-        theme_color: '#fcfcfc',
-        background_color: '#fcfcfc',
+        // Barras del sistema en PWA instalada. ThemeContext ajusta el meta en runtime
+        // (claro/oscuro). Default oscuro: coincide con el uso habitual y evita la
+        // franja blanca de Android Chrome al abrir en standalone.
+        theme_color: '#121212',
+        background_color: '#121212',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react'
 import { Settings, Users, Shield, AlertTriangle, Lock, Crown, Coins } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { SectionSwitcher } from '@/components/navigation/SectionSwitcher'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { usePermissionCheck } from '@/components/common/PermissionGuard'
 import { PermissionSummary } from '@/components/dashboard/DashboardPermissions'
@@ -18,9 +20,25 @@ export default function ConfiguracionMejorado() {
 
   const isPremium = subscription?.plan_id === 'premium' || subscription?.plan_id === 'ultra'
   const canManageTeam = isOwner || hasPermission('team.manage')
-  // Las pestañas Equipo/Roles se MUESTRAN aunque la cuenta sea gratis (para dar a
+  // Las secciones Equipo/Roles se MUESTRAN aunque la cuenta sea gratis (para dar a
   // conocer la función); el contenido es la pantalla Premium si no es de pago.
   const showTeamTabs = canManageTeam
+
+  const sections = useMemo(() => {
+    const list = []
+    if (isOwner) list.push({ value: 'planes', label: 'Planes', icon: Crown })
+    list.push({ value: 'general', label: 'General', icon: Settings })
+    list.push({ value: 'monedas', label: 'Monedas', icon: Coins })
+    if (showTeamTabs) {
+      list.push({ value: 'equipo', label: 'Equipo', icon: Users })
+      list.push({ value: 'roles', label: 'Roles', icon: Shield })
+    }
+    return list
+  }, [isOwner, showTeamTabs])
+
+  const defaultSection = isOwner ? 'planes' : 'general'
+  const [section, setSection] = useState(defaultSection)
+  const activeSection = sections.some((s) => s.value === section) ? section : defaultSection
 
   if (!canView('config')) {
     return (
@@ -91,37 +109,13 @@ export default function ConfiguracionMejorado() {
         </Card>
       )}
 
-      <Tabs defaultValue={isOwner ? 'planes' : 'general'} className="space-y-4">
-        {/* Una sola fila siempre: en móvil las pestañas no hacen wrap, se desplazan
-            horizontalmente (scroll). `shrink-0` evita que se compriman. */}
-        <TabsList className="h-auto w-full flex flex-nowrap justify-start gap-2 overflow-x-auto">
-          {isOwner && (
-            <TabsTrigger value="planes" className="flex shrink-0 items-center gap-2">
-              <Crown className="w-4 h-4" />
-              Planes
-            </TabsTrigger>
-          )}
-          <TabsTrigger value="general" className="flex shrink-0 items-center gap-2">
-            <Settings className="w-4 h-4" />
-            General
-          </TabsTrigger>
-          <TabsTrigger value="monedas" className="flex shrink-0 items-center gap-2">
-            <Coins className="w-4 h-4" />
-            Monedas
-          </TabsTrigger>
-          {showTeamTabs && (
-            <TabsTrigger value="equipo" className="flex shrink-0 items-center gap-2">
-              <Users className="w-4 h-4" />
-              Equipo
-            </TabsTrigger>
-          )}
-          {showTeamTabs && (
-            <TabsTrigger value="roles" className="flex shrink-0 items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Roles
-            </TabsTrigger>
-          )}
-        </TabsList>
+      <Tabs value={activeSection} onValueChange={setSection} className="space-y-4">
+        <SectionSwitcher
+          value={activeSection}
+          onValueChange={setSection}
+          options={sections}
+          label="Sección"
+        />
 
         {isOwner && (
           <TabsContent value="planes" className="space-y-4">
@@ -164,7 +158,6 @@ export default function ConfiguracionMejorado() {
             )}
           </TabsContent>
         )}
-
       </Tabs>
     </div>
   )

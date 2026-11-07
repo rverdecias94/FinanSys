@@ -55,6 +55,15 @@ function applyThemeColor(resolved) {
   root.style.colorScheme = resolved;
   root.style.backgroundColor = color;
   if (document.body) document.body.style.backgroundColor = color;
+
+  const colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+  if (colorSchemeMeta) {
+    // Preferir el tema activo primero: Android Chrome usa esto para la nav bar.
+    colorSchemeMeta.setAttribute(
+      'content',
+      resolved === 'dark' ? 'dark light' : 'light dark',
+    );
+  }
 }
 
 export function ThemeProvider({ children, defaultTheme = "system", storageKey = "vite-ui-theme", ...props }) {

@@ -4,12 +4,18 @@ import { supabase } from '@/config/supabase'
 import { acceptPendingInvitations, getBusinessContext } from '@/services/team'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, Mail, Clock, Lock } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Mail, Clock, Lock, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
 import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
+import { shouldTreatAsOffline } from '@/offline/isNetworkError'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { AuthDivider, GoogleAuthButton } from '@/components/auth/GoogleAuthButton'
+
+/** Mensaje honesto: nunca guardamos la contraseña en el dispositivo. */
+const OFFLINE_LOGIN_MSG =
+  'Sin conexión no se puede iniciar sesión. Por seguridad Gestia no guarda tu contraseña en el teléfono. Conéctate una vez; después podrás seguir trabajando offline con la sesión de este dispositivo.'
 
 const fieldClass =
   'h-12 border-[hsl(152_22%_28%/0.35)] bg-[hsl(152_18%_22%/0.12)] pl-10 shadow-none transition-all placeholder:text-foreground/45 focus-visible:border-[hsl(152_28%_32%/0.5)] focus-visible:bg-[hsl(152_18%_22%/0.18)] dark:border-[hsl(152_22%_28%/0.4)] dark:bg-[hsl(152_18%_20%/0.22)] dark:focus-visible:border-[hsl(152_30%_36%/0.55)] dark:focus-visible:bg-[hsl(152_18%_22%/0.3)]'
@@ -18,6 +24,7 @@ const fieldClass =
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
+  const online = useOnlineStatus()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,6 +50,18 @@ export default function Login() {
     const timer = setTimeout(() => setResendCooldown((s) => s - 1), 1000)
     return () => clearTimeout(timer)
   }, [resendCooldown])
+
+  // Si ya hay sesión persistida (JWT en localStorage), entrar sin pedir contraseña.
+  // Offline: la sesión guardada es el único camino seguro — nunca cacheamos passwords.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data?.session) return
+      navigate('/', { replace: true })
+    })()
+    return () => { cancelled = true }
+  }, [navigate])
 
   const ensureOwnerSubscription = async (userId) => {
     const { data: existingSubscription, error: fetchError } = await supabase
@@ -70,9 +89,17 @@ export default function Login() {
       return
     }
     setEmailError('')
-    setLoading(true)
     setError(null)
     setNeedsConfirmation(false)
+
+    // Estrategia segura: login con contraseña SIEMPRE requiere red.
+    // No almacenamos ni hasheamos la clave en el dispositivo.
+    if (!online || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      setError(OFFLINE_LOGIN_MSG)
+      return
+    }
+
+    setLoading(true)
 
     try {
       const { data, error: signError } = await supabase.auth.signInWithPassword({ email, password })
@@ -98,8 +125,12 @@ export default function Login() {
 
       navigate('/')
     } catch (err) {
-      setError(getSupabaseErrorMessage(err))
-      setNeedsConfirmation(isEmailNotConfirmedError(err))
+      if (shouldTreatAsOffline(err)) {
+        setError(OFFLINE_LOGIN_MSG)
+      } else {
+        setError(getSupabaseErrorMessage(err))
+        setNeedsConfirmation(isEmailNotConfirmedError(err))
+      }
     } finally {
       setLoading(false)
     }
@@ -126,6 +157,18 @@ export default function Login() {
     <AuthShell title="Iniciar sesión" subtitle="Accede a tu espacio de trabajo.">
       <div className="space-y-5">
         <form className="space-y-4" onSubmit={handleLogin}>
+          {!online && (
+            <div
+              role="status"
+              className="flex items-start gap-2.5 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground animate-in fade-in slide-in-from-top-1"
+            >
+              <WifiOff className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+              <p className="leading-relaxed">
+                Sin conexión. Si ya entraste antes en este teléfono, cierra y vuelve a abrir Gestia para usar la sesión guardada. Iniciar sesión con correo y contraseña necesita internet (no guardamos tu clave).
+              </p>
+            </div>
+          )}
+
           {error && (
             <div className="flex items-center rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive animate-in fade-in slide-in-from-top-1">
               <span className="font-medium">{error}</span>
@@ -233,7 +276,7 @@ export default function Login() {
 
           <Button
             type="submit"
-            disabled={loading}
+            disabled={loading || !online}
             className="mt-1 h-12 w-full text-base font-semibold shadow-md shadow-primary/25"
           >
             {loading ? (

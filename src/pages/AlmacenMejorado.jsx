@@ -3,10 +3,31 @@ import { useIsRestoring, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { prefetchWarehouseSnapshot } from '@/offline/prefetchReadSnapshots'
 import { CardsBodySkeleton } from '@/components/common/pageSkeletons'
-import { Package, ArrowDownToLine, ArrowUpFromLine, SlidersHorizontal, ArrowLeftRight, ClipboardCheck } from 'lucide-react'
+import {
+  Package,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  SlidersHorizontal,
+  ArrowLeftRight,
+  ClipboardCheck,
+  Boxes,
+  FileText,
+  MapPin,
+  Bell,
+  History,
+} from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
+import { SectionSwitcher } from '@/components/navigation/SectionSwitcher'
+
+const ALMACEN_SECTIONS = [
+  { value: 'products', label: 'Productos', icon: Boxes },
+  { value: 'movements', label: 'Movimientos', icon: History },
+  { value: 'documents', label: 'Comprobantes', icon: FileText },
+  { value: 'locations', label: 'Ubicaciones', icon: MapPin },
+  { value: 'insights', label: 'Alertas', icon: Bell },
+]
 import { useSession } from '@/hooks/useSession'
 import { useBusiness } from '@/context/BusinessContext'
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
@@ -122,9 +143,15 @@ export default function AlmacenMejorado() {
           </div>
         </h1>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <PermissionGuard permission="warehouse.export">
-            <ExportButton format="excel" label="Exportar" size="default" onClick={handleExportProducts} />
+            <ExportButton
+              format="excel"
+              label="Exportar"
+              size="default"
+              onClick={handleExportProducts}
+              className="h-11 w-full justify-center sm:w-auto"
+            />
           </PermissionGuard>
         </div>
       </div>
@@ -133,19 +160,19 @@ export default function AlmacenMejorado() {
 
       {canMove && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('receipt')}>
+          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('receipt')}>
             <ArrowDownToLine className="h-4 w-4 text-success" /> Recibir
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('issue')}>
+          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('issue')}>
             <ArrowUpFromLine className="h-4 w-4 text-destructive" /> Salida
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('adjustment')}>
+          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('adjustment')}>
             <SlidersHorizontal className="h-4 w-4" /> Ajustar
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 justify-start" onClick={() => setOpMode('transfer')}>
+          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('transfer')}>
             <ArrowLeftRight className="h-4 w-4" /> Transferir
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 justify-start col-span-2 sm:col-span-1" onClick={() => setOpMode('count')}>
+          <Button variant="outline" className="h-11 col-span-2 justify-center gap-1.5 sm:col-span-1" onClick={() => setOpMode('count')}>
             <ClipboardCheck className="h-4 w-4" /> Contar
           </Button>
         </div>
@@ -154,13 +181,12 @@ export default function AlmacenMejorado() {
       <AlmacenDashboard stats={statsData} loading={isRestoring || isLoadingStats} />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="products">Productos</TabsTrigger>
-          <TabsTrigger value="movements">Movimientos</TabsTrigger>
-          <TabsTrigger value="documents">Comprobantes</TabsTrigger>
-          <TabsTrigger value="locations">Ubicaciones</TabsTrigger>
-          <TabsTrigger value="insights">Alertas</TabsTrigger>
-        </TabsList>
+        <SectionSwitcher
+          value={tab}
+          onValueChange={setTab}
+          options={ALMACEN_SECTIONS}
+          label="Vista"
+        />
 
         <TabsContent value="products">
           {isRestoring ? <CardsBodySkeleton cards={4} /> : (

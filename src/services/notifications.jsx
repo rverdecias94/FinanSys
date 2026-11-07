@@ -118,6 +118,15 @@ const getAuthErrorMessage = (error) => {
 export const getSupabaseErrorMessage = (error) => {
   if (!error) return "Error desconocido"
 
+  // Red / offline antes que Auth: sin red GoTrue a veces marca AuthApiError
+  // y caería en el genérico "No se pudo completar…".
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'Sin conexión. Verifica tu internet e inténtalo de nuevo.'
+  }
+  if (error.message === 'Failed to fetch' || /failed to fetch|networkerror|network request failed/i.test(String(error.message || ''))) {
+    return 'Error de conexión. Verifica tu internet.'
+  }
+
   // Errores de autenticación (por code snake_case o por texto en inglés).
   // Se resuelven antes del switch de Postgres porque el `code` de Auth no es numérico.
   const authMessage = getAuthErrorMessage(error)

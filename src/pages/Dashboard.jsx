@@ -46,8 +46,10 @@ import {
   ArrowRight
 } from 'lucide-react'
 import { useChartAnimation } from '@/hooks/useChartAnimation'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { deriveDashboardView } from '@/utils/dashboardView'
 import { DashboardBodySkeleton } from '@/components/common/pageSkeletons'
+import { MobileSafePieLegend } from '@/components/charts/MobileSafePieLegend'
 
 // Paleta del donut "Por categoría": ingresos en VERDES y gastos en ROJOS/NARANJAS,
 // con un tono distinto por categoría dentro de cada familia. El PRIMER tono de cada
@@ -75,6 +77,7 @@ const EXPENSE_COLORS = [
 
 export default function Dashboard() {
   const chartAnim = useChartAnimation()
+  const isMobile = useIsMobile(640)
   const { session } = useSession()
   const { businessId, loading: businessLoading } = useBusiness()
   const { businessCurrencies, formatCurrency } = useCurrency()
@@ -630,39 +633,53 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {coloredDistribution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={320}>
-                    <PieChart>
-                      <Pie
-                        data={coloredDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={95}
-                        paddingAngle={2}
-                        dataKey="value"
-                        {...chartAnim}
-                      >
-                        {coloredDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fill} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: '5px',
-                          backgroundColor: 'hsl(var(--card))',
-                          color: 'hsl(var(--card-foreground))',
-                          border: '1px solid hsl(var(--border))',
-                          boxShadow: '0 8px 30px rgba(0,0,0,0.18)'
-                        }}
-                        itemStyle={{ color: 'hsl(var(--card-foreground))' }}
-                        labelStyle={{ color: 'hsl(var(--card-foreground))' }}
-                        formatter={(value, name, item) => [formatCurrency(value, panelCurrency), item?.payload?.name]}
+                  <div>
+                    <ResponsiveContainer width="100%" height={isMobile ? 240 : 300}>
+                      <PieChart margin={isMobile ? { top: 4, right: 4, bottom: 4, left: 4 } : undefined}>
+                        <Pie
+                          data={coloredDistribution}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={isMobile ? 48 : 55}
+                          outerRadius={isMobile ? 78 : 95}
+                          paddingAngle={2}
+                          dataKey="value"
+                          {...chartAnim}
+                        >
+                          {coloredDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: '5px',
+                            backgroundColor: 'hsl(var(--card))',
+                            color: 'hsl(var(--card-foreground))',
+                            border: '1px solid hsl(var(--border))',
+                            boxShadow: '0 8px 30px rgba(0,0,0,0.18)'
+                          }}
+                          itemStyle={{ color: 'hsl(var(--card-foreground))' }}
+                          labelStyle={{ color: 'hsl(var(--card-foreground))' }}
+                          formatter={(value, name, item) => [formatCurrency(value, panelCurrency), item?.payload?.name]}
+                        />
+                        {!isMobile && (
+                          <Legend
+                            formatter={(value, entry) => `${entry.payload.name} (${entry.payload.type === 'income' ? 'Ingreso' : 'Gasto'})`}
+                          />
+                        )}
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {isMobile && (
+                      <MobileSafePieLegend
+                        items={coloredDistribution.map((entry) => ({
+                          key: `${entry.name}-${entry.type}`,
+                          name: entry.name,
+                          detail: entry.type === 'income' ? 'Ingreso' : 'Gasto',
+                          color: entry.fill,
+                        }))}
                       />
-                      <Legend
-                        formatter={(value, entry) => `${entry.payload.name} (${entry.payload.type === 'income' ? 'Ingreso' : 'Gasto'})`}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex h-[320px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                     <PlusCircle className="h-8 w-8 opacity-50" />

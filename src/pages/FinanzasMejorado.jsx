@@ -486,13 +486,20 @@ export default function FinanzasMejorado() {
           </div>
         </h1>
 
-        <div className="flex gap-2">
+        <div className="grid w-full grid-cols-1 gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap">
           <PermissionGuard permission="finanzas.export">
-            <ExportButton format="excel" label="Exportar" size="default" loading={isExporting} onClick={handleExport} />
+            <ExportButton
+              format="excel"
+              label="Exportar"
+              size="default"
+              loading={isExporting}
+              onClick={handleExport}
+              className="h-11 w-full justify-center sm:w-auto"
+            />
           </PermissionGuard>
 
           <PermissionGuard permission="finanzas.create">
-            <Button onClick={handleCreate}>
+            <Button onClick={handleCreate} className="h-11 w-full justify-center sm:w-auto">
               <Plus className="mr-2 h-4 w-4" />
               Nueva Transacción
             </Button>

@@ -134,8 +134,8 @@ export function ProductList({
   return (
     <div className="space-y-4">
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+      <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <div className="relative w-full sm:w-60">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -158,7 +158,9 @@ export function ProductList({
           </Select>
         </div>
         {hasPermission('warehouse.create') && (
-          <Button onClick={handleCreate}>+ Nuevo Producto</Button>
+          <Button onClick={handleCreate} className="h-11 w-full justify-center sm:w-auto">
+            + Nuevo Producto
+          </Button>
         )}
       </div>
 

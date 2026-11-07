@@ -32,7 +32,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PermissionGuard, usePermissionCheck } from '@/components/common/PermissionGuard'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
-import { ExportButton } from '@/components/common/ExportButton'
+import { ExportMenu } from '@/components/common/ExportMenu'
+import { SectionSwitcher } from '@/components/navigation/SectionSwitcher'
 import { ReportPreview } from '@/components/reportes/ReportPreview'
 import { ReportTypeCard } from '@/components/reportes/ReportTypeCard'
 import { fetchTransactionsForExport, listTransactions, getAgingReport, getFilteredTotals, getBalanceConfig, fetchSettledCashSources, listOpenAccounts } from '@/services/finanzas'
@@ -561,7 +562,16 @@ const Reportes = () => {
   }
 
   const reportsDisabled = !dateFilter || previewLoading || !online
-  const exportToolbarClass = 'flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+
+  const detailSections = [
+    ...(canViewFinanzas ? [{ value: 'finanzas', label: 'Finanzas', icon: Wallet }] : []),
+    { value: 'almacen', label: 'Almacén', icon: Warehouse },
+    { value: 'inventario', label: 'Inventario', icon: Layers },
+    ...(canViewFinanzas ? [{ value: 'aging', label: 'Antigüedad', icon: ClipboardList }] : []),
+  ]
+  const activeDetailTab = detailSections.some((s) => s.value === detailTab)
+    ? detailTab
+    : (detailSections[0]?.value || 'almacen')
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -744,14 +754,18 @@ const Reportes = () => {
                           {cashLabels.description} · {dateFilter.label}
                         </CardDescription>
                       </div>
-                      <div className={exportToolbarClass}>
-                        <PermissionGuard permission="reports.export" mode="disable">
-                          <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')} />
-                        </PermissionGuard>
-                        <PermissionGuard permission="reports.export" mode="disable">
-                          <ExportButton format="pdf" onClick={() => exportCashFlow('pdf')} />
-                        </PermissionGuard>
-                      </div>
+                      <PermissionGuard permission="reports.export" mode="disable">
+                        <ExportMenu
+                          options={[
+                            {
+                              format: 'excel',
+                              locked: !canExportDocs,
+                              onClick: () => (canExportDocs ? exportCashFlow('excel') : notifyPremiumExport('Excel')),
+                            },
+                            { format: 'pdf', onClick: () => exportCashFlow('pdf') },
+                          ]}
+                        />
+                      </PermissionGuard>
                     </div>
                     <div
                       role="group"
@@ -802,14 +816,18 @@ const Reportes = () => {
                         Caja real hoy y de qué se compone, por moneda.
                       </CardDescription>
                     </div>
-                    <div className={exportToolbarClass}>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportPosition('excel') : notifyPremiumExport('Excel')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="pdf" onClick={() => exportPosition('pdf')} />
-                      </PermissionGuard>
-                    </div>
+                    <PermissionGuard permission="reports.export" mode="disable">
+                      <ExportMenu
+                        options={[
+                          {
+                            format: 'excel',
+                            locked: !canExportDocs,
+                            onClick: () => (canExportDocs ? exportPosition('excel') : notifyPremiumExport('Excel')),
+                          },
+                          { format: 'pdf', onClick: () => exportPosition('pdf') },
+                        ]}
+                      />
+                    </PermissionGuard>
                   </CardHeader>
                   <CardContent className="pt-0">
                     <PositionPanel rows={position} loading={positionLoading} formatCurrency={formatCurrency} />
@@ -829,15 +847,13 @@ const Reportes = () => {
               </p>
             </div>
 
-            <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full">
-              <TabsList className={`grid h-auto w-full gap-1 p-1 ${canViewFinanzas ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
-                <TabsTrigger value="finanzas" className="h-10 px-2 text-xs sm:text-sm">Finanzas</TabsTrigger>
-                <TabsTrigger value="almacen" className="h-10 px-2 text-xs sm:text-sm">Almacén</TabsTrigger>
-                <TabsTrigger value="inventario" className="h-10 px-2 text-xs sm:text-sm">Inventario</TabsTrigger>
-                {canViewFinanzas && (
-                  <TabsTrigger value="aging" className="h-10 px-2 text-xs sm:text-sm">Antigüedad</TabsTrigger>
-                )}
-              </TabsList>
+            <Tabs value={activeDetailTab} onValueChange={setDetailTab} className="w-full">
+              <SectionSwitcher
+                value={activeDetailTab}
+                onValueChange={setDetailTab}
+                options={detailSections}
+                label="Módulo"
+              />
 
               <TabsContent value="finanzas" className="mt-3 space-y-4">
                 <Card className="min-w-0 overflow-hidden">
@@ -849,17 +865,20 @@ const Reportes = () => {
                       </CardTitle>
                       <CardDescription>{dateFilter.label}</CardDescription>
                     </div>
-                    <div className={exportToolbarClass}>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="word" disabled={previewLoading} onClick={() => handlePreview('finanzas')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="pdf" onClick={() => exportFinanzas('pdf')} />
-                      </PermissionGuard>
-                    </div>
+                    <PermissionGuard permission="reports.export" mode="disable">
+                      <ExportMenu
+                        disabled={previewLoading}
+                        options={[
+                          { format: 'word', onClick: () => handlePreview('finanzas'), disabled: previewLoading },
+                          {
+                            format: 'excel',
+                            locked: !canExportDocs,
+                            onClick: () => (canExportDocs ? exportFinanzas('excel') : notifyPremiumExport('Excel')),
+                          },
+                          { format: 'pdf', onClick: () => exportFinanzas('pdf') },
+                        ]}
+                      />
+                    </PermissionGuard>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveListing
@@ -919,20 +938,21 @@ const Reportes = () => {
                       </CardTitle>
                       <CardDescription>{dateFilter.label}</CardDescription>
                     </div>
-                    <div className={exportToolbarClass}>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="word" label="Existencias" disabled={previewLoading} onClick={() => handlePreview('almacen')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="word" label="Kardex" disabled={previewLoading} onClick={() => handlePreview('kardex')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="pdf" onClick={() => exportAlmacen('pdf')} />
-                      </PermissionGuard>
-                    </div>
+                    <PermissionGuard permission="reports.export" mode="disable">
+                      <ExportMenu
+                        disabled={previewLoading}
+                        options={[
+                          { format: 'word', label: 'Existencias', onClick: () => handlePreview('almacen'), disabled: previewLoading },
+                          { format: 'word', label: 'Kardex', onClick: () => handlePreview('kardex'), disabled: previewLoading },
+                          {
+                            format: 'excel',
+                            locked: !canExportDocs,
+                            onClick: () => (canExportDocs ? exportAlmacen('excel') : notifyPremiumExport('Excel')),
+                          },
+                          { format: 'pdf', onClick: () => exportAlmacen('pdf') },
+                        ]}
+                      />
+                    </PermissionGuard>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveListing
@@ -995,17 +1015,20 @@ const Reportes = () => {
                         Equipos, suministros y listas. La mercancía de venta está en Almacén · {dateFilter.label}
                       </CardDescription>
                     </div>
-                    <div className={exportToolbarClass}>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="word" label="Resumen" disabled={previewLoading} onClick={() => handlePreview('inventario')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')} />
-                      </PermissionGuard>
-                      <PermissionGuard permission="reports.export" mode="disable">
-                        <ExportButton format="pdf" onClick={() => exportInventario('pdf')} />
-                      </PermissionGuard>
-                    </div>
+                    <PermissionGuard permission="reports.export" mode="disable">
+                      <ExportMenu
+                        disabled={previewLoading}
+                        options={[
+                          { format: 'word', label: 'Resumen', onClick: () => handlePreview('inventario'), disabled: previewLoading },
+                          {
+                            format: 'excel',
+                            locked: !canExportDocs,
+                            onClick: () => (canExportDocs ? exportInventario('excel') : notifyPremiumExport('Excel')),
+                          },
+                          { format: 'pdf', onClick: () => exportInventario('pdf') },
+                        ]}
+                      />
+                    </PermissionGuard>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveListing
@@ -1064,24 +1087,27 @@ const Reportes = () => {
                             <TabsTrigger value="receivable" className="h-10">Por cobrar</TabsTrigger>
                             <TabsTrigger value="payable" className="h-10">Por pagar</TabsTrigger>
                           </TabsList>
-                          <div className={exportToolbarClass}>
-                            <PermissionGuard permission="reports.export" mode="disable">
-                              <ExportButton
-                                format="excel"
-                                label="Detalle"
-                                locked={!canExportDocs}
-                                onClick={() => canExportDocs
-                                  ? exportOpenAccounts(agingTab === 'payable' ? 'payable' : 'receivable', 'excel')
-                                  : notifyPremiumExport('Excel')}
-                              />
-                            </PermissionGuard>
-                            <PermissionGuard permission="reports.export" mode="disable">
-                              <ExportButton format="excel" locked={!canExportDocs} onClick={() => canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')} />
-                            </PermissionGuard>
-                            <PermissionGuard permission="reports.export" mode="disable">
-                              <ExportButton format="pdf" onClick={() => exportAging('pdf')} />
-                            </PermissionGuard>
-                          </div>
+                          <PermissionGuard permission="reports.export" mode="disable">
+                            <ExportMenu
+                              options={[
+                                {
+                                  format: 'excel',
+                                  label: 'Detalle',
+                                  locked: !canExportDocs,
+                                  onClick: () => (canExportDocs
+                                    ? exportOpenAccounts(agingTab === 'payable' ? 'payable' : 'receivable', 'excel')
+                                    : notifyPremiumExport('Excel')),
+                                },
+                                {
+                                  format: 'excel',
+                                  label: 'Antigüedad',
+                                  locked: !canExportDocs,
+                                  onClick: () => (canExportDocs ? exportAging('excel') : notifyPremiumExport('Excel')),
+                                },
+                                { format: 'pdf', onClick: () => exportAging('pdf') },
+                              ]}
+                            />
+                          </PermissionGuard>
                         </div>
                         <TabsContent value="receivable" className="mt-4">
                           <AgingPanel rows={aging} loading={agingLoading} formatCurrency={formatCurrency} income emptyMessage="No hay cuentas por cobrar pendientes." />

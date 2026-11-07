@@ -33,6 +33,16 @@ describe('getSupabaseErrorMessage', () => {
     expect(getSupabaseErrorMessage({ message: 'Failed to fetch' })).toMatch(/error de conexión/i)
   })
 
+  it('prioriza red sobre AuthApiError genérico', () => {
+    expect(
+      getSupabaseErrorMessage({
+        name: 'AuthApiError',
+        __isAuthError: true,
+        message: 'Failed to fetch',
+      }),
+    ).toMatch(/error de conexión|sin conexión/i)
+  })
+
   // Errores de autenticación (Supabase Auth): antes se mostraban crudos en inglés
   // en Login/Signup. Se traducen por `code` snake_case y por el texto del mensaje.
   it('traduce errores de Auth por code (snake_case)', () => {
