@@ -39,11 +39,19 @@ Luego **vuelve a desplegar** Netlify (las `VITE_*` solo entran en el build).
 | Nombre | Valor |
 |--------|--------|
 | `VAPID_JWK_JSON` | la línea completa que empieza por `{"publicKey":...` (sin el prefijo `VAPID_JWK_JSON=`) |
+| `PUSH_HOOK_SECRET` | el valor de `PUSH_HOOK_SECRET` en `vapid-private.local` (obligatorio para el aviso automático al crear un free) |
 
 Si ya tenías `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` mal pegados (con comillas o espacios),
 **bórralos** y usa solo `VAPID_JWK_JSON`.
 
 > La **privada nunca** va en `.env` del frontend ni en Git.
+
+### Por qué “Users” en Auth no basta
+
+Crear la cuenta en **Authentication → Users** solo crea el login.
+El aviso se dispara cuando se inserta la fila **free** en `subscriptions`
+(al entrar al sistema la primera vez). Ahora lo hace un **trigger en la BD**,
+no solo el navegador.
 
 ### C) Desplegar la Edge Function
 

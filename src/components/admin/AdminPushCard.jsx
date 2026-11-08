@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Bell, BellOff, BellRing, Loader2 } from 'lucide-react'
+import { Bell, BellOff, BellRing, Loader2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
+  deletePushSubscriptionById,
+  describePushEndpoint,
   disableAdminPush,
   enableAdminPush,
   getCurrentPushSubscription,
@@ -74,8 +76,21 @@ export function AdminPushCard() {
     onError: (e) => toast.error('Falló la prueba', { description: getSupabaseErrorMessage(e) }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: deletePushSubscriptionById,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-push-subscriptions'] })
+      toast.success('Dispositivo eliminado')
+    },
+    onError: (e) => toast.error('No se pudo borrar', { description: getSupabaseErrorMessage(e) }),
+  })
+
   const activeHere = Boolean(browserSub)
-  const busy = enableMutation.isPending || disableMutation.isPending || testMutation.isPending
+  const busy =
+    enableMutation.isPending ||
+    disableMutation.isPending ||
+    testMutation.isPending ||
+    deleteMutation.isPending
 
   return (
     <Card>
@@ -164,9 +179,50 @@ export function AdminPushCard() {
           {rows.length > 0 ? ` · ${rows.length} dispositivo(s) guardado(s)` : null}
         </p>
 
+        {rows.length > 0 && (
+          <ul className="space-y-2 rounded-md border border-border/60 p-2">
+            {rows.map((row) => {
+              const label = describePushEndpoint(row.endpoint)
+              const isLocal = /localhost|127\.0\.0\.1/i.test(row.endpoint) || /Local/i.test(label)
+              const isCurrent = browserSub?.endpoint === row.endpoint
+              return (
+                <li
+                  key={row.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-xs"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground">
+                      {label}
+                      {isCurrent ? ' · este navegador' : ''}
+                      {isLocal ? ' · preview' : ''}
+                    </p>
+                    <p className="truncate text-muted-foreground">{row.endpoint}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 shrink-0 text-destructive hover:text-destructive"
+                    disabled={busy}
+                    aria-label={`Eliminar dispositivo ${label}`}
+                    onClick={() => deleteMutation.mutate(row.id)}
+                  >
+                    {deleteMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
         <p className="text-xs text-muted-foreground">
-          Nota: el service worker (necesario para push) solo corre en producción, preview o PWA
-          instalada — no en <code className="font-mono">npm run dev</code>.
+          Si activaste primero en <code className="font-mono">localhost</code>, bórralo de la lista y
+          deja solo producción (<code className="font-mono">gestia-software.netlify.app</code>).
+          El service worker no corre en <code className="font-mono">npm run dev</code>.
         </p>
       </CardContent>
     </Card>

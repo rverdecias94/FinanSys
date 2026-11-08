@@ -9,6 +9,7 @@ import { cancelMyPendingPlanChangeRequest, getPendingPlanRequest, requestPlanCha
 import { getEffectivePlanState } from '@/services/billing'
 import { readLocalCache, writeLocalCache } from '@/offline/localCache'
 import { planLabel } from '@/lib/plans'
+import { notifyAdminsNewFreeUser } from '@/services/pushNotifications'
 
 const SubscriptionContext = createContext({})
 
@@ -232,10 +233,20 @@ export const SubscriptionProvider = ({ children }) => {
             .single()
 
           if (createError) {
-            // Fallback a objeto por defecto
+            // Carrera con Login: la fila free puede existir ya → aún así pedir aviso.
+            if (createError.code === '23505') {
+              void notifyAdminsNewFreeUser({
+                userId: businessId,
+                email: session?.user?.email,
+              })
+            }
             setSubscriptionRaw({ plan_id: 'free', status: 'active' })
           } else {
             setSubscriptionRaw(newSub)
+            void notifyAdminsNewFreeUser({
+              userId: businessId,
+              email: session?.user?.email,
+            })
             toast.success('Suscripción creada', {
               description: 'Se ha asignado un plan gratuito a tu cuenta.'
             })

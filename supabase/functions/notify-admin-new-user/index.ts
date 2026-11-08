@@ -4,7 +4,8 @@ import * as webpush from 'jsr:@negrel/webpush@0.5.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-push-hook-secret',
 }
 
 type Body = {
@@ -12,6 +13,15 @@ type Body = {
   user_id?: string | null
   email?: string | null
   plan_id?: string | null
+  source?: string | null
+  // Database webhook / trigger payload
+  type?: string
+  table?: string
+  record?: {
+    user_id?: string
+    plan_id?: string
+    admin_new_user_notified_at?: string | null
+  } | null
 }
 
 function json(body: unknown, status = 200) {
@@ -21,7 +31,6 @@ function json(body: unknown, status = 200) {
   })
 }
 
-/** Limpia secretos pegados desde el Dashboard (comillas, saltos, espacios). */
 function cleanSecret(value: string | undefined | null): string {
   return String(value || '')
     .replace(/^\uFEFF/, '')
@@ -46,7 +55,6 @@ function bytesToB64Url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-/** Convierte VAPID URL-safe base64 (web-push) a CryptoKeyPair para @negrel/webpush. */
 async function vapidKeysFromBase64(publicKey: string, privateKey: string) {
   const pub = b64UrlToBytes(publicKey)
   const priv = b64UrlToBytes(privateKey)
@@ -71,7 +79,6 @@ async function vapidKeysFromBase64(publicKey: string, privateKey: string) {
 }
 
 async function loadVapidKeys() {
-  // JWK: no usar cleanSecret (borraría espacios internos del JSON).
   const jwkText = String(Deno.env.get('VAPID_JWK_JSON') || '')
     .replace(/^\uFEFF/, '')
     .trim()
@@ -94,6 +101,13 @@ async function loadVapidKeys() {
   return await vapidKeysFromBase64(publicKey, privateKey)
 }
 
+function hookSecretOk(req: Request): boolean {
+  const expected = cleanSecret(Deno.env.get('PUSH_HOOK_SECRET'))
+  if (!expected) return false
+  const got = cleanSecret(req.headers.get('x-push-hook-secret'))
+  return Boolean(got) && got === expected
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -108,41 +122,61 @@ serve(async (req) => {
     }
 
     const authHeader = req.headers.get('Authorization') || ''
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
+    const fromHook = hookSecretOk(req)
     const adminClient = createClient(supabaseUrl, serviceKey)
-
-    const {
-      data: { user },
-      error: userError,
-    } = await userClient.auth.getUser()
-    if (userError || !user) {
-      return json({ error: 'No autenticado' }, 401)
-    }
-
     const body = (await req.json().catch(() => ({}))) as Body
-    const isTest = body.test === true
 
-    if (isTest) {
-      const { data: isAdmin, error: adminErr } = await userClient.rpc('is_system_admin')
-      if (adminErr) return json({ error: adminErr.message }, 400)
-      if (!isAdmin) return json({ error: 'Solo system admin puede enviar pruebas' }, 403)
+    let user: { id: string; email?: string | null } | null = null
+    if (!fromHook) {
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const {
+        data: { user: authUser },
+        error: userError,
+      } = await userClient.auth.getUser()
+      if (userError || !authUser) {
+        return json({ error: 'No autenticado' }, 401)
+      }
+      user = authUser
+
+      if (body.test === true) {
+        const { data: isAdmin, error: adminErr } = await userClient.rpc('is_system_admin')
+        if (adminErr) return json({ error: adminErr.message }, 400)
+        if (!isAdmin) return json({ error: 'Solo system admin puede enviar pruebas' }, 403)
+      }
     }
 
-    let targetUserId = body.user_id || user.id
-    let targetEmail = body.email || user.email || ''
+    const isTest = body.test === true && !fromHook
+
+    // Payload de trigger/webhook: { type, table, record }
+    if (body.record?.user_id && !body.user_id) {
+      body.user_id = body.record.user_id
+      body.plan_id = body.record.plan_id || body.plan_id
+      body.source = body.source || 'db_webhook'
+    }
+
+    let targetUserId = body.user_id || user?.id || ''
+    let targetEmail = body.email || user?.email || ''
     let planId = body.plan_id || 'free'
 
+    if (!targetUserId) {
+      return json({ error: 'Falta user_id' }, 400)
+    }
+
     if (!isTest) {
-      // Solo el propio usuario (o un admin) puede disparar el aviso de su alta.
-      const { data: callerIsAdmin } = await userClient.rpc('is_system_admin')
-      if (!callerIsAdmin && targetUserId !== user.id) {
-        return json({ error: 'No autorizado' }, 403)
-      }
-      if (!callerIsAdmin) {
-        targetUserId = user.id
-        targetEmail = user.email || targetEmail
+      if (!fromHook && user) {
+        const userClient = createClient(supabaseUrl, anonKey, {
+          global: { headers: { Authorization: authHeader } },
+        })
+        const { data: callerIsAdmin } = await userClient.rpc('is_system_admin')
+        if (!callerIsAdmin && targetUserId !== user.id) {
+          return json({ error: 'No autorizado' }, 403)
+        }
+        if (!callerIsAdmin) {
+          targetUserId = user.id
+          targetEmail = user.email || targetEmail
+        }
       }
 
       const { data: sub, error: subErr } = await adminClient
@@ -161,7 +195,6 @@ serve(async (req) => {
         return json({ skipped: true, reason: 'already_notified' }, 200)
       }
 
-      // Marca inmediata para evitar dobles envíos concurrentes.
       const { data: marked, error: markErr } = await adminClient
         .from('subscriptions')
         .update({ admin_new_user_notified_at: new Date().toISOString() })
@@ -171,6 +204,11 @@ serve(async (req) => {
       if (markErr) return json({ error: markErr.message }, 400)
       if (!marked?.length) {
         return json({ skipped: true, reason: 'already_notified' }, 200)
+      }
+
+      if (!targetEmail) {
+        const { data: authUser } = await adminClient.auth.admin.getUserById(targetUserId)
+        targetEmail = authUser?.user?.email || ''
       }
     }
 
@@ -249,6 +287,7 @@ serve(async (req) => {
       test: isTest,
       sent,
       devices: subs.length,
+      source: fromHook ? 'hook' : body.source || 'client',
       failures: failures.length ? failures : undefined,
       email: targetEmail || null,
     })

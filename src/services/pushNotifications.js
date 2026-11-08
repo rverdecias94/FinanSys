@@ -139,6 +139,26 @@ export async function listMyPushSubscriptions() {
   return data || []
 }
 
+export function describePushEndpoint(endpoint) {
+  try {
+    const host = new URL(endpoint).host
+    if (host.includes('localhost') || host.includes('127.0.0.1')) return `Local (${host})`
+    if (host.includes('googleapis') || host.includes('fcm')) return 'Chrome / Android'
+    if (host.includes('mozilla') || host.includes('firefox')) return 'Firefox'
+    if (host.includes('windows.com') || host.includes('wns')) return 'Edge / Windows'
+    if (host.includes('apple') || host.includes('push.apple')) return 'Safari / Apple'
+    return host
+  } catch {
+    return 'Dispositivo'
+  }
+}
+
+export async function deletePushSubscriptionById(id) {
+  if (!id) return
+  const { error } = await supabase.from('push_subscriptions').delete().eq('id', id)
+  if (error) throw error
+}
+
 /**
  * Aviso de prueba al dispositivo del admin actual.
  */

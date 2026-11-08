@@ -62,11 +62,20 @@ export default function Login() {
   const ensureOwnerSubscription = async (userId, email) => {
     const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
-      .select('plan_id')
+      .select('plan_id, admin_new_user_notified_at')
       .eq('user_id', userId)
       .maybeSingle()
 
-    if (fetchError || existingSubscription) return
+    if (fetchError) return
+
+    // Si otro camino (p. ej. SubscriptionContext) ya creó el free, igual avisamos
+    // (la Edge Function es idempotente con admin_new_user_notified_at).
+    if (existingSubscription) {
+      if (existingSubscription.plan_id === 'free' && !existingSubscription.admin_new_user_notified_at) {
+        void notifyAdminsNewFreeUser({ userId, email })
+      }
+      return
+    }
 
     const { error: insertError } = await supabase.from('subscriptions').insert({
       user_id: userId,
@@ -75,9 +84,9 @@ export default function Login() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    if (insertError) return
+    // Si hubo carrera y otro insert ganó, igual intentamos avisar.
+    if (insertError && insertError.code !== '23505') return
 
-    // Aviso push a system admins (app cerrada). No bloquea el login.
     void notifyAdminsNewFreeUser({ userId, email })
   }
 
