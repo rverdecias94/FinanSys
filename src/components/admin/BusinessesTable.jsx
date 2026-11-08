@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { ResponsiveListing } from '@/components/common/ResponsiveListing'
 import { listBusinesses, CYCLE_LABEL, PAYMENT_STATE } from '@/services/adminBusinesses'
 import { ACCOUNT_STATE } from '@/services/adminUsers'
+import { isPaidPlanId, planDisplayName } from '@/lib/plans'
 
 const fmt = (d) => {
   try { return new Date(d).toLocaleDateString('es-ES') } catch { return '—' }
@@ -26,16 +27,21 @@ export function BusinessesTable({ search, plan, paymentState, onMeta, onView, on
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate font-medium">{b.email || b.business_id}</span>
-                <Badge variant={b.plan_id === 'premium' || b.plan_id === 'ultra' ? 'default' : 'secondary'}>{b.plan_id}</Badge>
-                <span className={`rounded px-2 py-0.5 text-xs font-medium ${ps.cls || ''}`}>{ps.label || b.payment_state}</span>
+                <Badge variant={isPaidPlanId(b.plan_id) ? 'default' : 'secondary'}>
+                  {planDisplayName(b.plan_id)}
+                </Badge>
+                {/* No repetir "Sin cobro" si el plan ya es Inicial (es redundante). */}
+                {!(b.plan_id === 'free' && b.payment_state === 'free') && (
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${ps.cls || ''}`}>{ps.label || b.payment_state}</span>
+                )}
                 {b.account_status && b.account_status !== 'active' && (
                   <span className={`rounded px-2 py-0.5 text-xs font-medium ${acc.cls || ''}`}>{acc.label || b.account_status}</span>
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {b.plan_id === 'premium' || b.plan_id === 'ultra'
+                {isPaidPlanId(b.plan_id)
                   ? `Ciclo ${CYCLE_LABEL[b.billing_cycle] || b.billing_cycle} · Vence ${b.current_period_end ? fmt(b.current_period_end) : '—'}`
-                  : 'Plan gratuito'}
+                  : planDisplayName('free')}
                 {` · ${b.members} miembro(s)`}
               </div>
             </div>

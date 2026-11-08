@@ -2,14 +2,14 @@ import { supabase } from '@/config/supabase'
 
 export const CYCLE_LABEL = { monthly: 'Mensual', quarterly: 'Trimestral', semiannual: 'Semestral', annual: 'Anual' }
 
-// Etiqueta + clases (tokens) por estado de pago. Verde=al día, ámbar=por vencer,
-// rojo=gracia/bloqueado, neutro=gratis.
+// Etiqueta + clases (tokens) por estado de pago.
+// "free" = sin ciclo de cobro (no es el nombre del plan Inicial).
 export const PAYMENT_STATE = {
   ok: { label: 'Al día', cls: 'bg-success/10 text-success' },
   due_soon: { label: 'Por vencer', cls: 'bg-warning/10 text-warning' },
   grace: { label: 'En gracia', cls: 'bg-destructive/10 text-destructive' },
   blocked: { label: 'Bloqueado', cls: 'bg-destructive/10 text-destructive' },
-  free: { label: 'Gratis', cls: 'bg-muted text-muted-foreground' }
+  free: { label: 'Sin cobro', cls: 'bg-muted text-muted-foreground' }
 }
 
 export async function listBusinesses({ search, plan, paymentState, page = 1, pageSize = 5 } = {}) {

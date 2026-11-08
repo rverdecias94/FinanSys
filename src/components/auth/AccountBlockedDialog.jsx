@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/config/supabase'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { DowngradeToFreeDialog } from '@/components/config/DowngradeToFreeDialog'
+import { planDisplayName } from '@/lib/plans'
 
-// Overlay bloqueante (no descartable) para cuentas vencidas/suspendidas.
-// mode: 'owner' (premium vencido tras gracia) | 'member' | 'account' (suspendida).
-// Respeta tokens de color y es mobile-first (botones apilados en móvil).
+// Overlay legado (preferir ruta /pago-atrasado). Se mantiene por si algún flujo
+// lo monta fuera del panel.
 export function AccountBlockedDialog({ mode, accountStatus }) {
   const { refreshSubscription } = useSubscription()
   const [downgradeOpen, setDowngradeOpen] = useState(false)
@@ -18,12 +18,12 @@ export function AccountBlockedDialog({ mode, accountStatus }) {
 
   const copy = {
     owner: {
-      title: 'Tu plan Premium ha vencido',
-      desc: 'No registramos el pago a tiempo y el periodo de gracia terminó. Para continuar con Premium, contacta al administrador y regulariza el pago. También puedes pasar al Plan Gratis y seguir usando las funciones básicas (algunos datos quedarán limitados).'
+      title: 'Tu plan de pago ha vencido',
+      desc: `No registramos el pago a tiempo y el periodo de gracia terminó. Para continuar con ${planDisplayName('premium')} o ${planDisplayName('ultra')}, contacta al administrador y regulariza el pago. También puedes pasar al ${planDisplayName('free')} y seguir usando las funciones básicas (algunos datos quedarán limitados).`
     },
     member: {
-      title: 'Acceso suspendido',
-      desc: 'El plan del negocio venció. Pide al propietario o al administrador que regularice el pago para restaurar el acceso del equipo.'
+      title: 'Pago del negocio pendiente',
+      desc: 'El plan de pago del negocio venció. Pide al propietario o al administrador que regularice el pago para restaurar el acceso del equipo.'
     },
     account: {
       title: accountStatus === 'deleted' ? 'Cuenta eliminada' : 'Cuenta suspendida',
@@ -46,7 +46,7 @@ export function AccountBlockedDialog({ mode, accountStatus }) {
               {mode === 'owner' && (
                 <Button onClick={() => setDowngradeOpen(true)}>
                   <ArrowDownCircle className="mr-2 h-4 w-4" />
-                  Cambiar a Plan Gratis
+                  Cambiar a {planDisplayName('free')}
                 </Button>
               )}
               <Button variant="outline" onClick={handleLogout}>

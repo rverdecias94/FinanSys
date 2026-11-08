@@ -94,7 +94,7 @@ export function CurrencyProvider({ children }) {
       if (isActive) {
         // Check plan limits
         if (subscription?.plan_id !== 'premium' && subscription?.plan_id !== 'ultra' && businessCurrencies.length >= 1) {
-          toast.error('Las cuentas gratuitas solo pueden tener una moneda activa. Actualiza a Premium u Ultra para tener múltiples monedas.')
+          toast.error('El Plan Inicial solo permite una moneda activa. Pasa a Negocio o Élite para usar varias monedas.')
           return
         }
 

@@ -6,6 +6,7 @@ import { CurrencyProvider } from '@/context/CurrencyContext'
 import { PermissionProvider } from '@/context/PermissionContext'
 import { BusinessProvider } from '@/context/BusinessContext'
 import ProtectedRoute from '@/routes/ProtectedRoute'
+import BillingGate from '@/routes/BillingGate'
 import SidebarLayout from '@/layouts/SidebarLayout'
 import { Toaster } from '@/components/ui/sonner'
 import { GlobalProgressBar } from '@/components/common/GlobalProgressBar'
@@ -35,6 +36,7 @@ const ConfiguracionMejorado = lazyRetry(() => import('@/pages/ConfiguracionMejor
 const LogsMejorado = lazyRetry(() => import('@/pages/LogsMejorado'))
 const Herramientas = lazyRetry(() => import('@/pages/Herramientas'))
 const AdminPlans = lazyRetry(() => import('@/pages/AdminPlans'))
+const PagoAtrasado = lazyRetry(() => import('@/pages/PagoAtrasado'))
 const Terminos = lazyRetry(() => import('@/pages/Terminos'))
 const Privacidad = lazyRetry(() => import('@/pages/Privacidad'))
 
@@ -62,43 +64,47 @@ export default function App() {
             <Suspense fallback={<FullPageSkeleton />}>
             <Routes>
               <Route element={<ProtectedRoute />}>
-                <Route element={<SidebarLayout />}>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/finanzas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
-                    <Route index element={<FinanzasMejorado />} />
-                  </Route>
-                  <Route path="/contactos" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
-                    <Route index element={<Contactos />} />
-                  </Route>
-                  <Route path="/cuentas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
-                    <Route index element={<CuentasMejorado />} />
-                  </Route>
-                  <Route path="/almacen" element={<ProtectedRoute requiredPermission="warehouse.view" />}>
-                    <Route index element={<AlmacenMejorado />} />
-                  </Route>
-                  <Route path="/inventario" element={<ProtectedRoute requiredPermission="inventory.view" />}>
-                    <Route index element={<InventarioMejorado />} />
-                    <Route path="nuevo" element={<ProtectedRoute requiredPermission="inventory.create" />}>
-                      <Route index element={<InventarioNuevo />} />
+                {/* Ruta auxiliar: autenticado pero sin panel (pago vencido / suspendido). */}
+                <Route path="/pago-atrasado" element={<PagoAtrasado />} />
+                <Route element={<BillingGate />}>
+                  <Route element={<SidebarLayout />}>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/finanzas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                      <Route index element={<FinanzasMejorado />} />
                     </Route>
-                    <Route path=":id" element={<InventarioItem />} />
-                    <Route path="config-formulario" element={<InventarioConfigFormulario />} />
-                  </Route>
-                  <Route path="/reportes" element={<ProtectedRoute requiredPermission="reports.view" />}>
-                    <Route index element={<Reportes />} />
-                  </Route>
-                  <Route path="/herramientas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
-                    <Route index element={<Herramientas />} />
-                  </Route>
-                  <Route path="/configuracion" element={<ProtectedRoute requiredPermission="config.view" />}>
-                    <Route index element={<ConfiguracionMejorado />} />
-                  </Route>
-                  <Route path="/logs" element={<ProtectedRoute requiredPermission="logs.view" />}>
-                    <Route index element={<LogsMejorado />} />
-                  </Route>
+                    <Route path="/contactos" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                      <Route index element={<Contactos />} />
+                    </Route>
+                    <Route path="/cuentas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                      <Route index element={<CuentasMejorado />} />
+                    </Route>
+                    <Route path="/almacen" element={<ProtectedRoute requiredPermission="warehouse.view" />}>
+                      <Route index element={<AlmacenMejorado />} />
+                    </Route>
+                    <Route path="/inventario" element={<ProtectedRoute requiredPermission="inventory.view" />}>
+                      <Route index element={<InventarioMejorado />} />
+                      <Route path="nuevo" element={<ProtectedRoute requiredPermission="inventory.create" />}>
+                        <Route index element={<InventarioNuevo />} />
+                      </Route>
+                      <Route path=":id" element={<InventarioItem />} />
+                      <Route path="config-formulario" element={<InventarioConfigFormulario />} />
+                    </Route>
+                    <Route path="/reportes" element={<ProtectedRoute requiredPermission="reports.view" />}>
+                      <Route index element={<Reportes />} />
+                    </Route>
+                    <Route path="/herramientas" element={<ProtectedRoute requiredPermission="finanzas.view" />}>
+                      <Route index element={<Herramientas />} />
+                    </Route>
+                    <Route path="/configuracion" element={<ProtectedRoute requiredPermission="config.view" />}>
+                      <Route index element={<ConfiguracionMejorado />} />
+                    </Route>
+                    <Route path="/logs" element={<ProtectedRoute requiredPermission="logs.view" />}>
+                      <Route index element={<LogsMejorado />} />
+                    </Route>
 
-                  <Route path="/admin/planes" element={<ProtectedRoute systemAdminOnly />}>
-                    <Route index element={<AdminPlans />} />
+                    <Route path="/admin/planes" element={<ProtectedRoute systemAdminOnly />}>
+                      <Route index element={<AdminPlans />} />
+                    </Route>
                   </Route>
                 </Route>
               </Route>

@@ -148,7 +148,7 @@ export const getSupabaseErrorMessage = (error) => {
           ? error.message
           : "El stock no puede quedar en negativo. Revisa la cantidad disponible."
       case '53400': // configuration_limit_exceeded — límite del plan server-side (P1.11)
-        return error.message || "Has alcanzado un límite de tu plan. Actualiza a Premium para ampliarlo."
+        return error.message || "Has alcanzado un límite de tu plan. Pasa a Negocio o Élite para ampliarlo."
       case 'P0010': // período cerrado (S5)
         return error.message || "Ese período está cerrado. No puedes registrar ni editar movimientos con esa fecha."
       default:

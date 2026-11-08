@@ -1,15 +1,49 @@
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { supabase } from '@/config/supabase'
+import { getSupabaseErrorMessage } from '@/services/notifications'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
-/** Botón Google (UI lista). OAuth real pendiente de configurar en Supabase. */
+/**
+ * Login / registro con Google vía Supabase Auth (OAuth).
+ * Requiere el proveedor Google habilitado en el Dashboard de Supabase
+ * (Client ID + Secret de Google Cloud) y las Redirect URLs del sitio en Auth → URL Configuration.
+ */
 export function GoogleAuthButton({ mode = 'login', className }) {
+  const online = useOnlineStatus()
+  const [loading, setLoading] = useState(false)
   const label = mode === 'signup' ? 'Registrarse con Google' : 'Continuar con Google'
 
-  const handleClick = () => {
-    toast.info('Google estará disponible pronto', {
-      description: 'Estamos habilitando el acceso con Google. Mientras tanto usa correo y contraseña.',
-      duration: 5000,
-    })
+  const handleClick = async () => {
+    if (!online || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      toast.error('Sin conexión', {
+        description: 'Para entrar con Google necesitas internet.',
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const redirectTo = `${window.location.origin}/login`
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            // Fuerza selector de cuenta (útil si hay varias en el navegador).
+            prompt: 'select_account',
+          },
+        },
+      })
+      if (error) throw error
+      // Si no hay error, el navegador redirige a Google; no hace falta setLoading(false).
+    } catch (err) {
+      setLoading(false)
+      toast.error('No se pudo abrir Google', {
+        description: getSupabaseErrorMessage(err) || 'Revisa que el proveedor Google esté activo en Supabase.',
+      })
+    }
   }
 
   return (
@@ -17,10 +51,12 @@ export function GoogleAuthButton({ mode = 'login', className }) {
       type="button"
       variant="outline"
       onClick={handleClick}
+      disabled={loading}
+      loading={loading}
       className={`h-11 w-full gap-2.5 border-border/50 bg-background/40 text-sm font-medium text-muted-foreground shadow-none hover:bg-accent/50 hover:text-foreground ${className || ''}`}
     >
-      <GoogleGlyph className="h-5 w-5 shrink-0" />
-      <span>{label}</span>
+      {!loading && <GoogleGlyph className="h-5 w-5 shrink-0" />}
+      <span>{loading ? 'Conectando con Google…' : label}</span>
     </Button>
   )
 }

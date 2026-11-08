@@ -390,7 +390,7 @@ export default function LogsMejorado() {
   if (!subLoading && !canAccessFeature('audit_logs')) {
     return (
       <PremiumFeatureScreen
-        title="La Auditoría es una función Premium"
+        title="La Auditoría es una función de Negocio o Élite"
         description="Lleva el registro de quién hizo qué y cuándo en tu negocio. Disponible al mejorar tu plan."
       />
     )

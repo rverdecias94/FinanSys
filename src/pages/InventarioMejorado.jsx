@@ -139,7 +139,7 @@ export default function InventarioMejorado() {
             onClick={openCreateArea}
             className="h-11 w-full shrink-0 justify-center gap-2 sm:w-auto"
             disabled={!canCreateArea}
-            title={!canCreateArea ? 'Has alcanzado el límite de áreas de tu plan. Mejora a Premium para crear más.' : undefined}
+            title={!canCreateArea ? 'Has alcanzado el límite de áreas de tu plan. Pasa a Negocio o Élite para crear más.' : undefined}
           >
             <Plus className="w-4 h-4" />
             Crear Nueva Área

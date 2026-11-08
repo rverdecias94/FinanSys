@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Clock } from 'lucide-react'
 import { useSubscription } from '@/context/SubscriptionContext'
 import { useBusiness } from '@/context/BusinessContext'
+import { planLabel } from '@/lib/plans'
 
 // Banner global de aviso de pago (Fase 2). Patrón de OfflineBanner: usa tokens de
 // color (--warning / --destructive) → respeta modo claro/oscuro. Mobile-first:
@@ -17,7 +18,7 @@ function formatDate(value) {
 }
 
 export function PaymentReminderBanner() {
-  const { paymentState, daysUntilDue, nextPaymentDate, graceUntil } = useSubscription()
+  const { paymentState, daysUntilDue, nextPaymentDate, graceUntil, getPlanType } = useSubscription()
   const { isOwner } = useBusiness()
   const navigate = useNavigate()
 
@@ -31,6 +32,7 @@ export function PaymentReminderBanner() {
 
   const isGrace = paymentState === 'grace'
   const days = Math.max(0, Number(daysUntilDue) || 0)
+  const planName = planLabel(getPlanType?.()) || 'de pago'
 
   return (
     <div
@@ -47,10 +49,10 @@ export function PaymentReminderBanner() {
       )}
       <span>
         {isGrace
-          ? `Pago vencido · regulariza para no perder Premium${
+          ? `Pago vencido · regulariza para no perder ${planName}${
               graceDaysLeft > 0 ? ` (se bloqueará en ${graceDaysLeft} ${graceDaysLeft === 1 ? 'día' : 'días'})` : ''
             }`
-          : `Tu plan Premium vence el ${formatDate(nextPaymentDate)}${
+          : `Tu plan ${planName} vence el ${formatDate(nextPaymentDate)}${
               days > 0 ? ` (en ${days} ${days === 1 ? 'día' : 'días'})` : ' (hoy)'
             }`}
       </span>

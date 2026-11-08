@@ -1,10 +1,11 @@
 import { cn } from '@/lib/utils'
 
-/** Placeholder pulsante (shadcn). Ocupa espacio real para evitar saltos de layout. */
+/** Placeholder con onda (shimmer). Ocupa espacio real para evitar saltos de layout. */
 function Skeleton({ className, ...props }) {
   return (
     <div
-      className={cn('animate-pulse rounded-md bg-muted', className)}
+      className={cn('skeleton-shimmer rounded-md', className)}
+      aria-hidden="true"
       {...props}
     />
   )

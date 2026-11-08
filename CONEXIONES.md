@@ -39,6 +39,22 @@ Luego abre cada archivo y pega los valores reales según las guías de abajo.
    - **Project URL** → `VITE_SUPABASE_URL`
    - **Project API keys → `anon` `public`** → `VITE_SUPABASE_ANON_KEY`
 
+### A2) Login con Google (OAuth)
+1. En Google Cloud Console → Credenciales → ID de cliente OAuth:
+   - **Orígenes JavaScript autorizados:** `http://localhost:5173` y tu dominio Netlify (`https://….netlify.app`)
+   - **URI de redirección autorizados:** solo el callback de Supabase  
+     `https://<PROJECT_REF>.supabase.co/auth/v1/callback`  
+     (no pongas aquí la URL de Gestia)
+2. En Supabase → **Authentication → Providers → Google**: pega Client ID y Client Secret y activa el proveedor.
+3. En Supabase → **Authentication → URL Configuration**:
+   - **Site URL:** tu dominio de producción (Netlify)
+   - **Redirect URLs** (añade todas):
+     - `http://localhost:5173/**`
+     - `http://localhost:5173/login`
+     - `https://TU-SITIO.netlify.app/**`
+     - `https://TU-SITIO.netlify.app/login`
+4. Gestia llama `signInWithOAuth({ provider: 'google' })` y vuelve a `/login` para completar la sesión.
+
 ### B) Para que yo aplique migraciones (`.env.tooling`)
 | Variable | Dónde sacarla |
 |---|---|

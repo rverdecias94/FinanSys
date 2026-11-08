@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getBusinessDetail, CYCLE_LABEL, PAYMENT_STATE } from '@/services/adminBusinesses'
 import { ACCOUNT_STATE } from '@/services/adminUsers'
+import { isPaidPlanId, planDisplayName } from '@/lib/plans'
 
 function Row({ k, v }) {
   return (
@@ -61,7 +62,9 @@ export function BusinessDetailDialog({ open, onOpenChange, businessId, onSetStat
         ) : (
           <div className="grid gap-4 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={sub?.plan_id === 'premium' || sub?.plan_id === 'ultra' ? 'default' : 'secondary'}>{sub?.plan_id || '-'}</Badge>
+              <Badge variant={isPaidPlanId(sub?.plan_id) ? 'default' : 'secondary'}>
+                {planDisplayName(sub?.plan_id)}
+              </Badge>
               {data?.payment_state && (
                 <span className={`rounded px-2 py-0.5 text-xs font-medium ${ps.cls || ''}`}>{ps.label || data.payment_state}</span>
               )}

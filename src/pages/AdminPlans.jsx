@@ -137,7 +137,7 @@ export default function AdminPlans() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-lg font-semibold">Admin: Planes</h1>
-          <p className="text-sm text-muted-foreground">Gestiona solicitudes Premium, negocios y pagos.</p>
+          <p className="text-sm text-muted-foreground">Gestiona solicitudes de plan, negocios y pagos.</p>
         </div>
         <Button variant="outline" onClick={invalidateAll}>
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -184,8 +184,9 @@ export default function AdminPlans() {
                     <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                      <SelectItem value="free">Gratuito</SelectItem>
+                      <SelectItem value="premium">Negocio</SelectItem>
+                      <SelectItem value="ultra">Élite</SelectItem>
+                      <SelectItem value="free">Inicial</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -230,8 +231,9 @@ export default function AdminPlans() {
                     <SelectTrigger><SelectValue placeholder="Plan" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="premium">Premium</SelectItem>
-                      <SelectItem value="free">Gratuito</SelectItem>
+                      <SelectItem value="premium">Negocio</SelectItem>
+                      <SelectItem value="ultra">Élite</SelectItem>
+                      <SelectItem value="free">Inicial</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -245,7 +247,7 @@ export default function AdminPlans() {
                       <SelectItem value="due_soon">Por vencer</SelectItem>
                       <SelectItem value="grace">En gracia</SelectItem>
                       <SelectItem value="blocked">Bloqueado</SelectItem>
-                      <SelectItem value="free">Gratis</SelectItem>
+                      <SelectItem value="free">Sin cobro</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -7,18 +7,40 @@ import userEvent from '@testing-library/user-event'
 
 const signInWithPassword = vi.fn()
 const resend = vi.fn()
+const getSession = vi.fn()
 vi.mock('@/config/supabase', () => ({
   supabase: {
     auth: {
       signInWithPassword: (...args) => signInWithPassword(...args),
       resend: (...args) => resend(...args),
+      getSession: (...args) => getSession(...args),
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe() {} } },
+      }),
+      signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: null }),
     },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { plan_id: 'free' }, error: null }),
+        }),
+      }),
+      insert: async () => ({ error: null }),
+    }),
   },
+}))
+
+vi.mock('@/hooks/useOnlineStatus', () => ({
+  useOnlineStatus: () => true,
 }))
 
 vi.mock('@/services/team', () => ({
   acceptPendingInvitations: vi.fn().mockResolvedValue(undefined),
-  getBusinessContext: vi.fn().mockResolvedValue({ isOwner: true }),
+  getBusinessContext: vi.fn().mockResolvedValue({ isOwner: true, businessId: 'u1' }),
+}))
+
+vi.mock('@/services/billing', () => ({
+  getEffectivePlanState: vi.fn().mockResolvedValue({ payment_state: 'ok', plan_id: 'free' }),
 }))
 
 const navigate = vi.fn()
@@ -40,16 +62,40 @@ vi.mock('sonner', () => ({
 }))
 
 import Login from './Login'
+import { getEffectivePlanState } from '@/services/billing'
 
 const submitLogin = async (user) => {
-  await user.type(screen.getByLabelText('Correo Electrónico'), 'usuario@ejemplo.com')
-  await user.type(screen.getByLabelText('Contraseña'), 'ClaveSegura123')
-  await user.click(screen.getByRole('button', { name: 'Iniciar Sesión' }))
+  await user.type(screen.getByLabelText(/Correo electrónico/i), 'usuario@ejemplo.com')
+  await user.type(screen.getByLabelText(/^Contraseña$/i), 'ClaveSegura123')
+  await user.click(screen.getByRole('button', { name: /Iniciar sesión/i }))
 }
 
 describe('Login · reenviar confirmación', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    getSession.mockResolvedValue({ data: { session: null } })
+    getEffectivePlanState.mockResolvedValue({ payment_state: 'ok', plan_id: 'free' })
+  })
+
+  it('con sesión guardada redirige solo a inicio (opción B)', async () => {
+    getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', email: 'a@b.com' } } },
+    })
+    render(<Login />)
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/', { replace: true }))
+    expect(screen.queryByLabelText(/Correo/i)).toBeNull()
+  })
+
+  it('con pago bloqueado redirige a /pago-atrasado sin toast de bienvenida', async () => {
+    getSession.mockResolvedValue({
+      data: { session: { user: { id: 'u1', email: 'a@b.com' } } },
+    })
+    getEffectivePlanState.mockResolvedValue({ payment_state: 'blocked', plan_id: 'premium' })
+    render(<Login />)
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith('/pago-atrasado', { replace: true }),
+    )
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 
   it('con credenciales incorrectas NO ofrece reenviar y muestra el error en español', async () => {
@@ -59,6 +105,7 @@ describe('Login · reenviar confirmación', () => {
       error: { code: 'invalid_credentials', message: 'Invalid login credentials' },
     })
     render(<Login />)
+    expect(await screen.findByLabelText(/Correo/i)).toBeInTheDocument()
     await submitLogin(user)
 
     expect(await screen.findByText(/incorrectos/i)).toBeInTheDocument()
@@ -73,6 +120,7 @@ describe('Login · reenviar confirmación', () => {
     })
     resend.mockResolvedValue({ error: null })
     render(<Login />)
+    expect(await screen.findByLabelText(/Correo/i)).toBeInTheDocument()
     await submitLogin(user)
 
     const boton = await screen.findByRole('button', { name: /Reenviar correo de confirmación/i })
@@ -93,6 +141,7 @@ describe('Login · reenviar confirmación', () => {
     })
     resend.mockResolvedValue({ error: null })
     render(<Login />)
+    expect(await screen.findByLabelText(/Correo/i)).toBeInTheDocument()
     await submitLogin(user)
 
     await user.click(await screen.findByRole('button', { name: /Reenviar correo de confirmación/i }))
@@ -111,6 +160,7 @@ describe('Login · reenviar confirmación', () => {
       error: { code: 'over_email_send_rate_limit', message: 'Email rate limit exceeded' },
     })
     render(<Login />)
+    expect(await screen.findByLabelText(/Correo/i)).toBeInTheDocument()
     await submitLogin(user)
 
     await user.click(await screen.findByRole('button', { name: /Reenviar correo de confirmación/i }))
