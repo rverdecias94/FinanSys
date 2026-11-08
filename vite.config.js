@@ -54,6 +54,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Web Push: handlers en public/push-handler.js (app cerrada / PWA).
+        importScripts: ['/push-handler.js'],
         // Fallback SPA (compatible con public/_redirects de Netlify).
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],

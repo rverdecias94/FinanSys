@@ -27,6 +27,7 @@ import { SetPaymentDateDialog } from '@/components/admin/SetPaymentDateDialog'
 import { RecordPaymentDialog } from '@/components/admin/RecordPaymentDialog'
 import { ConfirmDeleteUserDialog } from '@/components/admin/ConfirmDeleteUserDialog'
 import { BillingConfigCard } from '@/components/admin/BillingConfigCard'
+import { AdminPushCard } from '@/components/admin/AdminPushCard'
 
 export default function AdminPlans() {
   const qc = useQueryClient()
@@ -148,6 +149,9 @@ export default function AdminPlans() {
       <div className="grid gap-4 lg:grid-cols-2">
         <AdminSetBusinessPlanCard onSuccess={invalidateAll} />
         <BillingConfigCard />
+        <div className="lg:col-span-2">
+          <AdminPushCard />
+        </div>
       </div>
 
       <Tabs defaultValue="requests">

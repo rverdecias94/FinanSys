@@ -8,6 +8,7 @@ import { Eye, EyeOff, Loader2, Mail, Clock, Lock, WifiOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { emailSchema, validateForm } from '@/utils/formSchemas'
 import { getSupabaseErrorMessage, isEmailNotConfirmedError } from '@/services/notifications'
+import { notifyAdminsNewFreeUser } from '@/services/pushNotifications'
 import { shouldTreatAsOffline } from '@/offline/isNetworkError'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 import { AuthShell } from '@/components/auth/AuthShell'
@@ -58,7 +59,7 @@ export default function Login() {
     return () => clearTimeout(timer)
   }, [resendCooldown])
 
-  const ensureOwnerSubscription = async (userId) => {
+  const ensureOwnerSubscription = async (userId, email) => {
     const { data: existingSubscription, error: fetchError } = await supabase
       .from('subscriptions')
       .select('plan_id')
@@ -67,13 +68,17 @@ export default function Login() {
 
     if (fetchError || existingSubscription) return
 
-    await supabase.from('subscriptions').insert({
+    const { error: insertError } = await supabase.from('subscriptions').insert({
       user_id: userId,
       plan_id: 'free',
       status: 'active',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
+    if (insertError) return
+
+    // Aviso push a system admins (app cerrada). No bloquea el login.
+    void notifyAdminsNewFreeUser({ userId, email })
   }
 
   // Opción B: sesión persistida o retorno OAuth (Google) → higiene + entrar.
@@ -96,7 +101,7 @@ export default function Login() {
           if (email) await acceptPendingInvitations(email)
           const context = await getBusinessContext(session.user.id)
           if (!(context && !context.isOwner)) {
-            await ensureOwnerSubscription(session.user.id)
+            await ensureOwnerSubscription(session.user.id, session.user.email)
           }
           const businessId = context?.businessId || session.user.id
           const billing = await getEffectivePlanState(businessId)
@@ -183,7 +188,7 @@ export default function Login() {
       const isTeamMember = context && !context.isOwner
 
       if (!isTeamMember) {
-        await ensureOwnerSubscription(data.user.id)
+        await ensureOwnerSubscription(data.user.id, data.user.email)
       }
 
       const businessId = context?.businessId || data.user.id

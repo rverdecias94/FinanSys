@@ -9,6 +9,7 @@ Este es **el archivo donde defines dónde van las llaves de tus cuentas** (Supab
 | `.env.example` | ✅ Sí (plantilla) | Llaves públicas de ejemplo | Referencia |
 | `.env` | ❌ No (secreto) | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | La app en el navegador |
 | Secrets Edge Function `ai-tools` | ❌ No (Dashboard Supabase → Edge Functions → Secrets) | `OPENROUTER_API_KEY`; opcional `OPENROUTER_TEXT_MODEL` (default `openrouter/free`) y `OPENROUTER_TEXT_FALLBACKS` (lista `:free`). Free tiene techos diarios por key (~50/día si hay poco crédito comprado). Acciones: `ask_business`, `extract_document`, `parse_calc`. OCR = Tesseract local. | Plan Ultra / Herramientas |
+| Secrets Edge Function `notify-admin-new-user` | ❌ No (Dashboard → Edge Functions → Secrets) | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (o `VAPID_JWK_JSON`); opcional `VAPID_SUBJECT` (`mailto:…`). La pública también va en frontend como `VITE_VAPID_PUBLIC_KEY`. Guía: `docs/PUSH_ADMIN_NUEVO_USUARIO.md` | Aviso push al admin cuando entra un usuario free |
 | `.env.tooling.example` | ✅ Sí (plantilla) | Secretos de admin de ejemplo | Referencia |
 | `.env.tooling` | ❌ No (secreto) | Tokens de Supabase admin, GitHub, Netlify | **Yo (Claude)** para migraciones y despliegues |
 
@@ -89,7 +90,8 @@ Luego abre cada archivo y pega los valores reales según las guías de abajo.
 ---
 
 ## ✅ Checklist
-- [ ] `.env` con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`
+- [ ] `.env` con `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y (avisos admin) `VITE_VAPID_PUBLIC_KEY`
+- [ ] Secrets VAPID de `notify-admin-new-user` en Supabase (privada nunca en el frontend)
 - [ ] `.env.tooling` con los datos de Supabase admin
 - [ ] `.env.tooling` con GitHub (`GITHUB_REPO`, `GITHUB_TOKEN`)
 - [ ] `.env.tooling` con Netlify (`NETLIFY_SITE_ID`, `NETLIFY_AUTH_TOKEN`)
