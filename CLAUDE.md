@@ -2,7 +2,7 @@
 
 > Este archivo es la **memoria viva del proyecto**. Lo leo automáticamente al iniciar cada sesión.
 > Mantenerlo actualizado y **basado solo en hechos verificados en el código** (no suposiciones).
-> Última verificación de los hechos de abajo: **2026-11-07** (leyendo el código real; bloque FX margen).
+> Última verificación de los hechos de abajo: **2026-11-10** (oleada P0 + FX margen).
 
 ## 1. Qué es
 - **Nombre interno:** GESTIA / "NexGest ERP / ContaSync" (en `README.md`). Título del navegador: "Gestia".
@@ -73,6 +73,19 @@
 - **Unidad de trabajo:** `stock_unit` (`unit`|`box`) + `units_per_box` opcional. Stock, costo de entrada y precio de venta hablan de la misma unidad; reposición se etiqueta «por unidad/caja».
 - Guía E2E playwright-cli: `e2e/fx/README.md`.
 
+## 5.2 Caja cobrada + integridad almacén (verificado 2026-11-10, prod)
+- **`business_balances.current_balance`** = caja **cobrada** (trigger en `paid_amount` / abonos); UI «Caja cobrada» en Dashboard, Reportes, `PositionPanel`, `buildPosition` (`src/utils/financials.js`). CxC/CxP solo informativos.
+- **Cierre de período en almacén:** `assert_period_open_for_date` en `register_stock_movement`, `post_warehouse_document`, `create_and_post_quick_movement`, `reverse_warehouse_document`, `create_count_adjustment` (migraciones `20261109_p0_006*`).
+- **WMS avanzado:** FEFO/ubicaciones/caducidad/reservas **ocultos** en UI hasta cablear `stock_balances` (P0-002/008 mitigado). Stock oficial: `products.stock` + documentos/comprobantes.
+- **Conteo físico:** `create_count_adjustment` bloquea fila (`FOR UPDATE`); diff desde stock real; `stale_snapshot` si el cliente traía stock viejo (`20261110_p0_007`).
+- Auditoría y estado: `canvases/gestia-p0-security-audit.canvas.tsx`, `docs/PENDIENTES_POR_FASES.md`.
+
+## 5.3 Pagos Premium (F1–F8, verificado 2026-11-10)
+- **Estado del ciclo:** `get_effective_plan_state` (ok / due_soon / grace / blocked / free); banner en `SidebarLayout`; `AccountGate` + `/pago-atrasado`.
+- **Usuario:** solicitud manual (`PlansPanel`), historial `PaymentHistory` en `/cuenta/plan` (`get_my_payments`).
+- **Admin:** `/admin/planes` — solicitudes, negocios, **Equipo** (`admin_list_team_members`), pagos/fechas, suspender/eliminar (`adminUsers.js`).
+- **QA F8:** `docs/PLAN_PAGOS_F8_QA.md` (checklist manual pendiente; advisor prod 0 ERROR).
+
 ## 6. Supabase
 - Cliente: `src/config/supabase.jsx` usa `import.meta.env.VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. ⚠️ No se pasan opciones de auth (`persistSession`, `autoRefreshToken`, `detectSessionInUrl`) — revisar.
 - **~55 migraciones** en `supabase/migrations/`. ⚠️ Señales de alerta a auditar:
@@ -80,10 +93,10 @@
   - Muchísimos `fix_*_rls*` y `fix_rls_recursion` → políticas RLS inestables/recursivas en el pasado.
   - Fechas inconsistentes (`20240201` … `20260207`) y archivos sin prefijo de fecha → orden de aplicación poco claro.
 
-## 7. Estado de salud (verificado 2026-06-17)
-- **Lint** (`npm run lint` = `eslint .`): ✅ sin errores.
-- **Build** (`npm run build`): ✅ compila (~35s) **PERO** genera **un único bundle de 2.56 MB (758 KB gzip)** sin code-splitting → carga inicial lenta para clientes con conexión modesta. Falta `manualChunks` / `import()` dinámico.
-- **Tests** (`npx vitest run`): **17/19 pasan**. ❌ Fallan **2 en `src/components/config/PlansPanel.test.jsx`**: `getByRole('button', {name:'Solicitar Premium'})` matchea **múltiples** elementos (selector ambiguo o UI duplicada). Resto verde.
+## 7. Estado de salud (verificado 2026-11-10)
+- **Lint** (`npm run lint` = `eslint .`): ⚠️ revisar periódicamente (hubo errores preexistentes en otros módulos nov 2026).
+- **Build** (`npm run build`): ✅ con code-splitting (Sesión 9); revalidar tras cambios grandes.
+- **Tests** (`npx vitest run`): ~380+ pasan; suite completa puede necesitar `NODE_OPTIONS=--max-old-space-size=8192` y arreglos puntuales (`PlansPanel`, etc.).
 - `caniuse-lite` desactualizado (warning menor): `npx update-browserslist-db@latest`.
 
 ## 8. Comandos

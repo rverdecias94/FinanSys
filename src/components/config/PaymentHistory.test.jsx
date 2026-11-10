@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -7,6 +7,23 @@ vi.mock('@/services/billing', () => ({ getMyPayments: vi.fn() }))
 
 import { getMyPayments } from '@/services/billing'
 import { PaymentHistory } from './PaymentHistory'
+
+beforeEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+})
 
 afterEach(() => cleanup())
 
@@ -30,14 +47,14 @@ const payment = {
 
 describe('PaymentHistory', () => {
   it('muestra el historial con ciclo, importe y estado pagado', async () => {
-    getMyPayments.mockResolvedValue({ data: [payment], count: 1 })
+    getMyPayments.mockImplementation(async () => ({ data: [payment], count: 1 }))
     renderWithClient(<PaymentHistory />)
 
     expect(await screen.findByText('Historial de pagos')).toBeInTheDocument()
-    expect(screen.getByText('Anual')).toBeInTheDocument()
-    expect(screen.getByText('Pagado')).toBeInTheDocument()
-    expect(screen.getByText('$102')).toBeInTheDocument()
-    expect(screen.getByText(/Ref: ABC-1/)).toBeInTheDocument()
+    expect(await screen.findByText('Anual')).toBeInTheDocument()
+    expect(await screen.findByText('Pagado')).toBeInTheDocument()
+    expect(await screen.findByText('$102')).toBeInTheDocument()
+    expect(await screen.findByText(/Ref: ABC-1/)).toBeInTheDocument()
   })
 
   it('se auto-oculta cuando no hay pagos y no es Premium', async () => {

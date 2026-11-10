@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { getBusinessDetail, CYCLE_LABEL, PAYMENT_STATE } from '@/services/adminBusinesses'
+import { PAYMENT_METHOD_LABEL } from '@/lib/billingLabels'
 import { ACCOUNT_STATE } from '@/services/adminUsers'
 import { isPaidPlanId, planDisplayName } from '@/lib/plans'
 
@@ -91,7 +92,7 @@ export function BusinessDetailDialog({ open, onOpenChange, businessId, onSetStat
                         {fmt(p.paid_at)} · {CYCLE_LABEL[p.billing_cycle] || p.billing_cycle || '-'}
                       </div>
                       <div className="truncate text-xs text-muted-foreground/80">
-                        {p.method || 'Método no indicado'}
+                        {PAYMENT_METHOD_LABEL[p.method] || p.method || 'Método no indicado'}
                         {p.reference ? ` · Ref: ${p.reference}` : ''}
                         {(p.period_start || p.period_end) ? ` · ${fmt(p.period_start)} → ${fmt(p.period_end)}` : ''}
                       </div>

@@ -26,6 +26,7 @@ import { BusinessDetailDialog } from '@/components/admin/BusinessDetailDialog'
 import { SetPaymentDateDialog } from '@/components/admin/SetPaymentDateDialog'
 import { RecordPaymentDialog } from '@/components/admin/RecordPaymentDialog'
 import { ConfirmDeleteUserDialog } from '@/components/admin/ConfirmDeleteUserDialog'
+import { TeamMembersTable } from '@/components/admin/TeamMembersTable'
 import { BillingConfigCard } from '@/components/admin/BillingConfigCard'
 import { AdminPushCard } from '@/components/admin/AdminPushCard'
 
@@ -52,6 +53,11 @@ export default function AdminPlans() {
   const [setDateBiz, setSetDateBiz] = useState(null)
   const [recordPayBiz, setRecordPayBiz] = useState(null)
 
+  // --- Equipo (subcuentas global) ---
+  const [teamSearch, setTeamSearch] = useState('')
+  const [teamAccStatus, setTeamAccStatus] = useState('all')
+  const [teamTotal, setTeamTotal] = useState(0)
+
   // Objetivo de borrado permanente del dueño de un negocio: { user_id, email }
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -68,6 +74,7 @@ export default function AdminPlans() {
   const invalidateUsers = () => {
     qc.invalidateQueries({ queryKey: ['admin-businesses'] })
     qc.invalidateQueries({ queryKey: ['admin-business-detail'] })
+    qc.invalidateQueries({ queryKey: ['admin-team-members'] })
     qc.invalidateQueries({ queryKey: ['accountStatus'] })
   }
 
@@ -158,6 +165,7 @@ export default function AdminPlans() {
         <TabsList>
           <TabsTrigger value="requests">Solicitudes</TabsTrigger>
           <TabsTrigger value="businesses">Negocios</TabsTrigger>
+          <TabsTrigger value="team">Equipo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests">
@@ -268,6 +276,48 @@ export default function AdminPlans() {
                 onRecordPayment={(b) => setRecordPayBiz(b)}
                 onSetStatus={(b, status) => handleSetStatus({ user_id: b.business_id, email: b.email }, status)}
                 onDelete={(b) => setDeleteTarget({ user_id: b.business_id, email: b.email })}
+                statusPending={setStatusMutation.isPending}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="team">
+          <Card>
+            <CardHeader className="space-y-3">
+              <CardTitle>Subcuentas de equipo · {teamTotal} registros</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Miembros invitados a negocios premium. Suspender bloquea solo esa cuenta; el titular no se ve afectado.
+              </p>
+              <div className="grid items-end gap-3 md:grid-cols-3">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Buscar</Label>
+                  <Input
+                    value={teamSearch}
+                    onChange={(e) => setTeamSearch(e.target.value)}
+                    placeholder="Email del miembro o del titular"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Estado de cuenta</Label>
+                  <Select value={teamAccStatus} onValueChange={setTeamAccStatus}>
+                    <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="active">Activas</SelectItem>
+                      <SelectItem value="suspended">Suspendidas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <TeamMembersTable
+                search={teamSearch.trim()}
+                accountStatus={teamAccStatus}
+                onMeta={({ count }) => setTeamTotal(count)}
+                onSetStatus={(target, status) => handleSetStatus(target, status)}
+                onDelete={(target) => setDeleteTarget(target)}
                 statusPending={setStatusMutation.isPending}
               />
             </CardContent>

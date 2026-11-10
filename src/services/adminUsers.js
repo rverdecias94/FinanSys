@@ -8,6 +8,25 @@ export const ACCOUNT_STATE = {
   deleted: { label: 'Eliminada', cls: 'bg-muted text-muted-foreground' }
 }
 
+// Subcuentas de equipo (admin global). businessId=null → todas.
+export async function listTeamMembers({
+  businessId = null,
+  search = '',
+  status = 'all',
+  page = 1,
+  pageSize = 10
+}) {
+  const { data, error } = await supabase.rpc('admin_list_team_members', {
+    p_business_id: businessId || null,
+    p_search: search?.trim() || null,
+    p_status: status === 'all' ? null : status,
+    p_page: page,
+    p_page_size: pageSize
+  })
+  if (error) throw error
+  return { rows: data?.rows || [], total: Number(data?.total || 0) }
+}
+
 // Suspender / reactivar (estado de cuenta). status: active | suspended | deleted.
 export async function setAccountStatus({ targetUserId, status, reason = null }) {
   const { data, error } = await supabase.rpc('admin_set_account_status', {

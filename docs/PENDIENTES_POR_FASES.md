@@ -3,7 +3,7 @@
 > **Qué es esto:** una vista única de **todo lo que falta** en el proyecto, reuniendo lo
 > que quedó abierto en los 9 `docs/PLAN_*.md` y las banderas de `CLAUDE.md`. Pensado para
 > tener un único sitio donde mirar "¿qué sigue?" sin perderse entre planes que se solapan.
-> **Fecha de consolidación:** 2026-06-24. **Fuente entre paréntesis** en cada ítem.
+> **Fecha de consolidación:** 2026-11-10 (actualizado oleada P0). **Fuente entre paréntesis** en cada ítem.
 > Prioridad: 🔴 alta · 🟠 media · ⚪ baja/opcional. Esfuerzo: S (pequeño) · M (medio) · L (grande).
 
 ## Lo que YA está cerrado (para que no lo busques)
@@ -13,7 +13,24 @@ RLS de producción **sana y verificada** (advisor 0 ERROR, scripts peligrosos en
 RBAC en producción, code-splitting del bundle, fuente unificada (Outfit), opciones de auth de
 Supabase, eliminación de código muerto (`AppMejorado.jsx`, `ReportesMejorado.jsx`, `firebase`),
 WAC + COGS + venta conectada, antigüedad de saldos, abonos parciales, cierre de período, flujo
-de efectivo y posición. **No hace falta volver sobre eso.**
+de efectivo y posición. **Auditoría P0 (2026-11)** aplicada en prod + deploy: Storage
+`transaction-images` multi-tenant, REVOKE `anon` en RPCs sensibles, WAC en reverso, gate
+`pending_approval`, **caja cobrada** (`business_balances` = settled / `paid_amount`), period
+lock en almacén, conteo físico bajo `FOR UPDATE`, UI WMS engañosa oculta. Canvas:
+`canvases/gestia-p0-security-audit.canvas.tsx`.
+
+---
+
+## 🧭 Siguiente rumbo recomendado (2026-11-10)
+
+1. **🟠 Cerrar Pagos Premium** — completar checklist manual en `docs/PLAN_PAGOS_F8_QA.md` (deploy previo).
+2. Tras eso: **Etapa 4 WMS** o **roadmap contable** (SKU, cuentas banco) según prioridad producto.
+2. **🟠 Etapa 4 almacén (decisión):** cablear `stock_balances` y reactivar FEFO/ubicaciones,
+   *o* mantener stock oficial solo en `products.stock` + documentos (estado actual).
+3. **⚪ Ops P0-010–014:** orden migraciones (P4.1), CI en PR, grants mínimos — sin urgencia.
+
+Smoke opcional post-deploy: adjuntos, abono → caja, período cerrado → movimiento bloqueado, conteo
+con stock cambiado en pantalla (`stale_snapshot`).
 
 ---
 
@@ -28,25 +45,20 @@ de efectivo y posición. **No hace falta volver sobre eso.**
 - ⚪ **Revocar `INSERT/UPDATE/DELETE` a `anon`** en las tablas (hoy los conserva, aunque la RLS los
   bloquea y no se usan pre-login). Follow-up de bajo riesgo. (PLAN_DE_TRABAJO P0.2)
 
-## FASE 1 — Terminar Pagos Premium (Fases 6–8) · 🔴 el bloque vivo más grande
-Las Fases 1–5 están hechas. Falta cerrar el ciclo de monetización/administración:
-- 🔴 **Fase 6 — Admin de equipo global + suspender/eliminar usuarios.** (M-L)
-  - Backend: `admin_list_team_members(business_id)`, `admin_set_account_status(target, status, reason)`
-    (suspender/reactivar), `admin_delete_user(target)` (**borrado permanente con cascada**),
-    `admin_preview_user_deletion(target)` (conteos por tabla).
-  - Frontend: pestaña **Equipo** en `AdminPlans` (lista global, suspender/reactivar/eliminar);
-    `ConfirmDeleteUserDialog.jsx` con previsualización de impacto + **exigir escribir el email** antes
-    de habilitar "Eliminar definitivamente".
-  - ⚠️ Borrado irreversible → probar **solo en un negocio de prueba**. (PLAN_PAGOS_PREMIUM Fase 6)
-- 🔴 **Fase 7 — Historial de pagos (usuario + admin).** (M)
-  - Backend: `get_my_payments()`; reutilizar `admin_get_business_detail` para el lado admin.
-  - Frontend: sección "Historial de pagos" en Configuración/`PlansPanel` (`PaymentHistory.jsx` con
-    `ResponsiveListing`: fecha, ciclo, importe, método, referencia, período); historial admin dentro
-    de `BusinessDetailDialog`. (Opcional) exportar PDF/Excel. (PLAN_PAGOS_PREMIUM Fase 7)
-- 🟠 **Fase 8 — QA integral + seguridad + docs.** (M)
-  - Recorrer end-to-end: compra anual → uso → aviso → gracia → bloqueo → Free o renovar; suspensión;
-    borrado. Pasar `get_advisors` a las tablas/RPCs nuevas, confirmar que **cada acción admin queda
-    en `audit_logs`**, y actualizar `CLAUDE.md`/docs/memoria. (PLAN_PAGOS_PREMIUM Fase 8)
+## FASE 1 — Terminar Pagos Premium (Fases 6–8) · 🟠
+Las Fases 1–5 están hechas. Fase 6 en código (2026-11-10); siguiente: Fase 7.
+- ✅ **Fase 6 — Admin de equipo global + suspender/eliminar usuarios.** RPCs en prod; restaurado
+  `admin_list_team_members`. Pestaña **Equipo** en `/admin/planes` (`TeamMembersTable`); negocios
+  con suspender/eliminar owner; `ConfirmDeleteUserDialog` con email obligatorio. Migración
+  `20261110_pagos_f6_restore_admin_list_team_members.sql`. Tests `adminUsers.test.js`.
+  - ⚠️ Smoke: entrar como system admin, pestaña Equipo; **borrar solo negocio de prueba**.
+- ✅ **Fase 7 — Historial de pagos (usuario + admin).** (2026-11-10) `get_my_payments` en prod;
+  `PaymentHistory` en `/cuenta/plan` (ResponsiveListing; miembros con `config.view`); admin en
+  `BusinessDetailDialog`; labels en `billingLabels.js`. Tests: `PaymentHistory.test.jsx`, `billing.test.js`.
+  - ⚠️ Smoke: owner y miembro con config ven historial; admin en detalle de negocio.
+- 🟠 **Fase 8 — QA integral** (automático listo; E2E manual pendiente Roberto)
+  - Verificado 2026-11-10: advisor **0 ERROR**, RLS tablas pagos, `search_path` en RPCs admin,
+    tests pagos 14/14, `build` OK. Checklist manual: `docs/PLAN_PAGOS_F8_QA.md`.
 - 🟠 **Verificación visual pendiente de la Fase 5:** el panel `/admin/planes` (pestaña Negocios,
   fijar fecha de pago, registrar pago) quedó **sin probar en vivo** (el preview perdió la sesión
   admin). Hacer con sesión iniciada. (PLAN_PAGOS_PREMIUM Fase 5, nota ⚠️)
@@ -73,8 +85,9 @@ Las Fases 1–5 están hechas. Falta cerrar el ciclo de monetización/administra
 - ⚪ **Opcionales:** escáner QR/código de barras (tras SKU); **modo discreción** (ocultar montos /
   bloqueo por PIN) — mejora de UX útil por el contexto de uso. (PLAN_CONTABLE_ROADMAP, opcionales)
 
-## FASE 3 — Offline real: escritura sin conexión (Capa C) · 🟠
-> Hoy la app ya es PWA (Capa A) y cachea lecturas (Capa B). Falta poder **crear/editar sin conexión**.
+## FASE 3 — Offline real: escritura sin conexión (Capa C) · ✅
+> **Actualizado 2026-11:** `PLAN_OFFLINE_PWA.md` marca C1–C5 y B4+ como implementados (2026-11-05/06).
+> Solo quedan verificaciones E2E opcionales y C4 adjuntos (bloqueados por decisión).
 - 🟠 **C1 — Infraestructura del outbox.** (M) `setMutationDefaults` por operación,
   `resumePausedMutations()` al reconectar, **migración de BD**: columna `client_uuid uuid` con índice
   UNIQUE (idempotencia) en `transactions` (luego `products`, `movements`), badge "Pendiente de
