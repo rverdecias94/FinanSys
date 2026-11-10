@@ -229,8 +229,7 @@ export default function Dashboard() {
   }, [financialDistribution])
 
   // --- Datos derivados de la moneda del panel ---
-  // Saldo registrado = DEVENGADO (incluye pendientes). La caja real descuenta
-  // por cobrar y suma por pagar: es lo que el usuario entiende como "disponible".
+  // P0-005: business_balances = caja cobrada. CxC/CxP solo informan, no recalculan.
   const currentBalance = stats.balance[panelCurrency] || 0
   const positionByCurrency = useMemo(() => {
     const balances = Object.entries(stats.balance || {}).map(([currency_code, current_balance]) => ({
@@ -285,11 +284,11 @@ export default function Dashboard() {
   const quickLinks = [
     { title: 'Finanzas', icon: <DollarSign className="h-7 w-7 mb-2 text-primary" />, description: 'Ingresos y gastos', to: '/finanzas' },
     { title: 'Almacén', icon: <Package className="h-7 w-7 mb-2 text-primary" />, description: 'Control de inventario', to: '/almacen' },
-    { title: 'Configuración', icon: <Settings className="h-7 w-7 mb-2 text-primary" />, description: 'Ajustes del sistema', to: '/configuracion' },
+    { title: 'Negocio', icon: <Settings className="h-7 w-7 mb-2 text-primary" />, description: 'Ajustes de tu cuenta', to: '/cuenta/negocio' },
   ]
 
   const onboardingSteps = [
-    { n: 1, title: 'Elige tu moneda principal', hint: 'Ir a Configuración', to: '/configuracion', active: true },
+    { n: 1, title: 'Elige tu moneda principal', hint: 'Ir a Monedas', to: '/cuenta/monedas', active: true },
     { n: 2, title: 'Registra tu primer ingreso o gasto', hint: 'Nuevo movimiento', to: '/finanzas', active: true },
     { n: 3, title: 'Vuelve aquí y mira cómo vas', hint: 'Tu balance y resultado del mes', to: null, active: false },
   ]
@@ -377,12 +376,12 @@ export default function Dashboard() {
       ) : (
         /* ---------- Panel con datos ---------- */
         <>
-          {/* Tarjeta héroe: caja real (efectivo hoy), no el saldo devengado */}
+          {/* Tarjeta héroe: caja cobrada (paid_amount) */}
           <Card className="bg-primary text-primary-foreground shadow-md border-0">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2 text-primary-foreground/80">
                 <Wallet className="h-4 w-4" />
-                <span className="text-sm font-medium">Tu dinero disponible</span>
+                <span className="text-sm font-medium">Caja cobrada</span>
               </div>
               {businessCurrencies.length === 0 ? (
                 <p className="mt-2 text-sm text-primary-foreground/80">Sin monedas configuradas</p>
@@ -391,14 +390,11 @@ export default function Dashboard() {
                   <p className="mt-1 text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
                     {formatCurrency(availableCash, panelCurrency)}
                   </p>
-                  {(porCobrar > 0 || porPagar > 0 || availableCash !== currentBalance) && (
+                  {(porCobrar > 0 || porPagar > 0) && (
                     <p className="mt-2 text-xs text-primary-foreground/80 leading-snug">
-                      Caja real hoy
+                      Disponible hoy
                       {porCobrar > 0 ? ` · te deben ${formatCurrency(porCobrar, panelCurrency)}` : ''}
                       {porPagar > 0 ? ` · debes ${formatCurrency(porPagar, panelCurrency)}` : ''}
-                      {availableCash !== currentBalance
-                        ? ` · saldo registrado ${formatCurrency(currentBalance, panelCurrency)}`
-                        : ''}
                     </p>
                   )}
                   {otherBalances.length > 0 && (

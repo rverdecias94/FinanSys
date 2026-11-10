@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { Suspense, useEffect } from 'react'
 import { lazyRetry } from '@/lib/lazyRetry'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
@@ -32,7 +32,12 @@ const InventarioNuevo = lazyRetry(() => import('@/pages/InventarioNuevo'))
 const InventarioItem = lazyRetry(() => import('@/pages/InventarioItem'))
 const InventarioConfigFormulario = lazyRetry(() => import('@/pages/InventarioConfigFormulario'))
 const Reportes = lazyRetry(() => import('@/pages/Reportes'))
-const ConfiguracionMejorado = lazyRetry(() => import('@/pages/ConfiguracionMejorado'))
+const ConfigRedirect = lazyRetry(() => import('@/pages/cuenta/ConfigRedirect'))
+const PlanPage = lazyRetry(() => import('@/pages/cuenta/PlanPage'))
+const NegocioPage = lazyRetry(() => import('@/pages/cuenta/NegocioPage'))
+const MonedasPage = lazyRetry(() => import('@/pages/cuenta/MonedasPage'))
+const AparienciaPage = lazyRetry(() => import('@/pages/cuenta/AparienciaPage'))
+const EquipoPage = lazyRetry(() => import('@/pages/cuenta/EquipoPage'))
 const LogsMejorado = lazyRetry(() => import('@/pages/LogsMejorado'))
 const Herramientas = lazyRetry(() => import('@/pages/Herramientas'))
 const AdminPlans = lazyRetry(() => import('@/pages/AdminPlans'))
@@ -96,11 +101,27 @@ export default function App() {
                       <Route index element={<Herramientas />} />
                     </Route>
                     <Route path="/configuracion" element={<ProtectedRoute requiredPermission="config.view" />}>
-                      <Route index element={<ConfiguracionMejorado />} />
+                      <Route index element={<ConfigRedirect />} />
+                    </Route>
+                    <Route path="/cuenta/plan" element={<ProtectedRoute requiredPermission="config.view" />}>
+                      <Route index element={<PlanPage />} />
+                    </Route>
+                    <Route path="/cuenta/negocio" element={<ProtectedRoute requiredPermission="config.view" />}>
+                      <Route index element={<NegocioPage />} />
+                    </Route>
+                    <Route path="/cuenta/monedas" element={<ProtectedRoute requiredPermission="config.view" />}>
+                      <Route index element={<MonedasPage />} />
+                    </Route>
+                    <Route path="/cuenta/apariencia" element={<ProtectedRoute requiredPermission="config.view" />}>
+                      <Route index element={<AparienciaPage />} />
+                    </Route>
+                    <Route path="/cuenta/equipo" element={<ProtectedRoute requiredPermission="team.manage" />}>
+                      <Route index element={<EquipoPage />} />
                     </Route>
                     <Route path="/logs" element={<ProtectedRoute requiredPermission="logs.view" />}>
                       <Route index element={<LogsMejorado />} />
                     </Route>
+                    <Route path="/cuenta" element={<Navigate to="/cuenta/negocio" replace />} />
 
                     <Route path="/admin/planes" element={<ProtectedRoute systemAdminOnly />}>
                       <Route index element={<AdminPlans />} />

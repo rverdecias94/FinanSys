@@ -6,7 +6,16 @@ import { getRateForDate } from '@/services/exchangeRates'
 // `exportUtils` (jspdf/xlsx) se importa dinámicamente dentro de exportTransactions
 // para no arrastrar las librerías pesadas de exportación en la carga de Finanzas (P3.5).
 
+/**
+ * Sube adjuntos al bucket `transaction-images`.
+ * `userId` DEBE ser el businessId/owner del negocio (getEffectiveUserId),
+ * no el auth.uid() de un miembro: la carpeta `{businessId}/…` es lo que
+ * aíslan las policies Storage (P0-001 → get_current_business_id()).
+ */
 export async function uploadAttachments(files, userId) {
+  if (!userId || typeof userId !== 'string') {
+    throw new Error('uploadAttachments: falta businessId/userId de carpeta')
+  }
   const urls = [];
   for (const file of files) {
     if (typeof file === 'string') {
@@ -32,7 +41,12 @@ export async function uploadAttachments(files, userId) {
   return urls;
 }
 
-export async function deleteAttachments(urls) {
+/**
+ * Borra objetos por URL pública. La autorización real la hace RLS Storage
+ * (carpeta = get_current_business_id). Defensa en cliente: solo intenta
+ * borrar rutas bajo `businessFolder` cuando se pasa.
+ */
+export async function deleteAttachments(urls, businessFolder) {
   if (!urls || urls.length === 0) return;
 
   const paths = urls.map(url => {
@@ -41,10 +55,14 @@ export async function deleteAttachments(urls) {
     return parts.length > 1 ? parts[1] : null;
   }).filter(Boolean);
 
-  if (paths.length > 0) {
+  const scoped = businessFolder
+    ? paths.filter((p) => p === businessFolder || p.startsWith(`${businessFolder}/`))
+    : paths;
+
+  if (scoped.length > 0) {
     const { error } = await supabase.storage
       .from('transaction-images')
-      .remove(paths);
+      .remove(scoped);
 
     if (error) {
       return
@@ -187,7 +205,7 @@ export async function updateTransaction(transactionId, payload, userId, business
   } = payload
 
   if (deleted_attachments && deleted_attachments.length > 0) {
-    await deleteAttachments(deleted_attachments);
+    await deleteAttachments(deleted_attachments, effectiveUserId);
     await logAction({
       action: 'Eliminar',
       resource: `Adjunto(s) de Transacción: ${description || 'Sin descripción'}`,

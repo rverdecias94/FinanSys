@@ -145,7 +145,7 @@ export function DailyFxRateModal({
       patchBusinessFxSettings(userId, businessId, { last_fx_prompt_date: today }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracion', 'general-settings'] })
-      toast.message('Puedes actualizar la tasa cuando quieras en Configuración → Monedas')
+      toast.message('Puedes actualizar la tasa cuando quieras en Cuenta → Monedas')
     },
   })
 

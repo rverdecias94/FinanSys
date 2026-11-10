@@ -58,7 +58,7 @@ export function PaymentReminderBanner() {
       </span>
       <button
         type="button"
-        onClick={() => navigate('/configuracion')}
+        onClick={() => navigate('/cuenta/plan')}
         className={`shrink-0 rounded px-2 py-0.5 font-semibold underline-offset-2 hover:underline ${
           isGrace ? 'text-destructive' : 'text-warning'
         }`}

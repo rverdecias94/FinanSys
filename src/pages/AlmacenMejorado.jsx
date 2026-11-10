@@ -8,11 +8,9 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   SlidersHorizontal,
-  ArrowLeftRight,
   ClipboardCheck,
   Boxes,
   FileText,
-  MapPin,
   Bell,
   History,
 } from 'lucide-react'
@@ -25,7 +23,7 @@ const ALMACEN_SECTIONS = [
   { value: 'products', label: 'Productos', icon: Boxes },
   { value: 'movements', label: 'Movimientos', icon: History },
   { value: 'documents', label: 'Comprobantes', icon: FileText },
-  { value: 'locations', label: 'Ubicaciones', icon: MapPin },
+  // P0-002/008: ubicaciones/FEFO no cableados → ocultos hasta tener stock_balances.
   { value: 'insights', label: 'Alertas', icon: Bell },
 ]
 import { useSession } from '@/hooks/useSession'
@@ -37,7 +35,6 @@ import { ExportButton } from '@/components/common/ExportButton'
 import { ProductList } from '@/components/almacen/ProductList'
 import { MovementList } from '@/components/almacen/MovementList'
 import { DocumentList } from '@/components/almacen/DocumentList'
-import { LocationsPanel } from '@/components/almacen/LocationsPanel'
 import { WarehouseInsightsPanel } from '@/components/almacen/WarehouseInsightsPanel'
 import { WarehouseOperationModal } from '@/components/almacen/WarehouseOperationModal'
 import { ReplacementMarginPanel } from '@/components/almacen/ReplacementMarginPanel'
@@ -159,7 +156,7 @@ export default function AlmacenMejorado() {
       <ReplacementMarginPanel onApplied={refreshWarehouse} />
 
       {canMove && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('receipt')}>
             <ArrowDownToLine className="h-4 w-4 text-success" /> Recibir
           </Button>
@@ -169,10 +166,7 @@ export default function AlmacenMejorado() {
           <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('adjustment')}>
             <SlidersHorizontal className="h-4 w-4" /> Ajustar
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('transfer')}>
-            <ArrowLeftRight className="h-4 w-4" /> Transferir
-          </Button>
-          <Button variant="outline" className="h-11 col-span-2 justify-center gap-1.5 sm:col-span-1" onClick={() => setOpMode('count')}>
+          <Button variant="outline" className="h-11 gap-1.5 justify-center" onClick={() => setOpMode('count')}>
             <ClipboardCheck className="h-4 w-4" /> Contar
           </Button>
         </div>
@@ -220,14 +214,6 @@ export default function AlmacenMejorado() {
             businessId={businessId}
             enabled={canView('warehouse')}
             onRefresh={refreshWarehouse}
-          />
-        </TabsContent>
-
-        <TabsContent value="locations">
-          <LocationsPanel
-            userId={userId}
-            businessId={businessId}
-            enabled={canView('warehouse')}
           />
         </TabsContent>
 

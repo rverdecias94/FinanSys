@@ -39,6 +39,7 @@ describe('planRequests service', () => {
       target_plan_id: 'premium',
       requested_months: 3,
       billing_cycle: null,
+      contact_name: '',
       contact_phone: '+53',
       payment_method: 'efectivo',
       payment_reference: 'abc',

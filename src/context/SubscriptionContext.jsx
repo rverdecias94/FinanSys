@@ -345,7 +345,7 @@ export const SubscriptionProvider = ({ children }) => {
     const metricLabel = metricLabels[metricKey] || 'recursos'
     const goToPlans = {
       label: 'Ver Planes',
-      onClick: () => { window.location.href = '/configuracion' }
+      onClick: () => { window.location.href = '/cuenta/plan' }
     }
 
     // Check 80% warning
@@ -383,7 +383,7 @@ export const SubscriptionProvider = ({ children }) => {
 
     if (planId === 'premium') {
       toast.error('Los planes de pago requieren aprobación manual.', {
-        description: 'Envía una solicitud desde Configuración › Planes.'
+        description: 'Envía una solicitud desde Cuenta › Mi plan.'
       })
       return
     }

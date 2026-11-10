@@ -6,9 +6,9 @@ import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  Wallet, Settings, LogOut, X, ChartArea, Warehouse, Layers, FileText,
+  Wallet, LogOut, X, ChartArea, Warehouse, Layers, FileText,
   ShieldAlert, Shield, ShieldCheck, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
-  Sparkles, Crown, ChevronDown,
+  Sparkles, Crown, ChevronDown, Coins, Palette, Building2,
 } from 'lucide-react'
 import { RouteOutletSkeleton } from '@/components/common/pageSkeletons'
 import { supabase } from '@/config/supabase'
@@ -60,14 +60,18 @@ const NAV_GROUPS = [
     items: [
       { to: '/reportes', label: 'Reportes', icon: FileText, permission: 'reports.view' },
       { to: '/herramientas', label: 'Copiloto', icon: Sparkles, permission: 'finanzas.view' },
+      { to: '/logs', label: 'Auditoría', icon: ShieldAlert, permission: 'logs.view' },
     ],
   },
   {
     id: 'cuenta',
     label: 'Cuenta',
     items: [
-      { to: '/logs', label: 'Auditoría', icon: ShieldAlert, permission: 'logs.view' },
-      { to: '/configuracion', label: 'Configuración', icon: Settings, permission: 'config.view' },
+      { to: '/cuenta/plan', label: 'Mi plan', icon: Crown, permission: 'config.view', ownerOnly: true },
+      { to: '/cuenta/negocio', label: 'Negocio', icon: Building2, permission: 'config.view' },
+      { to: '/cuenta/monedas', label: 'Monedas', icon: Coins, permission: 'config.view' },
+      { to: '/cuenta/apariencia', label: 'Apariencia', icon: Palette, permission: 'config.view' },
+      { to: '/cuenta/equipo', label: 'Equipo', icon: Users, permission: 'team.manage' },
     ],
   },
 ]
@@ -310,6 +314,8 @@ export default function SidebarLayout() {
     )
 
   const renderItem = (item, mode) => {
+    if (item.ownerOnly && !isOwner) return null
+
     const link =
       mode === 'icon' ? (
         <NavIconLink key={item.to} to={item.to} label={item.label} icon={item.icon} end={item.to === '/'} title={item.hint || item.label} />
@@ -396,7 +402,7 @@ export default function SidebarLayout() {
 
       {isAdminQuery.data && (
         mode === 'icon' ? (
-          <NavIconLink to="/admin/planes" label="Admin Planes" icon={ShieldCheck} />
+          <NavIconLink to="/admin/planes" label="Negocios y pagos" icon={ShieldCheck} />
         ) : (
           <div className="mb-1.5 mt-1">
             <button
@@ -405,7 +411,7 @@ export default function SidebarLayout() {
               className={categoryButtonClass()}
               aria-expanded={adminOpen}
             >
-              <span className="text-sm font-normal">Sistema</span>
+              <span className="text-sm font-normal">Administrador General</span>
               <ChevronDown
                 className={cn(
                   'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
@@ -424,7 +430,7 @@ export default function SidebarLayout() {
                 <div className="mt-0.5 space-y-0.5 border-l-2 border-border/80 ml-2 pl-1.5">
                   <NavLink to="/admin/planes" className={linkClass}>
                     <ShieldCheck className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                    <span>Admin Planes</span>
+                    <span>Negocios y pagos</span>
                   </NavLink>
                 </div>
               </div>
@@ -541,7 +547,7 @@ export default function SidebarLayout() {
                     variant="default"
                     size="sm"
                     className="w-full text-xs font-bold uppercase"
-                    onClick={() => navigate('/configuracion')}
+                    onClick={() => navigate('/cuenta/plan')}
                   >
                     Mejorar plan
                   </Button>
@@ -551,7 +557,7 @@ export default function SidebarLayout() {
                     variant="outline"
                     size="sm"
                     className="w-full text-xs font-bold uppercase"
-                    onClick={() => navigate('/configuracion')}
+                    onClick={() => navigate('/cuenta/plan')}
                   >
                     Subir a Élite
                   </Button>

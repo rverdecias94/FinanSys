@@ -1,10 +1,7 @@
 import { Wallet } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Posición simplificada (Q5): una tarjeta por moneda. El saldo de GESTIA es DEVENGADO
-// (ya incluye lo pendiente), así que la cifra destacada es la CAJA REAL hoy
-// (= saldo − por cobrar + por pagar) y debajo el desglose. Layout de filas para no
-// desbordar con saldos grandes.
+// P0-005: business_balances = caja cobrada. CxC/CxP son contexto, no recalculan la cifra.
 export function PositionPanel({ rows = [], formatCurrency, loading = false, emptyMessage }) {
   if (loading) {
     return (
@@ -24,17 +21,13 @@ export function PositionPanel({ rows = [], formatCurrency, loading = false, empt
         <div key={r.currency} className="rounded-lg border p-3 sm:p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Wallet className="h-3.5 w-3.5 text-primary" /> Caja real hoy · {r.currency}
+              <Wallet className="h-3.5 w-3.5 text-primary" /> Caja cobrada · {r.currency}
             </span>
             <span className={`text-lg font-bold tabular-nums ${r.caja < 0 ? 'text-destructive' : ''}`}>
               {r.caja < 0 ? '−' : ''}{formatCurrency(Math.abs(r.caja), r.currency)}
             </span>
           </div>
           <div className="space-y-1.5 border-t pt-2">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="text-muted-foreground">Saldo registrado</span>
-              <span className="font-medium tabular-nums">{formatCurrency(r.saldo, r.currency)}</span>
-            </div>
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">Por cobrar</span>
               <span className="font-medium tabular-nums text-success">+{formatCurrency(r.porCobrar, r.currency)}</span>
@@ -45,7 +38,7 @@ export function PositionPanel({ rows = [], formatCurrency, loading = false, empt
             </div>
           </div>
           <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
-            Caja real = saldo − por cobrar + por pagar (lo que te deben aún no entró; lo que debes aún no salió).
+            Solo cuenta lo cobrado/pagado. Lo pendiente aparece aparte y no mueve la caja hasta el abono.
           </p>
         </div>
       ))}

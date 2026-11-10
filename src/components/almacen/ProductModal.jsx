@@ -478,7 +478,6 @@ export function ProductModal({ open, onOpenChange, product, onSuccess, categorie
                     <SelectContent>
                       <SelectItem value="none">Ninguna</SelectItem>
                       <SelectItem value="fifo">FIFO</SelectItem>
-                      <SelectItem value="fefo">FEFO (caducidad)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

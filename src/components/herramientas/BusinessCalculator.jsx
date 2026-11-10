@@ -83,7 +83,7 @@ export function BusinessCalculator() {
 
   const currencyOptions = useMemo(() => {
     const codes = (businessCurrencies || []).map((c) => c.code).filter(Boolean)
-    return [...new Set([baseCurrency, 'CUP', 'USD', 'EUR', 'MXN', ...codes])]
+    return [...new Set([baseCurrency, ...codes].filter(Boolean))]
   }, [businessCurrencies, baseCurrency])
 
   const balances = useMemo(() => statsQuery.data?.balance || {}, [statsQuery.data])
@@ -320,7 +320,7 @@ export function BusinessCalculator() {
           />
           {!hasCupRate && (
             <p className="text-xs text-muted-foreground">
-              Tip: configura la tasa CUP en Configuración → Monedas para conversiones USD↔CUP.
+              Tip: configura la tasa CUP en Cuenta → Monedas para conversiones USD↔CUP.
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-3">

@@ -16,10 +16,10 @@ describe('PremiumFeatureScreen', () => {
     expect(screen.getByText('Desbloquéala con Premium.')).toBeInTheDocument()
   })
 
-  it('el botón "Mejorar Plan" navega a /configuracion', async () => {
+  it('el botón "Mejorar plan" navega a /cuenta/plan', async () => {
     const user = userEvent.setup()
     render(<PremiumFeatureScreen />)
     await user.click(screen.getByRole('button', { name: /Mejorar Plan/i }))
-    expect(navigateMock).toHaveBeenCalledWith('/configuracion')
+    expect(navigateMock).toHaveBeenCalledWith('/cuenta/plan')
   })
 })

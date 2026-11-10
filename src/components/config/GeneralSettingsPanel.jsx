@@ -28,10 +28,17 @@ export function GeneralSettingsPanel() {
   const { session } = useSession()
   const { businessId, isOwner } = useBusiness()
   const { theme, setTheme } = useTheme()
-  const { businessCurrencies, setMainCurrency, toggleCurrency } = useCurrency()
+  const { availableCurrencies, businessCurrencies, setMainCurrency, toggleCurrency } = useCurrency()
   const queryClient = useQueryClient()
 
   const effectiveId = businessId || session?.user?.id
+
+  const catalogCodes = useMemo(() => {
+    const fromCatalog = (availableCurrencies || []).map((c) => c.code).filter(Boolean)
+    if (fromCatalog.length > 0) return fromCatalog
+    const fromBusiness = (businessCurrencies || []).map((c) => c.code).filter(Boolean)
+    return fromBusiness.length > 0 ? fromBusiness : ['USD']
+  }, [availableCurrencies, businessCurrencies])
 
   const settingsQuery = useQuery({
     queryKey: ['configuracion', 'general-settings', effectiveId],
@@ -82,12 +89,7 @@ export function GeneralSettingsPanel() {
   const [savedSnapshot, setSavedSnapshot] = useState(null)
   const [companyErrors, setCompanyErrors] = useState({})
 
-  const [initialBalances, setInitialBalances] = useState(() => ({
-    CUP: '',
-    USD: '',
-    EUR: '',
-    MXN: ''
-  }))
+  const [initialBalances, setInitialBalances] = useState({})
 
   useEffect(() => {
     setMainCurrencyLocal(defaultCurrency)
@@ -148,14 +150,18 @@ export function GeneralSettingsPanel() {
   }, [fontSize])
 
   useEffect(() => {
-    const next = { ...initialBalances }
-    for (const code of ['CUP', 'USD', 'EUR', 'MXN']) {
-      if (balances[code]?.initial_balance !== undefined) {
-        next[code] = toDecimalInput(balances[code].initial_balance)
+    setInitialBalances((prev) => {
+      const next = { ...prev }
+      for (const code of catalogCodes) {
+        if (balances[code]?.initial_balance !== undefined) {
+          next[code] = toDecimalInput(balances[code].initial_balance)
+        } else if (next[code] === undefined) {
+          next[code] = ''
+        }
       }
-    }
-    setInitialBalances(next)
-  }, [balances])
+      return next
+    })
+  }, [balances, catalogCodes])
 
   const settingsPayload = useMemo(() => {
     return {
@@ -243,7 +249,7 @@ export function GeneralSettingsPanel() {
   const handleUpdateBalances = async () => {
     if (!session?.user?.id || !isOwner) return
 
-    const payload = ['CUP', 'USD', 'EUR', 'MXN']
+    const payload = catalogCodes
       .map((code) => {
         const raw = initialBalances[code]
         const n = Number(raw)
@@ -298,6 +304,7 @@ export function GeneralSettingsPanel() {
         isOwner={isOwner}
         mainCurrency={mainCurrency}
         onChangeMainCurrency={setMainCurrencyLocal}
+        currencyCodes={catalogCodes}
         valuationMethod={valuationMethod}
         onChangeValuationMethod={(v) => {
           setHasEdits(true)
@@ -305,12 +312,9 @@ export function GeneralSettingsPanel() {
         }}
         initialBalances={initialBalances}
         onChangeInitialBalance={(code, value) => setInitialBalances((prev) => ({ ...prev, [code]: value }))}
-        currentBalances={{
-          CUP: toDecimalInput(balances.CUP?.current_balance ?? 0),
-          USD: toDecimalInput(balances.USD?.current_balance ?? 0),
-          EUR: toDecimalInput(balances.EUR?.current_balance ?? 0),
-          MXN: toDecimalInput(balances.MXN?.current_balance ?? 0)
-        }}
+        currentBalances={Object.fromEntries(
+          catalogCodes.map((code) => [code, toDecimalInput(balances[code]?.current_balance ?? 0)])
+        )}
         onSaveBaseCurrency={handleSaveBaseCurrency}
         onUpdateBalances={handleUpdateBalances}
         isRefreshing={balanceQuery.isFetching}

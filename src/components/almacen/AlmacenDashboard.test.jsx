@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 // Mock de recharts: evita dependencias de layout (ResizeObserver / dimensiones)
@@ -15,6 +15,23 @@ vi.mock('recharts', () => {
 import { AlmacenDashboard } from './AlmacenDashboard'
 
 describe('AlmacenDashboard', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    })
+  })
+
   it('muestra 0 (no NaN ni vacío) cuando las métricas vienen undefined', () => {
     const stats = {
       totalProducts: undefined,

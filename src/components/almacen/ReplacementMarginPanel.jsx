@@ -192,7 +192,7 @@ export function ReplacementMarginPanel({ onApplied }) {
               precios sugeridos.
             </p>
             <Button asChild className="mt-3 h-10" size="sm">
-              <Link to="/configuracion">Ver planes</Link>
+              <Link to="/cuenta/plan">Ver planes</Link>
             </Button>
           </div>
         )}

@@ -425,7 +425,7 @@ export function RouteOutletSkeleton() {
   }
   if (pathname.startsWith('/inventario')) return <InventarioShell />
   if (pathname.startsWith('/reportes')) return <ReportesShell />
-  if (pathname.startsWith('/configuracion')) return <ConfigShell />
+  if (pathname.startsWith('/configuracion') || pathname.startsWith('/cuenta')) return <ConfigShell />
   if (pathname.startsWith('/logs')) return <LogsShell />
   if (pathname.startsWith('/herramientas')) return <HerramientasShell />
   if (pathname.startsWith('/admin')) return <AdminShell />

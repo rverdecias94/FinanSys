@@ -218,7 +218,7 @@ export function OnboardingWizard() {
                   <Input type="email" value={company.email} onChange={(e) => updateCompany({ email: e.target.value })} />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground">Solo el nombre comercial es obligatorio; el resto puedes completarlo luego en Configuración.</p>
+              <p className="text-xs text-muted-foreground">Solo el nombre comercial es obligatorio; el resto puedes completarlo luego en Cuenta → Negocio.</p>
             </div>
           )}
 

@@ -186,8 +186,7 @@ const Reportes = () => {
   const openReceivableRows = buildOpenAccountRows(openRecvPage?.data || [], 'receivable')
   const openPayableRows = buildOpenAccountRows(openPayPage?.data || [], 'payable')
 
-  // Posición (Q5): saldo (business_balances, devengado) + por cobrar/pagar (aging) →
-  // caja real. Las queries de aging recv/pay comparten caché con el Card de Antigüedad.
+  // Posición (Q5 / P0-005): business_balances = caja cobrada; CxC/CxP informativos.
   const { data: balances = [] } = useQuery({
     queryKey: ['balanceConfig', effectiveUserId],
     queryFn: () => getBalanceConfig(userId, businessId),
@@ -241,8 +240,8 @@ const Reportes = () => {
     const rows = positionToExportRows(position)
     const fname = 'posicion'
     if (type === 'pdf') {
-      const headers = ['Moneda', 'Saldo registrado', 'Por cobrar', 'Por pagar', 'Caja real hoy']
-      const body = rows.map((r) => [r.Moneda, r['Saldo registrado'], r['Por cobrar'], r['Por pagar'], r['Caja real hoy']].map(String))
+      const headers = ['Moneda', 'Caja cobrada', 'Por cobrar', 'Por pagar', 'Caja disponible']
+      const body = rows.map((r) => [r.Moneda, r['Caja cobrada'], r['Por cobrar'], r['Por pagar'], r['Caja disponible']].map(String))
       exportToPDF('Posición (a hoy)', headers, body, fname, pdfOptions())
       return
     }
@@ -813,7 +812,7 @@ const Reportes = () => {
                         Posición
                       </CardTitle>
                       <CardDescription className="text-xs sm:text-sm">
-                        Caja real hoy y de qué se compone, por moneda.
+                        Caja cobrada y pendientes por moneda.
                       </CardDescription>
                     </div>
                     <PermissionGuard permission="reports.export" mode="disable">

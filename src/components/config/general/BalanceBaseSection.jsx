@@ -10,6 +10,7 @@ export function BalanceBaseSection({
   isOwner,
   mainCurrency,
   onChangeMainCurrency,
+  currencyCodes = [],
   initialBalances,
   onChangeInitialBalance,
   currentBalances,
@@ -17,6 +18,9 @@ export function BalanceBaseSection({
   onUpdateBalances,
   isRefreshing
 }) {
+  const codes = currencyCodes.length > 0 ? currencyCodes : [mainCurrency].filter(Boolean)
+  const codesLabel = codes.join(' / ') || '—'
+
   return (
     <Card>
       <CardHeader>
@@ -37,7 +41,7 @@ export function BalanceBaseSection({
                 <SelectValue placeholder="Selecciona" />
               </SelectTrigger>
               <SelectContent>
-                {['CUP', 'USD', 'EUR', 'MXN'].map((c) => (
+                {codes.map((c) => (
                   <SelectItem key={c} value={c}>
                     {c}
                   </SelectItem>
@@ -60,13 +64,13 @@ export function BalanceBaseSection({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">Balance Inicial (Manual)</Badge>
-          <span className="text-xs text-muted-foreground">CUP / USD / EUR / MXN</span>
+          <span className="text-xs text-muted-foreground break-all">{codesLabel}</span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {['CUP', 'USD', 'EUR', 'MXN'].map((code) => (
+          {codes.map((code) => (
             <div key={code} className="space-y-2">
               <Label>Inicial {code}</Label>
               <Input
@@ -82,7 +86,7 @@ export function BalanceBaseSection({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {['CUP', 'USD', 'EUR', 'MXN'].map((code) => (
+          {codes.map((code) => (
             <div key={code} className="space-y-2">
               <Label>Actual {code}</Label>
               <Input value={currentBalances[code] || '0'} disabled />
@@ -91,7 +95,7 @@ export function BalanceBaseSection({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          El balance actual se calcula automáticamente: Balance Inicial + Ingresos - Gastos.
+          Caja cobrada = saldo inicial + cobros − pagos (solo lo liquidado; lo pendiente no cuenta).
         </p>
         {!isOwner && <p className="text-xs text-muted-foreground">Solo el propietario puede modificar el balance.</p>}
 

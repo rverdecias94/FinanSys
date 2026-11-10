@@ -37,7 +37,7 @@ export function PremiumFeatureScreen({
               </p>
             </div>
           </div>
-          <Button onClick={() => navigate('/configuracion')} className="w-full">
+          <Button onClick={() => navigate('/cuenta/plan')} className="w-full">
             {ctaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

@@ -1,77 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
-vi.mock('@/context/SubscriptionContext', () => ({ useSubscription: vi.fn() }))
-vi.mock('@/components/common/PermissionGuard', () => ({ usePermissionCheck: vi.fn() }))
-vi.mock('@/components/common/PlanRoleSummary', () => ({ PlanRoleSummary: () => <div>PLAN_ROLE</div> }))
-vi.mock('@/components/config/TeamManagement', () => ({ TeamManagement: () => <div>TEAM_MGMT</div> }))
-vi.mock('@/components/config/RoleManagement', () => ({ RoleManagement: () => <div>ROLE_MGMT</div> }))
-vi.mock('@/components/config/PlansPanel', () => ({ PlansPanel: () => <div>PLANS</div> }))
-vi.mock('@/components/config/CurrenciesPanel', () => ({ CurrenciesPanel: () => <div>CURRENCIES</div> }))
-vi.mock('@/components/config/GeneralSettingsPanel', () => ({ GeneralSettingsPanel: () => <div>GENERAL</div> }))
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
+vi.mock('@/context/BusinessContext', () => ({
+  useBusiness: () => ({ isOwner: true }),
+}))
+
+vi.mock('react-router-dom', () => ({
+  Navigate: ({ to }) => <div data-testid="nav" data-to={to} />,
+}))
 
 import ConfiguracionMejorado from './ConfiguracionMejorado'
-import { useSubscription } from '@/context/SubscriptionContext'
-import { usePermissionCheck } from '@/components/common/PermissionGuard'
 
-describe('ConfiguracionMejorado · Equipo/Roles', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    usePermissionCheck.mockReturnValue({ canView: () => true, isOwner: true, hasPermission: () => false })
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: vi.fn().mockImplementation((query) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: vi.fn(),
-        removeListener: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      })),
-    })
-  })
-
-  it('cuenta free: las pestañas Equipo y Roles son visibles', () => {
-    useSubscription.mockReturnValue({ subscription: { plan_id: 'free' } })
+describe('ConfiguracionMejorado · redirect', () => {
+  it('owner redirige a /cuenta/plan', () => {
     render(<ConfiguracionMejorado />)
-    expect(screen.getByRole('tab', { name: /Equipo/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Roles/i })).toBeInTheDocument()
-  })
-
-  it('las pestañas van en una sola fila con scroll horizontal (sin wrap) en pantallas pequeñas', () => {
-    useSubscription.mockReturnValue({ subscription: { plan_id: 'free' } })
-    render(<ConfiguracionMejorado />)
-    const tablist = screen.getByRole('tablist')
-    // Requisito: nunca hacer wrap; desplazarse en horizontal cuando no caben.
-    expect(tablist.className).toMatch(/flex-nowrap/)
-    expect(tablist.className).toMatch(/overflow-x-auto/)
-    expect(tablist.className).not.toMatch(/flex-wrap/)
-    // Los triggers no se comprimen (shrink-0), así conservan su ancho al desplazarse.
-    expect(screen.getByRole('tab', { name: /General/i }).className).toMatch(/shrink-0/)
-  })
-
-  it('cuenta free: al abrir Equipo muestra la pantalla de mejora (no la gestión real)', async () => {
-    const user = userEvent.setup()
-    useSubscription.mockReturnValue({ subscription: { plan_id: 'free' } })
-    render(<ConfiguracionMejorado />)
-
-    await user.click(screen.getByRole('tab', { name: /Equipo/i }))
-    expect(screen.getByText('La gestión de equipo está en Negocio y Élite')).toBeInTheDocument()
-    expect(screen.queryByText('TEAM_MGMT')).toBeNull()
-  })
-
-  it('cuenta Negocio: al abrir Equipo muestra la gestión real', async () => {
-    const user = userEvent.setup()
-    useSubscription.mockReturnValue({ subscription: { plan_id: 'premium' } })
-    render(<ConfiguracionMejorado />)
-
-    await user.click(screen.getByRole('tab', { name: /Equipo/i }))
-    expect(screen.getByText('TEAM_MGMT')).toBeInTheDocument()
-    expect(screen.queryByText('La gestión de equipo está en Negocio y Élite')).toBeNull()
+    expect(screen.getByTestId('nav').dataset.to).toBe('/cuenta/plan')
   })
 })

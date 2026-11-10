@@ -9,7 +9,6 @@ import {
   createWarehouseDocument,
   createCountAdjustment,
   listReasonCodes,
-  suggestIssueLot
 } from '@/services/almacen'
 import { notify, getSupabaseErrorMessage } from '@/services/notifications'
 import { useSession } from '@/hooks/useSession'
@@ -105,25 +104,6 @@ export function WarehouseOperationModal({ open, onOpenChange, mode = 'receipt', 
 
   const selected = products.find((p) => String(p.id) === String(form.product_id))
 
-  const handleSuggestLot = async () => {
-    if (!form.product_id) return
-    try {
-      const sug = await suggestIssueLot(form.product_id, Number(form.qty) || 1)
-      if (sug?.found) {
-        setForm((f) => ({
-          ...f,
-          lot_text: sug.lot_text || '',
-          expires_on: sug.expires_on || ''
-        }))
-        notify.success(`Lote sugerido (${sug.strategy}): ${sug.lot_text}`)
-      } else {
-        notify.info('No hay lote sugerido para este producto')
-      }
-    } catch (err) {
-      notify.error(getSupabaseErrorMessage(err))
-    }
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.product_id) {
@@ -148,9 +128,15 @@ export function WarehouseOperationModal({ open, onOpenChange, mode = 'receipt', 
           autoPost: true,
           approvalThreshold: 5
         })
+        if (res?.stale_snapshot) {
+          notify.warning(
+            `El stock cambió mientras contabas. Se usó el saldo actual del sistema (${res.system_qty_used}).`
+          )
+        }
         if (res?.diff === 0) notify.success('Sin diferencia de conteo')
         else if (res?.needs_approval) notify.warning('Diferencia grande: queda pendiente de aprobación del titular')
-        else notify.success('Conteo registrado')
+        else if (!res?.stale_snapshot) notify.success('Conteo registrado')
+        else notify.success('Conteo registrado con stock actualizado')
       } else {
         const qty = Number(form.qty)
         if (!Number.isFinite(qty) || qty <= 0) {
@@ -306,42 +292,15 @@ export function WarehouseOperationModal({ open, onOpenChange, mode = 'receipt', 
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Ubicación {mode === 'transfer' ? 'origen' : ''}</Label>
+              <Label>Lote (nota opcional)</Label>
               <Input
                 className="h-11"
-                placeholder="A01-01"
-                value={form.location_text}
-                onChange={(e) => setForm({ ...form, location_text: e.target.value })}
+                value={form.lot_text}
+                onChange={(e) => setForm({ ...form, lot_text: e.target.value })}
               />
             </div>
-            {mode === 'transfer' && (
-              <div className="grid gap-2">
-                <Label>Ubicación destino</Label>
-                <Input
-                  className="h-11"
-                  placeholder="B02-03"
-                  value={form.location_to_text}
-                  onChange={(e) => setForm({ ...form, location_to_text: e.target.value })}
-                />
-              </div>
-            )}
             <div className="grid gap-2">
-              <Label>Lote</Label>
-              <div className="flex gap-2">
-                <Input
-                  className="h-11"
-                  value={form.lot_text}
-                  onChange={(e) => setForm({ ...form, lot_text: e.target.value })}
-                />
-                {(mode === 'issue' || mode === 'transfer') && (
-                  <Button type="button" variant="outline" className="h-11 shrink-0" onClick={handleSuggestLot}>
-                    FEFO
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>Serie</Label>
+              <Label>Serie (nota opcional)</Label>
               <Input
                 className="h-11"
                 value={form.serial_text}

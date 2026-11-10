@@ -70,12 +70,12 @@ export function WarehouseInsightsPanel({ userId, businessId, products = [], enab
     }
   }
 
+  // P0-002/008: ocultar "Caducan ≤30d" (stock_balances vacío → siempre 0).
   const kpiItems = [
     { label: 'Productos', value: kpis?.total_products, icon: Package },
     { label: 'Bajo mínimo', value: kpis?.low_stock, icon: AlertTriangle },
     { label: 'Agotados', value: kpis?.out_of_stock },
     { label: 'Sobre máximo', value: kpis?.over_max },
-    { label: 'Caducan ≤30d', value: kpis?.expiring_30d },
     { label: 'Sin movimiento 90d', value: kpis?.dead_stock_90d },
     { label: 'Tareas abiertas', value: kpis?.open_tasks, icon: CheckSquare }
   ]

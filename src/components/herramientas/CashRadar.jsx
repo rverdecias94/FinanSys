@@ -137,7 +137,7 @@ export function CashRadar({ isElite = false }) {
               La proyección a <strong>{eliteHint} días</strong> es una función del{' '}
               <strong>plan Élite</strong>. Con Negocio puedes ver{' '}
               <strong>15 días</strong>.{' '}
-              <Link to="/configuracion" className="font-semibold text-primary underline-offset-2 hover:underline">
+              <Link to="/cuenta/plan" className="font-semibold text-primary underline-offset-2 hover:underline">
                 Ver plan Élite
               </Link>
             </p>

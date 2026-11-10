@@ -24,19 +24,19 @@ describe('utils/financials — Flujo de Efectivo (Q5)', () => {
 })
 
 describe('utils/financials — Posición (Q5)', () => {
-  it('caja real = saldo - por cobrar + por pagar (saldo devengado, datos reales del owner)', () => {
+  it('caja = saldo cobrado (no descuenta CxC ni suma CxP)', () => {
     const balances = [{ currency_code: 'CUP', current_balance: 236135 }, { currency_code: 'USD', current_balance: 1225 }]
     const receivable = [{ currency: 'CUP', total: 5000 }]
     const payable = [{ currency: 'CUP', total: 15000 }]
     const pos = buildPosition(balances, receivable, payable)
-    expect(pos.find((p) => p.currency === 'CUP')).toEqual({ currency: 'CUP', saldo: 236135, porCobrar: 5000, porPagar: 15000, caja: 246135 })
+    expect(pos.find((p) => p.currency === 'CUP')).toEqual({ currency: 'CUP', saldo: 236135, porCobrar: 5000, porPagar: 15000, caja: 236135 })
     expect(pos.find((p) => p.currency === 'USD')).toMatchObject({ saldo: 1225, porCobrar: 0, porPagar: 0, caja: 1225 })
   })
 
   it('maneja numeric como string y monedas sin saldo', () => {
     const pos = buildPosition([{ currency_code: 'CUP', current_balance: '100.00' }], [{ currency: 'EUR', total: '30' }], [])
     expect(pos.find((p) => p.currency === 'CUP')).toMatchObject({ saldo: 100, caja: 100 })
-    expect(pos.find((p) => p.currency === 'EUR')).toMatchObject({ saldo: 0, porCobrar: 30, caja: -30 })
+    expect(pos.find((p) => p.currency === 'EUR')).toMatchObject({ saldo: 0, porCobrar: 30, caja: 0 })
   })
 
   it('omite monedas sin nada (saldo, por cobrar y por pagar en 0)', () => {
@@ -61,7 +61,7 @@ describe('utils/financials — export', () => {
   })
 
   it('positionToExportRows aplana', () => {
-    expect(positionToExportRows([{ currency: 'CUP', saldo: 236135, porCobrar: 5000, porPagar: 15000, caja: 246135 }])[0])
-      .toEqual({ Moneda: 'CUP', 'Saldo registrado': 236135, 'Por cobrar': 5000, 'Por pagar': 15000, 'Caja real hoy': 246135 })
+    expect(positionToExportRows([{ currency: 'CUP', saldo: 236135, porCobrar: 5000, porPagar: 15000, caja: 236135 }])[0])
+      .toEqual({ Moneda: 'CUP', 'Caja cobrada': 236135, 'Por cobrar': 5000, 'Por pagar': 15000, 'Caja disponible': 236135 })
   })
 })

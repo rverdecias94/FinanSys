@@ -11,6 +11,7 @@ describe('isMobilePrimaryRoute', () => {
 
   it('deja el resto para Más', () => {
     expect(isMobilePrimaryRoute('/configuracion')).toBe(false)
+    expect(isMobilePrimaryRoute('/cuenta/negocio')).toBe(false)
     expect(isMobilePrimaryRoute('/contactos')).toBe(false)
     expect(isMobilePrimaryRoute('/cuentas')).toBe(false)
     expect(isMobilePrimaryRoute('/inventario')).toBe(false)

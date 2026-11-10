@@ -15,7 +15,7 @@ export function PeriodLockedBanner({ closedThrough, variant = 'view' }) {
   const message =
     variant === 'create'
       ? `Período cerrado hasta ${label}. Elige una fecha posterior para poder guardar.`
-      : `Período cerrado hasta ${label}. Este movimiento no se puede modificar. Para cambiarlo, el propietario debe reabrir el período en Configuración → General.`
+      : `Período cerrado hasta ${label}. Este movimiento no se puede modificar. Para cambiarlo, el propietario debe reabrir el período en Cuenta → Negocio.`
 
   return (
     <div
