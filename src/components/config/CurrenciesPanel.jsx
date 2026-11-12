@@ -19,6 +19,13 @@ import {
   normalizeFxSettings,
   DEFAULT_TARGET_MARGIN_PCT,
 } from '@/utils/dailyFxReminder'
+import {
+  FX_ANCHOR,
+  fxCupDisplayFromRates,
+  fxCupLabel,
+  fxCupPromptCurrencies,
+  fxCupStoredFromDisplay,
+} from '@/utils/fxPrompt'
 import { CheckCircle2, Globe2, Lock, ArrowLeftRight, TrendingUp, Bell } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -72,11 +79,17 @@ export function CurrenciesPanel() {
   const activeSet = useMemo(() => new Set(businessCurrencies.map((c) => c.code)), [businessCurrencies])
   const defaultCode = useMemo(() => businessCurrencies.find((c) => c.is_default)?.code, [businessCurrencies])
 
-  // Monedas activas distintas de la principal: necesitan tipo de cambio para consolidar.
-  const ratedCurrencies = useMemo(
-    () => businessCurrencies.filter((c) => c.code !== defaultCode),
-    [businessCurrencies, defaultCode]
+  const activeCodes = useMemo(
+    () => businessCurrencies.map((c) => c.code).filter(Boolean),
+    [businessCurrencies],
   )
+  // Preguntas siempre vs CUP (1 USD|EUR|MLC = ¿cuántos CUP?).
+  const promptCodes = useMemo(
+    () => fxCupPromptCurrencies(defaultCode, activeCodes),
+    [defaultCode, activeCodes],
+  )
+  const cupActive =
+    activeCodes.includes(FX_ANCHOR) || String(defaultCode || '').toUpperCase() === FX_ANCHOR
 
   const ratesQuery = useQuery({
     queryKey: ['exchangeRates', userId, businessId],
@@ -88,7 +101,7 @@ export function CurrenciesPanel() {
   const historyQuery = useQuery({
     queryKey: ['exchangeRatesHistory', userId, businessId],
     queryFn: () => getAllExchangeRateHistory(userId, businessId),
-    enabled: !!userId && !!businessId && ratedCurrencies.length > 0,
+    enabled: !!userId && !!businessId && promptCodes.length > 0,
   })
   const history = historyQuery.data || {}
 
@@ -103,7 +116,7 @@ export function CurrenciesPanel() {
     mutationFn: (patch) => patchBusinessFxSettings(userId, businessId, patch),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['configuracion', 'general-settings'] })
-      toast.success('Preferencias de dólar actualizadas')
+      toast.success('Preferencias de tasa actualizadas')
     },
     onError: () => toast.error('No se pudieron guardar las preferencias'),
   })
@@ -116,20 +129,27 @@ export function CurrenciesPanel() {
 
   useEffect(() => {
     const seed = {}
-    for (const c of ratedCurrencies) {
-      seed[c.code] = rates[c.code]?.units_per_base != null ? String(rates[c.code].units_per_base) : ''
+    for (const code of promptCodes) {
+      seed[code] = fxCupDisplayFromRates(code, defaultCode, rates)
     }
     setDrafts(seed)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ratesQuery.data, defaultCode, businessCurrencies.length])
+  }, [ratesQuery.data, defaultCode, promptCodes.join(',')])
 
   const saveMutation = useMutation({
-    mutationFn: ({ currency_code, units_per_base }) =>
-      upsertExchangeRate(
-        { currency_code, units_per_base, effective_date: format(rateDate, 'yyyy-MM-dd') },
+    mutationFn: ({ currency_code, display }) => {
+      const row = fxCupStoredFromDisplay(currency_code, defaultCode, display, rates)
+      if (!row) throw new Error('Tasa inválida')
+      return upsertExchangeRate(
+        {
+          currency_code: row.currency_code,
+          units_per_base: row.units_per_base,
+          effective_date: format(rateDate, 'yyyy-MM-dd'),
+        },
         userId,
-        businessId
-      ),
+        businessId,
+      )
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['exchangeRates'] })
       queryClient.invalidateQueries({ queryKey: ['exchangeRatesHistory'] })
@@ -141,16 +161,16 @@ export function CurrenciesPanel() {
 
   return (
     <div className="space-y-6">
-      {ratedCurrencies.length > 0 && (
+      {promptCodes.length > 0 && cupActive && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Recordatorio diario del dólar
+              Recordatorio diario de la tasa
             </CardTitle>
             <CardDescription>
-              Al abrir Gestia te pedimos la tasa del día (puedes postergarla). Si haces una
-              operación que la necesita, te la pediremos de forma obligatoria.
+              Al abrir Gestia te pedimos cuántos CUP vale 1 USD / EUR / MLC (puedes postergarlo).
+              Si una operación la necesita, te la pediremos de forma obligatoria.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -160,7 +180,7 @@ export function CurrenciesPanel() {
                   Pedírmelo cada día al abrir Gestia
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Recomendado si el dólar cambia a menudo (como en Cuba).
+                  Recomendado si el CUP frente al dólar u otras monedas cambia a menudo.
                 </p>
               </div>
               <Switch
@@ -285,8 +305,8 @@ export function CurrenciesPanel() {
         </CardContent>
       </Card>
 
-      {/* Tipos de cambio (Fase 5): solo si hay moneda principal y ≥1 moneda extra activa. */}
-      {defaultCode && ratedCurrencies.length > 0 && (
+      {/* Tipos de cambio: siempre 1 moneda = ¿cuántos CUP? */}
+      {defaultCode && promptCodes.length > 0 && cupActive && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -294,12 +314,11 @@ export function CurrenciesPanel() {
               Tipos de cambio
             </CardTitle>
             <CardDescription>
-              Define a cuánto está cada moneda respecto a tu moneda principal ({defaultCode}).
-              Se usa para el total consolidado del panel y queda guardado con fecha (historial).
+              En Cuba la tasa se entiende en CUP: 1 USD / EUR / MLC = ¿cuántos CUP?
+              Se usa para consolidar el panel y queda guardada con fecha.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Fecha de la tasa (por si registras la de un día pasado) */}
             {isOwner && (
               <div className="flex flex-col gap-1 sm:max-w-[280px]">
                 <Label className="text-xs text-muted-foreground">Fecha de la tasa</Label>
@@ -312,35 +331,47 @@ export function CurrenciesPanel() {
               </div>
             )}
 
-            {ratedCurrencies.map((c) => {
-              const saved = rates[c.code]
-              const isSaving = saveMutation.isPending && saveMutation.variables?.currency_code === c.code
-              const value = drafts[c.code] ?? ''
-              const valid = value !== '' && Number(value) > 0
+            {promptCodes.map((code) => {
+              const storageCode =
+                String(defaultCode).toUpperCase() === String(code).toUpperCase()
+                  ? FX_ANCHOR
+                  : code
+              const saved = rates[storageCode]
+              const isSaving = saveMutation.isPending && saveMutation.variables?.currency_code === code
+              const value = drafts[code] ?? ''
+              const valid = fxCupStoredFromDisplay(code, defaultCode, value, rates) != null
+              const lastDisplay = fxCupDisplayFromRates(code, defaultCode, rates) || null
+              const chartRows = (history[storageCode] || []).map((row) => {
+                // Historial en BD = units_per_base; UI = CUP por 1 foreign.
+                if (String(storageCode).toUpperCase() === FX_ANCHOR) {
+                  return { ...row, rate: row.rate }
+                }
+                const n = Number(row.rate)
+                return { ...row, rate: Number.isFinite(n) && n > 0 ? 1 / n : null }
+              })
               return (
-                <div key={c.code} className="flex flex-col gap-3 rounded-md border p-3">
+                <div key={code} className="flex flex-col gap-3 rounded-md border p-3">
                   <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex items-center gap-2 whitespace-nowrap pb-2 text-sm">
-                      <span className="font-medium">1 {defaultCode}</span>
-                      <span className="text-muted-foreground">=</span>
-                    </div>
                     <div className="grid gap-1 flex-1 min-w-[140px]">
-                      <Label htmlFor={`rate-${c.code}`} className="text-xs text-muted-foreground">
-                        {c.code} por cada {defaultCode}
+                      <Label htmlFor={`rate-${code}`} className="text-sm font-medium">
+                        {fxCupLabel(code)}
                       </Label>
                       <Input
-                        id={`rate-${c.code}`}
+                        id={`rate-${code}`}
                         type="number"
                         inputMode="decimal"
                         min="0"
                         step="any"
                         className="h-11"
-                        placeholder={`Ej. 420`}
+                        placeholder="Ej. 400"
                         value={value}
                         disabled={!isOwner}
                         aria-invalid={value !== '' && !valid}
-                        onChange={(e) => setDrafts((d) => ({ ...d, [c.code]: e.target.value }))}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [code]: e.target.value }))}
                       />
+                      <p className="text-[11px] text-muted-foreground">
+                        CUP por cada 1 {code}
+                      </p>
                       {value !== '' && !valid && (
                         <p className="text-xs text-destructive">La tasa debe ser un número mayor que 0.</p>
                       )}
@@ -350,7 +381,7 @@ export function CurrenciesPanel() {
                         className="h-11 shrink-0"
                         loading={isSaving}
                         disabled={!valid}
-                        onClick={() => saveMutation.mutate({ currency_code: c.code, units_per_base: Number(value) })}
+                        onClick={() => saveMutation.mutate({ currency_code: code, display: value })}
                       >
                         Guardar
                       </Button>
@@ -358,18 +389,17 @@ export function CurrenciesPanel() {
                   </div>
 
                   <p className="text-xs text-muted-foreground">
-                    {saved?.effective_date
-                      ? `Última tasa: ${saved.units_per_base} ${c.code} (${format(parseISO(saved.effective_date), "d 'de' MMMM yyyy", { locale: es })})`
+                    {saved?.effective_date && lastDisplay
+                      ? `Última tasa: 1 ${code} = ${lastDisplay} CUP (${format(parseISO(saved.effective_date), "d 'de' MMMM yyyy", { locale: es })})`
                       : 'Sin tipo de cambio definido — esta moneda no se incluirá en el total consolidado.'}
                   </p>
 
-                  {/* Historial de evolución */}
                   <div className="rounded-md border bg-muted/10 p-2">
                     <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                       <TrendingUp className="h-3.5 w-3.5" />
-                      Evolución de {c.code} frente a {defaultCode}
+                      Evolución: CUP por 1 {code}
                     </div>
-                    <RateHistoryChart data={history[c.code]} />
+                    <RateHistoryChart data={chartRows} />
                   </div>
                 </div>
               )

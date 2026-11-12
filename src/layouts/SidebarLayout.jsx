@@ -1,4 +1,4 @@
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useState, Suspense, useRef } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/hooks/useSession'
@@ -6,9 +6,9 @@ import { useBusiness } from '@/context/BusinessContext'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
-  Wallet, LogOut, X, ChartArea, Warehouse, Layers, FileText,
-  ShieldAlert, Shield, ShieldCheck, Users, HandCoins, PanelLeftClose, PanelLeftOpen,
-  Sparkles, Crown, ChevronDown, Coins, Palette, Building2,
+  LogOut, Shield, ShieldCheck, PanelLeftClose, PanelLeftOpen, ChevronDown,
+  Sparkles,
+  Crown,
 } from 'lucide-react'
 import { RouteOutletSkeleton } from '@/components/common/pageSkeletons'
 import { supabase } from '@/config/supabase'
@@ -24,66 +24,11 @@ import { FxGateProvider } from '@/context/FxGateContext'
 import { cn } from '@/lib/utils'
 import BrandLogo from '@/components/BrandLogo'
 import { MobileBottomNav } from '@/components/navigation/MobileBottomNav'
+import { NAV_GROUPS, pathMatches, groupContainsPath } from '@/navigation/navConfig'
+import { useEnsureMonthlyPeriodLock } from '@/hooks/useEnsureMonthlyPeriodLock'
 
 const SIDEBAR_COLLAPSED_KEY = 'gestia.sidebarCollapsed'
 const SIDEBAR_GROUPS_KEY = 'gestia.sidebarGroupsOpen'
-
-/** Agrupación visual: categorías colapsables; rutas más discretas debajo. */
-const NAV_GROUPS = [
-  {
-    id: 'inicio',
-    label: null,
-    items: [
-      { to: '/', label: 'Panel General', icon: ChartArea },
-    ],
-  },
-  {
-    id: 'dinero',
-    label: 'Dinero',
-    items: [
-      { to: '/finanzas', label: 'Finanzas', icon: Wallet, permission: 'finanzas.view' },
-      { to: '/contactos', label: 'Contactos', icon: Users, permission: 'finanzas.view' },
-      { to: '/cuentas', label: 'Por cobrar / pagar', icon: HandCoins, permission: 'finanzas.view' },
-    ],
-  },
-  {
-    id: 'existencias',
-    label: 'Existencias',
-    items: [
-      { to: '/almacen', label: 'Almacén', icon: Warehouse, permission: 'warehouse.view', hint: 'Productos que compras y vendes' },
-      { to: '/inventario', label: 'Inventario', icon: Layers, permission: 'inventory.view', hint: 'Áreas, equipos y listas personalizadas' },
-    ],
-  },
-  {
-    id: 'analisis',
-    label: 'Análisis',
-    items: [
-      { to: '/reportes', label: 'Reportes', icon: FileText, permission: 'reports.view' },
-      { to: '/herramientas', label: 'Copiloto', icon: Sparkles, permission: 'finanzas.view' },
-      { to: '/logs', label: 'Auditoría', icon: ShieldAlert, permission: 'logs.view' },
-    ],
-  },
-  {
-    id: 'cuenta',
-    label: 'Cuenta',
-    items: [
-      { to: '/cuenta/plan', label: 'Mi plan', icon: Crown, permission: 'config.view', ownerOnly: true },
-      { to: '/cuenta/negocio', label: 'Negocio', icon: Building2, permission: 'config.view' },
-      { to: '/cuenta/monedas', label: 'Monedas', icon: Coins, permission: 'config.view' },
-      { to: '/cuenta/apariencia', label: 'Apariencia', icon: Palette, permission: 'config.view' },
-      { to: '/cuenta/equipo', label: 'Equipo', icon: Users, permission: 'team.manage' },
-    ],
-  },
-]
-
-function pathMatches(pathname, to) {
-  if (to === '/') return pathname === '/'
-  return pathname === to || pathname.startsWith(`${to}/`)
-}
-
-function groupContainsPath(group, pathname) {
-  return (group.items || []).some((item) => pathMatches(pathname, item.to))
-}
 
 function readOpenGroups() {
   try {
@@ -150,10 +95,9 @@ function NavIconLink({ to, label, icon: Icon, end, title }) {
           end={end}
           aria-label={tip}
           className={({ isActive }) =>
-            `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
-              isActive
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${isActive
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             }`
           }
         >
@@ -208,7 +152,8 @@ export default function SidebarLayout() {
   const { session } = useSession()
   const { isOwner, roleName } = useBusiness()
   const email = session?.user?.email || 'Usuario Local'
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const mainRef = useRef(null)
+  useEnsureMonthlyPeriodLock()
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
@@ -231,8 +176,10 @@ export default function SidebarLayout() {
     staleTime: 5 * 60 * 1000
   })
 
-  // Al navegar: solo la categoría de la ruta activa (acordeón)
+  // Al navegar: solo la categoría de la ruta activa (acordeón) + scroll arriba
   useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0
+
     if (location.pathname.startsWith('/admin')) {
       setAdminOpen(true)
       setOpenGroups((prev) => {
@@ -252,10 +199,6 @@ export default function SidebarLayout() {
       if (already) return prev
       return accordionOpenGroups(location.pathname, activeId)
     })
-  }, [location.pathname])
-
-  useEffect(() => {
-    setSidebarOpen(false)
   }, [location.pathname])
 
   useEffect(() => {
@@ -446,21 +389,13 @@ export default function SidebarLayout() {
   const layout = (
     <TooltipProvider>
       <div
-        className={`h-dvh bg-background lg:grid lg:overflow-hidden transition-[grid-template-columns] duration-300 ease-out ${
-          collapsed ? 'lg:grid-cols-[72px_1fr]' : 'lg:grid-cols-[240px_1fr]'
-        }`}
+        className={`h-dvh bg-background lg:grid lg:overflow-hidden transition-[grid-template-columns] duration-300 ease-out ${collapsed ? 'lg:grid-cols-[72px_1fr]' : 'lg:grid-cols-[240px_1fr]'
+          }`}
       >
-        {/* Mobile Sidebar Overlay */}
-        <div
-          className={`fixed inset-0 z-40 bg-black/50 transition-opacity lg:hidden ${sidebarOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-          onClick={() => setSidebarOpen(false)}
-        />
-
-        {/* Sidebar */}
+        {/* Sidebar solo desktop: en móvil la navegación es bottom nav + chips */}
         <aside
-          className={`fixed inset-y-0 left-0 z-50 flex w-[min(18rem,88vw)] -translate-x-full flex-col border-r bg-card p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] transition-[transform,padding] duration-300 ease-out lg:static lg:h-screen lg:w-auto lg:translate-x-0 lg:pt-4 lg:pb-4 ${
-            sidebarOpen ? 'translate-x-0' : ''
-          } ${collapsed ? 'lg:p-2' : ''}`}
+          className={`hidden lg:static lg:flex lg:h-screen lg:w-auto lg:flex-col lg:border-r lg:bg-card lg:p-4 ${collapsed ? 'lg:p-2' : ''
+            }`}
         >
           {/* Collapsed desktop rail */}
           <div className={`hidden ${collapsed ? 'lg:flex' : 'lg:hidden'} h-full min-h-0 w-full flex-col items-center gap-1`}>
@@ -514,14 +449,6 @@ export default function SidebarLayout() {
                   title="Cerrar menú"
                 >
                   <PanelLeftClose className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="lg:hidden"
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <X className="w-5 h-5" />
                 </Button>
               </div>
             </div>
@@ -589,13 +516,16 @@ export default function SidebarLayout() {
             <BrandLogo className="h-8 w-auto object-contain" />
           </header>
 
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,calc(6.25rem+env(safe-area-inset-bottom,0px)))] sm:p-6 lg:p-8">
+          <main
+            ref={mainRef}
+            className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-[max(1rem,calc(6.25rem+env(safe-area-inset-bottom,0px)))] sm:p-6 lg:p-8"
+          >
             <Suspense fallback={<RouteOutletSkeleton />}>
               <Outlet />
             </Suspense>
           </main>
 
-          <MobileBottomNav onMore={() => setSidebarOpen(true)} />
+          <MobileBottomNav />
         </div>
 
         <AccountGate />

@@ -15,6 +15,7 @@ import {
   todayLocalIso,
 } from '@/utils/dailyFxReminder'
 import { DailyFxRateModal } from '@/components/config/DailyFxRateModal'
+import { fxCupPromptCurrencies, fxCupStorageCodesForCheck } from '@/utils/fxPrompt'
 
 const FxGateContext = createContext(null)
 
@@ -34,10 +35,11 @@ export function FxGateProvider({ children }) {
     () => businessCurrencies.find((c) => c.is_default)?.code,
     [businessCurrencies]
   )
-  const ratedCurrencyCodes = useMemo(
-    () => businessCurrencies.filter((c) => c.code !== defaultCode).map((c) => c.code),
-    [businessCurrencies, defaultCode]
-  )
+  const ratedCurrencyCodes = useMemo(() => {
+    const active = businessCurrencies.map((c) => c.code).filter(Boolean)
+    const prompts = fxCupPromptCurrencies(defaultCode, active)
+    return fxCupStorageCodesForCheck(prompts, defaultCode)
+  }, [businessCurrencies, defaultCode])
 
   const settingsQuery = useQuery({
     queryKey: ['configuracion', 'general-settings', businessId || userId],

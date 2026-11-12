@@ -76,4 +76,4 @@ export const FX_REQUIRED_REASONS = {
 }
 
 export const FX_REMINDER_OFF_CONSEQUENCES =
-  'Si desactivas el recordatorio, Gestia no te pedirá el dólar al abrir. Cuando hagas una entrada de almacén, un precio de reposición o un movimiento en otra moneda, sí te lo pedirá de forma obligatoria para no descuadrar.'
+  'Si desactivas el recordatorio, Gestia no te pedirá la tasa en CUP al abrir. Cuando hagas una entrada de almacén, un precio de reposición o un movimiento en otra moneda, sí te la pedirá de forma obligatoria para no descuadrar.'

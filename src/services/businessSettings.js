@@ -16,7 +16,7 @@ export async function getBusinessSettings(userId, businessId) {
 
   const { data, error } = await supabase
     .from('business_settings')
-    .select('company, region, valuation_method, fx, updated_at')
+    .select('company, region, valuation_method, fx, period, updated_at')
     .eq('user_id', effectiveUserId)
     .maybeSingle()
 
@@ -26,6 +26,7 @@ export async function getBusinessSettings(userId, businessId) {
   return {
     ...data,
     fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
+    period: data.period && typeof data.period === 'object' ? data.period : {},
     company: stripLogoDataUrl(data.company)
   }
 }
@@ -48,7 +49,7 @@ export async function uploadCompanyLogo(userId, businessId, file) {
   return `${publicUrl}?v=${Date.now()}`
 }
 
-export async function upsertBusinessSettings(userId, businessId, { company, region, valuationMethod, fx }) {
+export async function upsertBusinessSettings(userId, businessId, { company, region, valuationMethod, fx, period }) {
   const effectiveUserId = getEffectiveUserId(userId, businessId)
   const cleanCompany = stripLogoDataUrl(company)
 
@@ -62,11 +63,14 @@ export async function upsertBusinessSettings(userId, businessId, { company, regi
   if (fx !== undefined) {
     payload.fx = fx && typeof fx === 'object' ? fx : {}
   }
+  if (period !== undefined) {
+    payload.period = period && typeof period === 'object' ? period : {}
+  }
 
   const { data, error } = await supabase
     .from('business_settings')
     .upsert(payload, { onConflict: 'user_id' })
-    .select('company, region, valuation_method, fx, updated_at')
+    .select('company, region, valuation_method, fx, period, updated_at')
     .single()
 
   if (error) throw error
@@ -79,6 +83,7 @@ export async function upsertBusinessSettings(userId, businessId, { company, regi
       region: payload.region,
       valuation_method: payload.valuation_method,
       fx: payload.fx,
+      period: payload.period,
     },
     area: 'Configuración'
   })
@@ -86,6 +91,7 @@ export async function upsertBusinessSettings(userId, businessId, { company, regi
   return {
     ...data,
     fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
+    period: data.period && typeof data.period === 'object' ? data.period : {},
     company: stripLogoDataUrl(data.company)
   }
 }
@@ -109,7 +115,7 @@ export async function patchBusinessFxSettings(userId, businessId, fxPatch) {
     .from('business_settings')
     .update({ fx: nextFx, updated_at: new Date() })
     .eq('user_id', effectiveUserId)
-    .select('company, region, valuation_method, fx, updated_at')
+    .select('company, region, valuation_method, fx, period, updated_at')
     .single()
 
   if (error) throw error
@@ -124,6 +130,46 @@ export async function patchBusinessFxSettings(userId, businessId, fxPatch) {
   return {
     ...data,
     fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
+    period: data.period && typeof data.period === 'object' ? data.period : {},
+    company: stripLogoDataUrl(data.company),
+  }
+}
+
+/** Actualiza solo el JSON period (reglas de cierre automático). */
+export async function patchBusinessPeriodSettings(userId, businessId, periodPatch) {
+  const effectiveUserId = getEffectiveUserId(userId, businessId)
+  const current = await getBusinessSettings(userId, businessId)
+  const nextPeriod = { ...(current?.period || {}), ...(periodPatch || {}) }
+
+  if (!current) {
+    return upsertBusinessSettings(userId, businessId, {
+      company: {},
+      region: {},
+      valuationMethod: 'fifo',
+      period: nextPeriod,
+    })
+  }
+
+  const { data, error } = await supabase
+    .from('business_settings')
+    .update({ period: nextPeriod, updated_at: new Date() })
+    .eq('user_id', effectiveUserId)
+    .select('company, region, valuation_method, fx, period, updated_at')
+    .single()
+
+  if (error) throw error
+
+  logAction({
+    action: 'Actualizar',
+    resource: 'Cierre de período',
+    details: { period: nextPeriod },
+    area: 'Configuración',
+  })
+
+  return {
+    ...data,
+    fx: data.fx && typeof data.fx === 'object' ? data.fx : {},
+    period: data.period && typeof data.period === 'object' ? data.period : {},
     company: stripLogoDataUrl(data.company),
   }
 }

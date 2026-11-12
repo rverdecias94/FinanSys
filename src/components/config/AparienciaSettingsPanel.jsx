@@ -94,6 +94,7 @@ export function AparienciaSettingsPanel() {
         region: regionPayload,
         valuationMethod: s?.valuation_method || 'fifo',
         fx: s?.fx,
+        period: s?.period,
       })
     },
     onSuccess: (data) => {

@@ -56,13 +56,13 @@ describe('DailyFxRateModal', () => {
   it('muestra el modal soft con Más tarde y exige confirmación', async () => {
     const user = userEvent.setup()
     renderModal()
-    expect(await screen.findByText(/A cuánto está el dólar hoy/i)).toBeInTheDocument()
+    expect(await screen.findByText(/A cuánto está el CUP hoy/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Más tarde/i })).toBeInTheDocument()
 
     const save = screen.getByRole('button', { name: /Guardar tasa de hoy/i })
     expect(save).toBeDisabled()
 
-    const input = screen.getByLabelText(/Tasa CUP de hoy/i)
+    const input = screen.getByLabelText(/Tasa USD de hoy/i)
     await user.clear(input)
     await user.type(input, '930')
     await user.click(screen.getByLabelText(/Confirmo que estas cifras/i))
@@ -85,7 +85,7 @@ describe('DailyFxRateModal', () => {
     })
     renderModal()
     await waitFor(() => {
-      expect(screen.queryByText(/A cuánto está el dólar hoy/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/A cuánto está el CUP hoy/i)).not.toBeInTheDocument()
     })
   })
 })
