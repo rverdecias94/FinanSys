@@ -15,9 +15,10 @@ describe('fx CUP-centric', () => {
     expect(fxCupLabel('MLC')).toBe('1 MLC = ¿cuántos CUP?')
   })
 
-  it('lista monedas a preguntar (sin CUP)', () => {
-    expect(fxCupPromptCurrencies('USD', ['USD', 'CUP', 'EUR'])).toEqual(['USD', 'EUR'])
+  it('lista monedas a preguntar (sin CUP), sin importar la principal', () => {
+    expect(fxCupPromptCurrencies('USD', ['USD', 'CUP', 'EUR', 'MLC'])).toEqual(['USD', 'EUR', 'MLC'])
     expect(fxCupPromptCurrencies('CUP', ['CUP', 'USD'])).toEqual(['USD'])
+    expect(fxCupPromptCurrencies('MLC', ['MLC', 'USD', 'CUP'])).toEqual(['USD', 'MLC'])
   })
 
   it('base CUP: 1 USD = 400 CUP ↔ units USD = 0.0025', () => {

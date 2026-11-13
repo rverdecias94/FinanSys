@@ -10,13 +10,15 @@ vi.mock('@/hooks/useSession', () => ({
 vi.mock('@/context/BusinessContext', () => ({
   useBusiness: () => ({ businessId: 'b1', isOwner: true }),
 }))
+const currencyState = {
+  businessCurrencies: [
+    { code: 'USD', is_default: true },
+    { code: 'CUP', is_default: false },
+  ],
+}
+
 vi.mock('@/context/CurrencyContext', () => ({
-  useCurrency: () => ({
-    businessCurrencies: [
-      { code: 'USD', is_default: true },
-      { code: 'CUP', is_default: false },
-    ],
-  }),
+  useCurrency: () => currencyState,
 }))
 vi.mock('@/hooks/useOnlineStatus', () => ({
   useOnlineStatus: () => true,
@@ -51,7 +53,13 @@ function renderModal(props = {}) {
 }
 
 describe('DailyFxRateModal', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    currencyState.businessCurrencies = [
+      { code: 'USD', is_default: true },
+      { code: 'CUP', is_default: false },
+    ]
+  })
 
   it('muestra el modal soft con Más tarde y exige confirmación', async () => {
     const user = userEvent.setup()
@@ -62,11 +70,24 @@ describe('DailyFxRateModal', () => {
     const save = screen.getByRole('button', { name: /Guardar tasa de hoy/i })
     expect(save).toBeDisabled()
 
-    const input = screen.getByLabelText(/Tasa USD de hoy/i)
+    const input = screen.getByLabelText(/1 USD = ¿cuántos CUP\?/i)
     await user.clear(input)
     await user.type(input, '930')
     await user.click(screen.getByLabelText(/Confirmo que estas cifras/i))
     expect(save).toBeEnabled()
+  })
+
+  it('con MLC pregunta 1 MLC = CUP, nunca 1 USD = MLC', async () => {
+    currencyState.businessCurrencies = [
+      { code: 'USD', is_default: true },
+      { code: 'CUP', is_default: false },
+      { code: 'MLC', is_default: false },
+    ]
+    renderModal()
+    expect(await screen.findByLabelText(/1 USD = ¿cuántos CUP\?/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/1 MLC = ¿cuántos CUP\?/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/1 USD = ¿cuántos MLC\?/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/respecto a USD/i)).not.toBeInTheDocument()
   })
 
   it('en modo obligatorio no ofrece Más tarde', async () => {

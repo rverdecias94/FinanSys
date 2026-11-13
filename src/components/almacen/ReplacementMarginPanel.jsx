@@ -201,7 +201,7 @@ export function ReplacementMarginPanel({ onApplied }) {
           <div className="grid gap-2 rounded-md border p-3 sm:max-w-sm">
             <Label htmlFor="fx-scenario" className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Sparkles className="h-3.5 w-3.5" />
-              Escenario Élite: simular 1 {defaultCode} = ¿cuántos {quoteCode}?
+              Escenario Élite: simular 1 {defaultCode === 'CUP' ? quoteCode : defaultCode} = ¿cuántos CUP?
             </Label>
             <Input
               id="fx-scenario"

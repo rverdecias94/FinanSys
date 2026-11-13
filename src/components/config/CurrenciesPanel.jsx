@@ -88,9 +88,6 @@ export function CurrenciesPanel() {
     () => fxCupPromptCurrencies(defaultCode, activeCodes),
     [defaultCode, activeCodes],
   )
-  const cupActive =
-    activeCodes.includes(FX_ANCHOR) || String(defaultCode || '').toUpperCase() === FX_ANCHOR
-
   const ratesQuery = useQuery({
     queryKey: ['exchangeRates', userId, businessId],
     queryFn: () => getExchangeRates(userId, businessId),
@@ -161,7 +158,7 @@ export function CurrenciesPanel() {
 
   return (
     <div className="space-y-6">
-      {promptCodes.length > 0 && cupActive && (
+      {promptCodes.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -306,7 +303,7 @@ export function CurrenciesPanel() {
       </Card>
 
       {/* Tipos de cambio: siempre 1 moneda = ¿cuántos CUP? */}
-      {defaultCode && promptCodes.length > 0 && cupActive && (
+      {defaultCode && promptCodes.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -314,8 +311,8 @@ export function CurrenciesPanel() {
               Tipos de cambio
             </CardTitle>
             <CardDescription>
-              En Cuba la tasa se entiende en CUP: 1 USD / EUR / MLC = ¿cuántos CUP?
-              Se usa para consolidar el panel y queda guardada con fecha.
+              Cada moneda activa se pregunta frente al CUP (1 USD / EUR / MLC = ¿cuántos CUP?),
+              aunque tu moneda principal sea otra. Así se consolida el panel.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

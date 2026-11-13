@@ -29,7 +29,7 @@ Inicia sesión manualmente en la cuenta de prueba (Negocio o Élite con USD+CUP)
 2. Con CUP activo, verificar switch «Pedírmelo cada día».
 3. Apagar → debe verse el aviso de consecuencias.
 4. Encender de nuevo.
-5. Borrar/ausentar tasa de hoy → recargar app → modal «¿A cuánto está el dólar hoy?».
+5. Borrar/ausentar tasa de hoy → recargar app → modal «¿A cuánto está el CUP hoy?» (1 USD/EUR/MLC = ¿cuántos CUP?).
 6. Guardar 800 → recargar → el modal no debe reaparecer.
 7. «Más tarde» → no reaparece el mismo día.
 

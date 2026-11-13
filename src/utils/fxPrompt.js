@@ -21,19 +21,33 @@ function roundStored(v) {
 }
 
 /**
- * Monedas para las que pedimos tasa vs CUP (todas las activas excepto CUP).
- * Si la base no es CUP, también se pide la tasa de la base vs CUP vía la fila CUP
- * cuando CUP está activa; las extranjeras se convierten cruzando por CUP.
+ * Monedas habilitadas a preguntar al inicio / en Monedas.
+ * Regla Cuba: 1 X = ¿cuántos CUP? para CADA moneda activa distinta de CUP.
+ * La moneda principal (is_default) NO cambia el sentido de la pregunta:
+ * si el negocio opera en USD, igual se pregunta «1 USD = ¿cuántos CUP?»
+ * y «1 MLC = ¿cuántos CUP?» — nunca «1 USD = ¿cuántos MLC?».
  */
-export function fxCupPromptCurrencies(baseCode, activeCodes = []) {
-  const base = code(baseCode)
+export function fxCupPromptCurrencies(_baseCode, activeCodes = []) {
   const codes = (activeCodes || []).map(code).filter(Boolean)
-  // Pedimos 1 X = ¿cuántos CUP? para cada moneda distinta de CUP.
-  return codes.filter((c) => c !== FX_ANCHOR)
+  // Deduplicar y ordenar estable (USD/EUR/MLC primero si están, luego el resto).
+  const preferred = ['USD', 'EUR', 'MLC']
+  const unique = [...new Set(codes.filter((c) => c !== FX_ANCHOR))]
+  return unique.sort((a, b) => {
+    const ia = preferred.indexOf(a)
+    const ib = preferred.indexOf(b)
+    if (ia !== -1 || ib !== -1) {
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    }
+    return a.localeCompare(b)
+  })
 }
 
+/** Siempre anclado a CUP. Nunca usa la moneda principal como denominador. */
 export function fxCupLabel(foreignCode) {
   const f = code(foreignCode)
+  if (!f || f === FX_ANCHOR) return ''
   return `1 ${f} = ¿cuántos ${FX_ANCHOR}?`
 }
 

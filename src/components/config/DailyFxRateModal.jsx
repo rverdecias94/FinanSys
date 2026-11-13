@@ -37,7 +37,9 @@ import { ArrowLeftRight } from 'lucide-react'
 import { toast } from 'sonner'
 
 /**
- * Modal de tasa del día — siempre “1 USD|EUR|MLC = ¿cuántos CUP?”.
+ * Modal de tasa del día.
+ * UI Cuba: cada moneda habilitada (salvo CUP) → «1 X = ¿cuántos CUP?».
+ * La moneda principal solo afecta cómo se guarda en BD (units_per_base), no el texto.
  */
 export function DailyFxRateModal({
   requiredGate = null,
@@ -61,21 +63,27 @@ export function DailyFxRateModal({
     () => businessCurrencies.map((c) => c.code).filter(Boolean),
     [businessCurrencies],
   )
-  const cupActive = activeCodes.includes(FX_ANCHOR) || String(defaultCode).toUpperCase() === FX_ANCHOR
 
-  const promptCodes = useMemo(() => {
-    const codes = fxCupPromptCurrencies(defaultCode, activeCodes)
-    // Base primero para poder cruzar el resto
-    return [...codes].sort((a, b) => {
-      if (a === defaultCode) return -1
-      if (b === defaultCode) return 1
-      return a.localeCompare(b)
+  const promptCodes = useMemo(
+    () => fxCupPromptCurrencies(defaultCode, activeCodes),
+    [defaultCode, activeCodes],
+  )
+
+  // Para guardar cruces (p. ej. MLC con base USD) hace falta primero la tasa de la base vs CUP.
+  const orderedPromptCodes = useMemo(() => {
+    if (!defaultCode) return promptCodes
+    const base = String(defaultCode).toUpperCase()
+    if (base === FX_ANCHOR) return promptCodes
+    return [...promptCodes].sort((a, b) => {
+      if (a === base) return -1
+      if (b === base) return 1
+      return 0
     })
-  }, [defaultCode, activeCodes])
+  }, [promptCodes, defaultCode])
 
   const storageCodes = useMemo(
-    () => fxCupStorageCodesForCheck(promptCodes, defaultCode),
-    [promptCodes, defaultCode],
+    () => fxCupStorageCodesForCheck(orderedPromptCodes, defaultCode),
+    [orderedPromptCodes, defaultCode],
   )
 
   const settingsQuery = useQuery({
@@ -88,7 +96,7 @@ export function DailyFxRateModal({
   const ratesQuery = useQuery({
     queryKey: ['exchangeRates', userId, businessId],
     queryFn: () => getExchangeRates(userId, businessId),
-    enabled: !!userId && !!businessId && isOwner && online && promptCodes.length > 0,
+    enabled: !!userId && !!businessId && isOwner && online && orderedPromptCodes.length > 0,
     staleTime: 15_000,
   })
 
@@ -97,7 +105,6 @@ export function DailyFxRateModal({
 
   const softOpen =
     !required &&
-    cupActive &&
     shouldShowDailyFxModal({
       reminderEnabled: fx.daily_fx_reminder,
       lastPromptDate: fx.last_fx_prompt_date,
@@ -110,7 +117,12 @@ export function DailyFxRateModal({
     !settingsQuery.isLoading &&
     !ratesQuery.isLoading
 
-  const open = (required || softOpen) && !!userId && !!businessId && isOwner && cupActive
+  const open =
+    (required || softOpen) &&
+    !!userId &&
+    !!businessId &&
+    isOwner &&
+    orderedPromptCodes.length > 0
 
   const [drafts, setDrafts] = useState({})
   const [confirmed, setConfirmed] = useState(false)
@@ -121,23 +133,22 @@ export function DailyFxRateModal({
       return
     }
     const seed = {}
-    for (const code of promptCodes) {
+    for (const code of orderedPromptCodes) {
       seed[code] = fxCupDisplayFromRates(code, defaultCode, rates)
     }
     setDrafts(seed)
     setConfirmed(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, required, defaultCode, promptCodes.join(',')])
+  }, [open, required, defaultCode, orderedPromptCodes.join(',')])
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!confirmed) {
         throw new Error('Confirma que estas cifras son el precio real que usas hoy')
       }
-      // Acumulamos tasas ya guardadas en esta pasada para cruces EUR tras USD→CUP
       const liveRates = { ...rates }
-      for (const code of promptCodes) {
-        if (fxCupNeedsBaseCupRate(code, defaultCode, liveRates) && code !== defaultCode) {
+      for (const code of orderedPromptCodes) {
+        if (fxCupNeedsBaseCupRate(code, defaultCode, liveRates) && code !== String(defaultCode).toUpperCase()) {
           throw new Error(`Primero indica 1 ${defaultCode} = ¿cuántos CUP?`)
         }
         const row = fxCupStoredFromDisplay(code, defaultCode, drafts[code], liveRates)
@@ -179,11 +190,11 @@ export function DailyFxRateModal({
     },
   })
 
-  const allValid = promptCodes.every((code) => {
+  const allValid = orderedPromptCodes.every((code) => {
     const live = { ...rates }
-    // Simular base ya ingresada en drafts
-    if (defaultCode && drafts[defaultCode]) {
-      const baseRow = fxCupStoredFromDisplay(defaultCode, defaultCode, drafts[defaultCode], live)
+    const base = String(defaultCode || '').toUpperCase()
+    if (base && base !== FX_ANCHOR && drafts[base]) {
+      const baseRow = fxCupStoredFromDisplay(base, defaultCode, drafts[base], live)
       if (baseRow) live[baseRow.currency_code] = { units_per_base: baseRow.units_per_base }
     }
     return fxCupStoredFromDisplay(code, defaultCode, drafts[code], live) != null
@@ -213,7 +224,7 @@ export function DailyFxRateModal({
             {required
               ? requiredGate?.reason ||
                 'Esta operación depende de la tasa actualizada. Introdúcela para continuar.'
-              : `En Cuba la tasa se expresa en CUP (1 USD / EUR / MLC = ¿cuántos CUP?). Fecha: ${today}.`}
+              : `Indica cuántos CUP vale cada moneda activa de tu negocio (fecha ${today}). La moneda principal no cambia esta pregunta.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -224,7 +235,7 @@ export function DailyFxRateModal({
             </div>
           )}
 
-          {promptCodes.map((code) => (
+          {orderedPromptCodes.map((code) => (
             <div key={code} className="grid gap-1.5">
               <Label htmlFor={`daily-fx-${code}`} className="text-sm">
                 {fxCupLabel(code)}
@@ -236,13 +247,13 @@ export function DailyFxRateModal({
                 min="0"
                 step="any"
                 className="h-11"
-                placeholder="Ej. 400"
+                placeholder="Ej. 320"
                 value={drafts[code] ?? ''}
                 onChange={(e) => {
                   setDrafts((d) => ({ ...d, [code]: e.target.value }))
                   setConfirmed(false)
                 }}
-                aria-label={`Tasa ${code} de hoy`}
+                aria-label={fxCupLabel(code)}
               />
             </div>
           ))}
